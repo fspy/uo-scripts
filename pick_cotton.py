@@ -1,14 +1,22 @@
-# add 0x0DF9 to scavenger!
+# will find cotton nearby, walk to it, use it, scavenge it, repeat.
+# don't forget to add 0x0DF9 to scavenger!
+
+from AutoComplete import *
+
 cotton_ids = (3153, 3154, 3155, 3156)
 
+
 def find_cotton():
-    return [item 
-        for id in cotton_ids
+    return [
+        item for id in cotton_ids
         for item in Items.FindAllByID(id, -1, -1, -1)
     ]
 
+
 def distance(a, b):
-    return Misc.Distance(a.Position.X, a.Position.Y, b.Position.X, b.Position.Y)
+    return Misc.Distance(a.Position.X, a.Position.Y, b.Position.X,
+                         b.Position.Y)
+
 
 def closest_cotton(l):
     cl = l[:]
@@ -16,6 +24,7 @@ def closest_cotton(l):
     if len(cl) > 0:
         return cl.pop()
     return None
+
 
 if not Scavenger.Status():
     Scavenger.Start()

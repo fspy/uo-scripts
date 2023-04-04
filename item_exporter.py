@@ -1,3 +1,6 @@
+# exports a container to a html file with their corresponding graphics
+# uses `style.css` for styling. there is one provided or you can make your own
+# files are saved at CUO's Data directory.
 from datetime import datetime
 from AutoComplete import *
 from collections import defaultdict
@@ -6,6 +9,7 @@ from lib.colors import colors
 import clr
 
 clr.AddReference('System.Drawing')
+# this export needs to go after `clr.AddReference`, or RE breaks
 from System.Drawing.Imaging import *
 
 
@@ -17,7 +21,8 @@ def gen_html(i, img_file):
 def main(f):
     cont = Target.PromptTarget('Target container', colors['yellow'])
     if not cont:
-        return Misc.SendMessage('Unable to retrieve container', colors['purple'])
+        return Misc.SendMessage('Unable to retrieve container',
+                                colors['purple'])
 
     cont_data = Items.FindBySerial(cont)
     if not cont_data:
@@ -32,8 +37,7 @@ def main(f):
         items.sort(key=lambda x: x.Name)
         for i in items:
             img_file = '{}-{}.png'.format(id, i.Hue)
-            i.Image.Save('./Data/Items/{}'.format(img_file),
-                         ImageFormat.Png)
+            i.Image.Save('./Data/Items/{}'.format(img_file), ImageFormat.Png)
             f.write(gen_html(i, img_file))
 
 

@@ -1,12 +1,11 @@
-# bod reader
-from pprint import pprint
+# bod reader -> filler eventually
+# work in progress, nothing works
+
 from AutoComplete import *
 import re
 
 bod_id = 0x2258
-bod_colors = {
-    'blacksmithing': 0x044e
-}
+bod_colors = {'blacksmithing': 0x044e}
 
 
 def all_bods(kind):
@@ -30,10 +29,13 @@ property_regex = {
 
 
 class Bod:
-    compiled_regex = {num: re.compile(regex)
-                      for num, regex in property_regex.items()}
+    compiled_regex = {
+        num: re.compile(regex)
+        for num, regex in property_regex.items()
+    }
 
-    def __init__(self, is_large, is_exceptional, ingot_type, total_quantity, item_quantities):
+    def __init__(self, is_large, is_exceptional, ingot_type, total_quantity,
+                 item_quantities):
         self.is_large = is_large
         self.is_exceptional = is_exceptional
         self.ingot_type = ingot_type
@@ -61,15 +63,20 @@ class Bod:
                         ingot_type = match.group('ingot_type')
                     elif num == 1060656:
                         total_quantity = int(match.group('quantity'))
-                    elif num in [1060658, 1060659, 1060660, 1060661, 1060662, 1060663]:
+                    elif num in [
+                            1060658, 1060659, 1060660, 1060661, 1060662,
+                            1060663
+                    ]:
                         item_type = match.group('item_type')
                         quantity = int(match.group('quantity'))
                         item_quantities[item_type] = quantity
 
-        return cls(is_large, is_exceptional, ingot_type, total_quantity, item_quantities)
+        return cls(is_large, is_exceptional, ingot_type, total_quantity,
+                   item_quantities)
 
     def is_filled(self):
-        return all(quantity == self.total_quantity for quantity in self.item_quantities.values())
+        return all(quantity == self.total_quantity
+                   for quantity in self.item_quantities.values())
 
     def missing_items(self):
         missing = {}
@@ -85,7 +92,6 @@ bods = [Bod.from_item(item) for item in all_bods('blacksmithing')]
 for bod in bods:
     print(bod.missing_items())
 
-
 with open('bodinfo.txt', 'w') as f:
     for bod in bods:
-        pprint(vars(bod), f)
+        print(vars(bod), f)
