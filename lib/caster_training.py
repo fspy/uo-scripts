@@ -93,6 +93,7 @@ class SpellSafe(Spell):
 
     def __init__(self, spell_name, mana_cost, target, safe_spell):
         super().__init__(spell_name, mana_cost, target)
+        self.safe_spell = safe_spell
 
     def cast(self):
         """Casts the spell, safely.
@@ -100,8 +101,10 @@ class SpellSafe(Spell):
         This is done by checking if the player is missing health, and if so,
         casting the stored "safe spell" before the actual skill-gaining spell.
         """
-        if Player.Hits < Player.HitsMax - 20:
-            super().safe_spell.cast()
+        if Player.Hits < Player.HitsMax / 2:
+            while Player.Hits < Player.HitsMax:
+                self.safe_spell.cast()
+                Misc.Pause(50)
         super().cast()
 
 
