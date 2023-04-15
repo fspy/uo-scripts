@@ -2,6 +2,9 @@
 # this uses the friends agent, with the name "pets".
 
 from AutoComplete import *
+from lib.util import MobileFilter, Hue
+
+mfilter = MobileFilter(Friend.GetList('pets'), friend=True)
 
 
 def find_bandage():
@@ -9,17 +12,6 @@ def find_bandage():
     if not bandages:
         raise Exception("couldn't find bandages!")
     return bandages
-
-
-def find_most_damaged_pet():
-    mfilter = Mobiles.Filter()
-    mfilter.Friend = True
-    mfilter.Serials = Friend.GetList('pets')
-
-    found_pets = Mobiles.ApplyFilter(mfilter)
-    if not found_pets:
-        raise Exception("couldn't find any pets!")
-    return Mobiles.Select(found_pets, 'Weakest')
 
 
 def check_range(pet):
@@ -30,11 +22,12 @@ def check_range(pet):
 
 def heal():
     b = find_bandage()
-    p = find_most_damaged_pet()
+    p = mfilter.get('weakest')
 
     if p.Hits < p.HitsMax * .95 and check_range(p):
         Timer.Create('veterinary', 2200)
         Items.UseItem(b, p)
+
 
 Timer.Create('veterinary', 1)
 Timer.Create('veterinary_err', 1)
@@ -47,7 +40,7 @@ while True:
             heal()
     except Exception as e:
         if not Timer.Check('veterinary_err'):
-            #Misc.SendMessage('Error: {}'.format(e), 33)
+            Misc.SendMessage('Error: {}'.format(e), Hue.Red)
             Timer.Create('veterinary_err', 5000)
     finally:
         Misc.Pause(200)

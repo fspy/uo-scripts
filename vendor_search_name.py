@@ -16,7 +16,7 @@ from AutoComplete import *
 
 def edge_cases_tip_of_iceberg(txt):
     # dont strip numbers from power/stat scrolls
-    # numbers are stripped for cases such as commodities and raw materials 
+    # numbers are stripped for cases such as commodities and raw materials
     # e.g.: 137 ingots -> ingots
     # this could be expanded in case other search limitations come up
     if 'scroll of' in txt:

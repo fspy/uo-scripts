@@ -3,8 +3,7 @@
 import threading
 from AutoComplete import *
 import re, time
-from lib.colors import colors
-from lib.util import safe_cast
+from lib.util import safe_cast, Hue
 
 settings = {
     'veterinary': True,
@@ -114,15 +113,14 @@ class PetHealing:
         Misc.Pause(self.DELAY)
         if Journal.Search('weave powerful magic, protecting'):
             Player.HeadMessage(
-                colors['green'], 'Gift of Life active for {} minutes!'.format(
+                Hue.Green, 'Gift of Life active for {} minutes!'.format(
                     round(self.life_duration / 60)))
             self._last_life = time.time()
             return
         elif Journal.Search('is already in effect'):
             if time.time() - self._last_life >= self.life_duration:
                 # try again in 30s
-                Player.HeadMessage(colors['red'],
-                                   'Gift of Life is already active!')
+                Player.HeadMessage(Hue.Red, 'Gift of Life is already active!')
                 self._last_life = time.time() + 30
                 threading.Timer(30, self._gol_thread).start()
 
@@ -147,13 +145,12 @@ class PetHealing:
             Timer.Create('ph_renewal', 10000)
             self._last_life = time.time()
             Player.HeadMessage(
-                colors['red'],
-                'Gift of Renewal is already active / on cooldown!')
+                Hue.Red, 'Gift of Renewal is already active / on cooldown!')
             return
 
         Timer.Create('ph_renewal', self.renewal_duration * 1000)
         Player.HeadMessage(
-            colors['green'], 'Gift of Renewal ative for {} seconds!'.format(
+            Hue.Green, 'Gift of Renewal ative for {} seconds!'.format(
                 self.renewal_duration - 30))
 
     def use_magery(self, cure_only=False):

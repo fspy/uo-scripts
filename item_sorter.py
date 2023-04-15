@@ -5,8 +5,7 @@
 # The library used (`ItemQuery`) can be find in `./lib/item_query.py`.
 
 from lib.item_query import ItemQuery
-from lib.util import head_prompt
-from lib.colors import colors
+from lib.util import head_prompt, Hue
 from AutoComplete import *
 
 CONTAINER_WEAPON = 0x40722114
@@ -45,4 +44,4 @@ weight_container = sorted(CONTAINER_WEIGHTS.items(),
 for (weight, container) in weight_container:
     q.move_all(q.query_weighted(float(weight), weights), container)
 
-Misc.SendMessage("Done sorting items!", colors['cyan'])
+Misc.SendMessage("Done sorting items!", Hue.Cyan)

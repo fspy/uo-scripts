@@ -4,7 +4,7 @@
 from datetime import datetime
 from AutoComplete import *
 from collections import defaultdict
-from lib.colors import colors
+from lib.util import Hue
 
 import clr
 
@@ -19,15 +19,15 @@ def gen_html(i, img_file):
 
 
 def main(f):
-    cont = Target.PromptTarget('Target container', colors['yellow'])
+    cont = Target.PromptTarget('Target container', Hue.Yellow)
     if not cont:
         return Misc.SendMessage('Unable to retrieve container',
-                                colors['purple'])
+                                Hue.Purple)
 
     cont_data = Items.FindBySerial(cont)
     if not cont_data:
         return Misc.SendMessage("Error retrieving container's items",
-                                colors['purple'])
+                                Hue.Purple)
 
     item_data = defaultdict(list)
     for item in cont_data.Contains:

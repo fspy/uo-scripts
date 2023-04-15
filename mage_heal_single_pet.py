@@ -1,14 +1,25 @@
 # will make your game freeze from healing your pet non-stop with magery
 
 from AutoComplete import *
-from lib.util import safe_cast
+from lib.util import MobileFilter, safe_cast, Hue
 
-pet_id = Target.PromptTarget('PET')
-pet = Mobiles.FindBySerial(pet_id)
+lag = 150
+mf = MobileFilter(Friend.GetList('pets'), friend=True, line_of_sight=True)
 
-while not pet.IsGhost:
+
+def heal(pet, threshold=0.5):
     if pet.Poisoned:
         safe_cast('Arch Cure', pet)
-        continue
-    if pet.Hits < pet.HitsMax * .9:
-        safe_cast('Greater Heal', pet)
+        return
+    if pet.Hits < pet.HitsMax * threshold:
+        while pet.Hits < pet.HitsMax and not pet.Poisoned and not pet.YellowHits:
+            safe_cast('Greater Heal', pet)
+
+
+Misc.SendMessage('Auto Pet Healing Enabled!', Hue.Green)
+while True:
+    pet = mf.get('Weakest')
+    if not pet:
+        Player.HeadMessage(33, 'Pet not found!')
+    if not pet.IsGhost and Player.DistanceTo(pet) < 12:
+        heal(pet, 0.9)

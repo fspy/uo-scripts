@@ -5,10 +5,9 @@ use_honor = True
 dismount = True
 
 from AutoComplete import *
+from lib.util import Hue, MobileFilter
 
-mobile_filter = Mobiles.Filter()
-mobile_filter.Friend = True
-mobile_filter.Serials = Friend.GetList('pets')
+mf = MobileFilter(serials=Friend.GetList('pets'), friend=True)
 
 
 def pet_attack(honor=True, dismount=True):
@@ -29,15 +28,14 @@ def pet_attack(honor=True, dismount=True):
         Player.InvokeVirtue('Honor')
         _execute(target)
 
-    if dismount:
-        if Player.Mount:
-            Mobiles.UseMobile(Player.Serial)
-            while Player.Mount:
-                Misc.Pause(200)
+    if dismount and Player.Mount:
+        Mobiles.UseMobile(Player.Serial)
+        while Player.Mount:
+            Misc.Pause(50)
 
-    pet = Mobiles.Select(Mobiles.ApplyFilter(mobile_filter), 'nearest')
+    pet = mf.get('nearest')
     if not pet:
-        Player.HeadMessage(33, 'Unable to find a pet!')
+        Player.HeadMessage(Hue.Red, 'Unable to find a pet!')
         return
 
     while Misc.WaitForContext(pet, 2000, False):
