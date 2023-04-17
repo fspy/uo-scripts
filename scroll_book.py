@@ -2,22 +2,8 @@ import os
 from AutoComplete import *
 from lib.util import Hue
 
-# random bullshit go!!
 main_gump = 998728455
-
-btn_misc = 11
-btn_combat = 12
-btn_trade = 13
-btn_magic = 14
-btn_wild = 15
-btn_thief = 16
-btn_bard = 17
-
 scrolls = {}
-
-Misc.SendMessage('Waiting for you to open the book... (30s)', Hue.Cyan)
-Gumps.WaitForGump(main_gump, 30000)
-Misc.SendMessage('Okay, please wait for it to finish!', Hue.Magenta)
 
 
 def action(btn):
@@ -44,6 +30,10 @@ def dig(btn):
         action(1)
     action(2)
 
+
+Misc.SendMessage('Waiting for you to open the book... (30s)', Hue.Cyan)
+Gumps.WaitForGump(main_gump, 30000)
+Misc.SendMessage('Okay, please wait for it to finish!', Hue.Magenta)
 
 for s in range(11, 18):
     dig(s)
