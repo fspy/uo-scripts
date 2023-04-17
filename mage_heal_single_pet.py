@@ -22,4 +22,4 @@ while True:
     if not pet:
         Player.HeadMessage(33, 'Pet not found!')
     if not pet.IsGhost and Player.DistanceTo(pet) < 12:
-        heal(pet, 0.9)
+        heal(pet, 0.5)

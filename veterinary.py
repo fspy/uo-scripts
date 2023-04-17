@@ -1,6 +1,9 @@
 # the bandage heal agent in razor enhanced fucking sucks.
 # this uses the friends agent, with the name "pets".
 
+if Player.GetSkillValue('veterinary') < 100:
+    raise Exception('Veterinary skill not found, exiting')
+
 from AutoComplete import *
 from lib.util import MobileFilter, Hue
 
@@ -24,7 +27,7 @@ def heal():
     b = find_bandage()
     p = mfilter.get('weakest')
 
-    if p.Hits < p.HitsMax * .95 and check_range(p):
+    if p and p.Hits < p.HitsMax * .95 and check_range(p):
         Timer.Create('veterinary', 2200)
         Items.UseItem(b, p)
 

@@ -4,28 +4,15 @@ from System import Int32
 
 
 class Hue:
-    Red = 1,
-    Yellow = 1,
-    Green = 1,
-    Cyan = 1,
-    Blue = 1,
-    Magenta = 1,
-    Red = 1,
-    White = 1,
-    Black = 1,
-    Gray = 1
-
-
-class Filter:
-
-    def __init__(self,
-                 serials=[],
-                 graphics=[],
-                 hues=[],
-                 name="",
-                 min_range=-1,
-                 max_range=-1):
-        pass
+    Red = 33
+    Yellow = 52
+    Green = 63
+    Cyan = 1195
+    Blue = 98
+    Magenta = 128
+    White = 1150
+    Black = 1
+    Gray = 1000
 
 
 class ItemFilter:
