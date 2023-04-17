@@ -12,11 +12,11 @@ def action(btn):
     Gumps.WaitForGump(main_gump, 2000)
 
 
-def parse_buttons():
+def parse_buttons(m=100):
     data = Gumps.LastGumpRawData()
     return [
         int(line.split()[-2]) for line in data.split('{')
-        if 'button' in line and int(line.split()[-2]) >= 100
+        if 'button' in line and int(line.split()[-2]) >= m
     ]
 
 
@@ -35,7 +35,7 @@ Misc.SendMessage('Waiting for you to open the book... (30s)', Hue.Cyan)
 Gumps.WaitForGump(main_gump, 30000)
 Misc.SendMessage('Okay, please wait for it to finish!', Hue.Magenta)
 
-for s in range(11, 18):
+for s in parse_buttons(11):
     dig(s)
 
 Misc.SendMessage('Done looking at the book!', Hue.Green)
