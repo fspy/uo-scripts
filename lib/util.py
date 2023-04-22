@@ -31,10 +31,15 @@ class ItemFilter:
 
 class MobileFilter:
 
-    def __init__(self, serials=[], friend=False, line_of_sight=False):
+    def __init__(self,
+                 serials=[],
+                 friend=False,
+                 max_range=10,
+                 line_of_sight=False):
         self.filter = Mobiles.Filter()
         self.filter.Serials = serials
         self.filter.Friend = friend
+        self.filter.RangeMax = max_range
         self.filter.CheckLineOfSight = line_of_sight
 
     def get(self, criteria):
