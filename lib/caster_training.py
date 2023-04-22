@@ -134,7 +134,8 @@ class CasterTraining:
         self.skill_name = skill_name
         self.skill_cap = Player.GetSkillCap(skill_name)
         self.spell_table = {
-            Decimal(a).quantize(Decimal("0.1")): b for a, b in spell_table.items()
+            Decimal(a).quantize(Decimal("0.1")): b
+            for a, b in spell_table.items()
         }
         self.skill_ranges = sorted(self.spell_table.keys())
 
@@ -186,10 +187,8 @@ class CasterTraining:
         Halts if the player is dead.
 
         """
-        while (
-            not Player.IsGhost
-            and Player.GetRealSkillValue(self.skill_name) < self.skill_cap
-        ):
+        while (not Player.IsGhost
+               and Player.GetRealSkillValue(self.skill_name) < self.skill_cap):
             spell = self.get_spell(Player.GetSkillValue(self.skill_name))
             if not spell:
                 Misc.SendMessage("spell not found")
@@ -197,3 +196,90 @@ class CasterTraining:
             self.check_mana(spell.mana_cost)
             spell.cast()
             Misc.Pause(200)  # don't freak out
+
+
+"""
+Class Presets
+Pre-configured per-spell, for easier importing/running.
+"""
+
+
+class ChivalryTrainer(CasterTraining):
+    skill_name = 'Chivalry'
+    spell_table = {
+        45: Spell('Consecrate Weapon', 10),
+        60: Spell('Divine Fury', 15),
+        70: Spell('Enemy of One', 20),
+        90: Spell('Holy Light', 10),
+        120: Spell('Noble Sacrifice', 20),
+    }
+
+    def __init__(self):
+        super().__init__(self.skill_name, self.spell_table)
+
+
+class MageryTrainer(CasterTraining):
+    _heal = Spell('heal', 4, Player.Serial)
+    skill_name = 'Magery'
+    spell_table = {
+        45: SpellSafe('Fireball', 9, Player.Serial, _heal),
+        55: SpellSafe('Lightning', 11, Player.Serial, _heal),
+        65: Spell('Magic Reflection', 14, Player.Serial),
+        75: Spell('Reveal', 20, Player.Serial),
+        90: SpellSafe('Flamestrike', 40, Player.Serial, _heal),
+        120: Spell('Earthquake', 50)
+    }
+
+    def __init__(self):
+        super().__init__(MageryTrainer.skill_name, MageryTrainer.spell_table)
+
+
+class MysticismTrainer(CasterTraining):
+    _heal = Spell('heal', 4, Player.Serial)
+    skill_name = 'Mysticism'
+    spell_table = {
+        40: SpellSafe('Eagle Strike', 9, Player.Serial, _heal),
+        62.9: Spell('Stone Form', 11),
+        80: Spell('Cleansing Winds', 20, Player.Serial),
+        95: Spell('Hail Storm', 50, Player.Serial),
+        120: Spell('Nether Cyclone', 50, Player.Serial),
+    }
+
+    def __init__(self):
+        super().__init__(self.skill_name, self.spell_table)
+
+
+class NecromancyTrainer(CasterTraining):
+    skill_name = 'Necromancy'
+    spell_table = {
+        50:
+        SpellSafe('Pain Spike', 5, Player.Serial,
+                  Spell('Heal', 4, Player.Serial)),
+        70:
+        Spell('Horrific Beast', 11),
+        90:
+        Spell('Wither', 23),
+        100:
+        Spell('Lich Form', 25),
+        120:
+        Spell('Vampiric Embrace', 25),
+    }
+
+    def __init__(self):
+        super().__init__(self.skill_name, self.spell_table)
+
+
+class SpellweavingTrainer(CasterTraining):
+    _heal = Spell('heal', 4, Player.Serial)
+    skill_name = 'Spellweaving'
+    spell_table = {
+        20: Spell('Arcane Circle', 24),
+        33: Spell('Immolating Weapon', 32),
+        58: Spell('Reaper Form', 34),
+        74: Spell('Essence of Wind', 40),
+        90: Spell('Wildfire', 50, Player.Serial),
+        120: SpellSafe('Word of Death', 50, Player.Serial, _heal)
+    }
+
+    def __init__(self):
+        super().__init__(self.skill_name, self.spell_table)
