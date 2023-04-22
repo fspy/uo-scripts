@@ -13,9 +13,9 @@
 #
 ### CONFIG ###
 # Serial to your Fire Beetle
-fire_beetle = 0x0000473D
+fire_beetle = Target.PromptTarget('Target your fire beetle', 43)
 # Serial to your Blue (Giant) Beetle
-blue_beetle = 0x00008701
+blue_beetle = Target.PromptTarget('Target your blue beetle', 161)
 #
 # Toolkits should be set to 2+ if using Tinkering
 # If set to 1 it might break itself, making you unable to make a new kit
@@ -94,9 +94,11 @@ def make_tools():
 
 def move_ingots():
     ingots = Items.FindAllByID(0x1BF2, -1, Player.Backpack.Serial, True)
+    beetle_backpack = Mobiles.FindBySerial(blue_beetle).Backpack.Serial
     for i in ingots:
         # keep at least 50 iron ingots in pack to make tools
-        Items.Move(i, blue_beetle, max(0, i.Amount - 50) if i.Hue == 0 else -1)
+        Items.Move(i, beetle_backpack,
+                   max(0, i.Amount - 50) if i.Hue == 0 else -1)
         Misc.Pause(600)
 
 
