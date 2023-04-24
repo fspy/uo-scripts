@@ -33,12 +33,12 @@ def pet_attack(honor=True, dismount=True):
         while Player.Mount:
             Misc.Pause(50)
 
-    pet = mf.get('nearest')
+    pet = mf.get('Nearest')
     if not pet:
         Player.HeadMessage(Hue.Red, 'Unable to find a pet!')
         return
 
-    while Misc.WaitForContext(pet, 2000, False):
+    if Misc.WaitForContext(pet, 2000, False):
         Misc.ContextReply(pet, 1)
         _execute(target)
         return
