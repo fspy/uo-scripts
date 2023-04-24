@@ -6,37 +6,37 @@ main_gump = 998728455
 scrolls = {}
 
 
-def action(btn):
+def send_action(btn):
     Gumps.WaitForGump(main_gump, 2000)
     Gumps.SendAction(main_gump, btn)
     Gumps.WaitForGump(main_gump, 2000)
 
 
-def parse_buttons(m=100):
+def parse_buttons(cutoff=100):
     data = Gumps.LastGumpRawData()
     return [
         int(line.split()[-2]) for line in data.split('{')
-        if 'button' in line and int(line.split()[-2]) >= m
+        if 'button' in line and int(line.split()[-2]) >= cutoff
     ]
 
 
-def dig(btn):
-    action(btn)
+def navigate(btn):
+    send_action(btn)
     for n in parse_buttons():
-        action(n)
+        send_action(n)
         skill = Gumps.LastGumpGetLineList()[1:]
         Misc.SendMessage('Got skill {}...'.format(skill[0]), Hue.White)
         scrolls[skill[0]] = [int(n) for n in skill[1:]]
-        action(1)
-    action(2)
+        send_action(1)
+    send_action(2)
 
 
 Misc.SendMessage('Waiting for you to open the book... (30s)', Hue.Cyan)
 Gumps.WaitForGump(main_gump, 30000)
 Misc.SendMessage('Okay, please wait for it to finish!', Hue.Magenta)
 
-for s in parse_buttons(11):
-    dig(s)
+for section in parse_buttons(11):
+    navigate(section)
 
 Misc.SendMessage('Done looking at the book!', Hue.Green)
 Gumps.CloseGump(main_gump)
