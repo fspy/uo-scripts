@@ -21,11 +21,10 @@ colors = {
     'white': 1150
 }
 
-item_filter = Items.Filter()
-item_filter.RangeMax = 2
-
 
 def closest_item(item_name, on_ground=False):
+    item_filter = Items.Filter()
+    item_filter.RangeMax = 2
     item_filter.Name = item_name
     item_filter.OnGround = on_ground
     results = Items.ApplyFilter(item_filter)
@@ -34,9 +33,7 @@ def closest_item(item_name, on_ground=False):
 
 def closest_mobile(mobile_name=None, notoriety=[3, 4, 5, 6], max_range=2):
     mobile_filter = Mobiles.Filter()
-
-    if mobile_name:
-        mobile_filter.Name = mobile_name
+    if mobile_name: mobile_filter.Name = mobile_name
     mobile_filter.Notorieties = List[Byte](bytes(notoriety))
     mobile_filter.RangeMax = max_range
     results = Mobiles.ApplyFilter(mobile_filter)
