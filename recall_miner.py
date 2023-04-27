@@ -1,48 +1,70 @@
 """
 Recall Miner
 
-This script will mine in relative locations according to the resource grid,
-recalling home when full, then to the next rune on the runebook. 
+Mines in relative locations according to the resource grid, traveling home when 
+full, then returns to the previous location to continue mining. Once that
+location is fully depleted, it moves on to the next rune.
 
-It'll try to autodetect which skill to use when recalling, but you can 
-configure manually, with magery or chivalry.
+Since travel is done using magic (Chivalry/Magery), a 100% LRC suit and/or
+enough Tithing points are mandatory, as is, obviously, enough skill to travel.
+If using Magery, 64.1 skill is needed to never fail the Recall spell. For
+Chivalry, Sacred Journey never fails at 65.0 skill.
 
-Since it uses magic to move around, a 100% LRC suit is recommended.
+To set up the runebook, runes should be marked in grid resource intersections.
+A mapping tool that shows the grid when zoomed in, such as ClassicUO's world
+map, is needed. It should look like this:
 
-This script doesn't check for reagents/tithing and only works mining in caves.
+           ║             
+  mining * ║ * mining     Runes should be marked in the corner where all
+═══════════╬═══════════   sections meet, in order to effectively mine
+  mining * ║ * mining     four grid cells without moving.
+           ║
+
+Once out of tools, it will make more, given there are ingots in your backpack.
+If you keep ingots in the home container, it will take them to make tools.
 
 REQUIREMENTS:
-- Some (50+) Tinkering skill, to make kits and shovels;
-- A few (~20) iron ingots, or some shovels;
-- A runebook with runes to intersections of the resource grid;
-- A rune or default runebook setting to your house;
-- A chest on the steps of your house, in reach of the house rune.
+- Enough Tinkering skill to be able to make kits and shovels;
+- A runebook filled with runes to resource grid intersections;
+- A rune or runebook set as default to your house;
+- A container on the steps of your house, in reach of the house rune;
+- Some iron ingots to make tools with (with your/in house container).
 """
 
 ### CONFIG ###
 shovels_to_keep = 5  # high number to stop less often
 use_prospecting = True  # use prospecting tool before mining
 use_sturdy = True  # use of study shovels (bod reward)
-use_chivalry = False  # true: sacred journey, false: recall
+use_chivalry = False  # True: Sacred Journey, False: Recall
+# change these to your own or set to None to prompt each time:
+runebook_serial = 0x404D3431
+home_rune_serial = 0x401F5269
+home_chest_serial = 0x4066653C
 ### CONFIG ###
 
 from AutoComplete import *
+
 from lib.util import Hue, head_prompt, safe_cast
 
 SHOVEL = 0x0F39
 TOOL_KIT = 0x1EB8
 PROSPECTING_TOOL = 0x0FB4
-ORE_TYPES = [0x19B7, 0x19B8, 0x19B9, 0x19BA]
+ORE_TYPES = [
+    0x19B7, 0x19B8, 0x19B9, 0x19BA, 0x0F28, 0x3192, 0x3193, 0x3194, 0x3195,
+    0x3196, 0x3197, 0x3198
+]
+IRON_INGOT = 0x1BF2
 TINKER_TOOLS = {'tool kit': 23, 'shovel': 72}
 TINKERING_GUMP = 0x38920ABD
 RUNEBOOK_GUMP = 89
 
-mining_runebook = Items.FindBySerial(0x404D3431)
-# Items.FindBySerial(head_prompt('target your *mining* runebook'))
-home_rune = Items.FindBySerial(0x401F5269)
-# Items.FindBySerial(head_prompt('target your home rune (or default runebook)'))
-home_chest = Items.FindBySerial(0x4066653C)
-# Items.FindBySerial(head_prompt('target the chest to store ore in'))
+mining_runebook = Items.FindBySerial(
+    runebook_serial or head_prompt('target your *mining* runebook'))
+home_rune = Items.FindBySerial(
+    home_rune_serial
+    or head_prompt('target your home rune (or default runebook)'))
+home_chest = Items.FindBySerial(
+    home_chest_serial or head_prompt('target the chest to store ore in'))
 
 prospected = []
 current_rune = 0
@@ -58,7 +80,9 @@ def tinkering_menu(tool_num):
         Gumps.WaitForGump(TINKERING_GUMP, 2000)
 
     Gumps.SendAction(TINKERING_GUMP, tool_num)
-    Gumps.WaitForGump(TINKERING_GUMP, 2000)
+    Gumps.WaitForGump(TINKERING_GUMP, 1250)
+    if Gumps.CurrentGump == TINKERING_GUMP:
+        Gumps.CloseGump(TINKERING_GUMP)
 
 
 def make_tools():
@@ -76,12 +100,26 @@ def make_tools():
     Gumps.CloseGump(TINKERING_GUMP)
 
 
+def get_ingots():
+    iron_amount = (shovels_to_keep + 1) * 4  # shovels + 2 kits
+    backpack_iron = Items.BackpackCount(IRON_INGOT, 0)
+    if backpack_iron >= iron_amount:
+        return
+
+    Items.WaitForContents(home_chest.Serial, 2000)
+    Misc.Pause(625)
+    chest_iron = Items.FindByID(IRON_INGOT, 0, home_chest.Serial, False)
+    if chest_iron and chest_iron.Amount > iron_amount:
+        Items.Move(chest_iron, Player.Backpack, iron_amount)
+        Misc.Pause(625)
+
+
 def move_ore():
     ores = filter(lambda f: f.ItemID in ORE_TYPES, Player.Backpack.Contains)
-    Player.HeadMessage(Hue.Green, 'Moving ingots to container...')
     for ore in ores:
         Items.Move(ore.Serial, home_chest.Serial, -1)
-        Misc.Pause(1000)
+        Misc.Pause(625)
+    Misc.Pause(625)
 
 
 def prospect(x, y, z, id):
@@ -90,7 +128,7 @@ def prospect(x, y, z, id):
         Target.TargetExecute(x, y, z, id)
         return
 
-    Misc.SendMessage('unable to use prospecting tool, disabling', Hue.Red)
+    # Misc.SendMessage('unable to use prospecting tool, disabling', Hue.Red)
     global use_prospecting
     use_prospecting = False
 
@@ -135,7 +173,7 @@ def do_the_mining(tile):
     Misc.Pause(200)
 
     if Journal.Search('There is no metal here to mine'):
-        Player.HeadMessage(Hue.Yellow, "No ore here!")
+        # Player.HeadMessage(Hue.Yellow, "No ore here!")
         Journal.Clear('There is no metal here to mine')
         return False
 
@@ -164,6 +202,7 @@ while not Player.IsGhost:
                 while not Player.InRangeItem(home_chest.Serial, 2):
                     Misc.Pause(50)
                 move_ore()
+                get_ingots()
                 travel(rune)
 
     current_rune += 1
