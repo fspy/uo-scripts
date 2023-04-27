@@ -1,6 +1,8 @@
+from urllib import parse, request
+
 from AutoComplete import *
-from System.Collections.Generic import List
 from System import Int32
+from System.Collections.Generic import List
 
 
 class Hue:
@@ -45,6 +47,17 @@ class MobileFilter:
     def get(self, criteria):
         self.mobiles = Mobiles.ApplyFilter(self.filter)
         return Mobiles.Select(self.mobiles, criteria)
+
+
+def send_notification(title, message, event='event'):
+    data = parse.urlencode({
+        'key': 'Ty3zeJ',
+        'title': title,
+        'msg': message,
+        'event': event
+    }).encode()
+    req = request.Request("https://api.simplepush.io/send", data=data)
+    request.urlopen(req).close()
 
 
 def head_prompt(msg, c=55):
