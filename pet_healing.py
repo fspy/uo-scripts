@@ -6,11 +6,11 @@ import re, time
 from lib.util import safe_cast, Hue
 
 settings = {
-    'veterinary': True,
+    'veterinary': False,
     'magery': True,
-    'gift_of_renewal': True,
-    'gift_of_life': 'pet',
-    'health_trigger': 95,
+    'gift_of_renewal': False,
+    'gift_of_life': False,  # 'player', 'pet', False
+    'health_trigger': 50,  # IN %
 }
 
 
@@ -19,15 +19,21 @@ class PetHealing:
     RENEWAL_BASE_DURATION = 30 * 1000  # (30s in milliseconds)
     RENEWAL_COOLDOWN = 30 * 1000  # (30s in milliseconds)
     VETERINARY_DELAY = 3000
-    DELAY = 200
+    DELAY = 625
+    
+    health_trigger = 95
+    veterinary = False
+    magery = False
+    gift_of_life = False
+    gift_of_renewal = False
 
     def __init__(self,
                  friend_list,
-                 health_trigger=95,
-                 veterinary=True,
-                 magery=True,
-                 gift_of_renewal=True,
-                 gift_of_life='self'):
+                 health_trigger,
+                 veterinary,
+                 magery,
+                 gift_of_renewal,
+                 gift_of_life):
         mf = Mobiles.Filter()
         mf.Serials = Friend.GetList(friend_list)
 
