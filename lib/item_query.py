@@ -5,9 +5,11 @@
 # It can query for specific named properties, their amount, how many,
 # their name, and weights.
 
-from AutoComplete import *
-from .util import head_prompt
 import re
+
+from AutoComplete import *
+
+from .util import head_prompt
 
 debug = False
 
@@ -23,40 +25,44 @@ class ItemQuery:
     MajorArtifact = re.compile('^major artifact$', re.IGNORECASE)
     LegendaryArtifact = re.compile('^legendary artifact$', re.IGNORECASE)
 
+    Resist = re.compile('resist (\d+)%$', re.IGNORECASE)
     Weapon = re.compile('weapon damage', re.IGNORECASE)
     Gargoyle = re.compile('gargoyles only', re.IGNORECASE)
     Unravel = re.compile('(magic item)$', re.IGNORECASE)
 
     def __init__(self, source):
-        Items.WaitForContents(source, 3000)
-        self.items = Items.FindBySerial(source).Contains
+        if not isinstance(source, list):
+            Items.WaitForContents(source, 3000)
+            self.items = Items.FindBySerial(source).Contains
+        else:
+            self.items = source
+        self.query = None
 
-    def rm(self, item):
-        for i in self.items:
-            if i.Serial == item.Serial:
-                self.items.Remove(i)
-                return
+    def __add__(self, obj):
+        return ItemQuery(self.items + obj.items)
 
     def _search(self, item, query):
         return any(query.search(prop.ToString()) for prop in item.Properties)
 
-    def query_prop(self, query, name=False):
-        if name:
-            result = filter(lambda item: query.search(item.Name), self.items)
-        else:
-            result = filter(lambda item: self._search(item, query), self.items)
-        return list(result)
+    def filter(self, query, name=False):
+        new_items = []
+        for item in self.items:
+            if name and query.search(item.Name):
+                new_items.append(item)
+            elif not name and self._search(item, query):
+                new_items.append(item)
+        return ItemQuery(new_items)
 
-    def query_prop_count(self, query, count=1):
-        result = []
+    def count(self, query, count=1):
+        new_items = []
         for item in self.items:
             if sum(1 for prop in item.Properties
                    if re.search(query, prop.ToString())) >= count:
-                result.append(item)
-        return result
+                new_items.append(item)
+        return ItemQuery(new_items)
 
-    def query_prop_amount(self, query, min=60):
-        result = []
+    def amount(self, query, min=60):
+        new_items = []
         for item in self.items:
             total = 0
             for prop in item.Properties:
@@ -64,8 +70,8 @@ class ItemQuery:
                 if match:
                     total += int(match.group(1))
             if total >= min:
-                result.append(item)
-        return result
+                new_items.append(item)
+        return ItemQuery(new_items)
 
     def query_weighted(self, min, weights):
         """retrieves items with a minimum score.
@@ -120,7 +126,7 @@ class ItemQuery:
                 score += float(match.group(1)) / max * weight
         return score / sum_weights
 
-    def move_all(self, items, dest=None):
+    def move_all(self, dest=None):
         """moves all provided items to destination container.
 
         args:
@@ -129,9 +135,8 @@ class ItemQuery:
         """
         if not dest:
             dest = head_prompt('Target destination container')
-        for item in items:
+        for item in self.items:
             if debug:
                 Misc.SendMessage('Moving {}'.format(item.Name))
             Items.Move(item.Serial, dest, -1)
-            self.rm(item)
-            Misc.Pause(620)
+            Misc.Pause(625)
