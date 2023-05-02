@@ -1,4 +1,5 @@
-"""Trains caster-type skills automatically.
+"""
+Trains caster-type skills automatically.
 
 This scripts allows you to configure spells, their costs and targets, and at 
 which point they start being used while training the specified skill.
@@ -7,32 +8,40 @@ Done as "wanted to see if I could", this is very much a work in progress.
 Currently missing a few guardrails but shouldn't break much.
 
 Example usage:
+heal yourself:
+```py
+gheal = Spell('Greater Heal', 24, Player.Serial)
+gheal.cast()
+```
 
-    # heal yourself
-    gheal = Spell('Greater Heal', 24, Player.Serial)
-    gheal.cast()
+cast flamestrike on yourself, but make sure to keep health high
+using the spell assigned previously in `gheal`.
+```py
+safe_fs = SpellSafe('Flamestrike', 50, Player.Serial, gheal)
+safe_fs.cast()
+```
 
-    # cast flamestrike on yourself, but make sure to keep health high
-    # using the spell assigned previously in `gheal`.
-    safe_fs = SpellSafe('Flamestrike', 50, Player.Serial, gheal)
-    safe_fs.cast()
+defines a table where the key is the highest skill point where it
+will be cast. in this case, uses `gheal` until 35, then uses 
+`safe_fs`, stopping at 70. "until key, cast value."
+```
+skill_table = {
+    35: gheal,
+    70: safe_fs,
+}
+```
 
-    # defines a table where the key is the highest skill point where it
-    # will be cast. in this case, uses `gheal` until 35, then uses 
-    # `safe_fs`, stopping at 70. "until key, cast value."
-    skill_table = {
-        35: gheal,
-        70: safe_fs,
-    }
-
-    # defines what skill to check for gains, providing a table to determine
-    # when to switch spells according to current skill value.
-    ct = CasterTraining('Magery', skill_table)
-    ct.run()
+defines what skill to check for gains, providing a table to determine
+when to switch spells according to current skill value.
+```
+ct = CasterTraining('Magery', skill_table)
+ct.run()
+```
 """
 
-from AutoComplete import *
 from decimal import *
+
+from AutoComplete import *
 
 
 class Spell:
@@ -91,9 +100,15 @@ class SpellSafe(Spell):
     See `Spell`.
     """
 
-    def __init__(self, spell_name, mana_cost, target, safe_spell):
+    default_spell = Spell('Heal', 4, Player.Serial)
+
+    def __init__(self,
+                 spell_name,
+                 mana_cost,
+                 target=Player.Serial,
+                 safe_spell=None):
         super().__init__(spell_name, mana_cost, target)
-        self.safe_spell = safe_spell
+        self.safe_spell = safe_spell or SpellSafe.default_spell
 
     def cast(self):
         """Casts the spell, safely.
@@ -138,6 +153,13 @@ class CasterTraining:
             for a, b in spell_table.items()
         }
         self.skill_ranges = sorted(self.spell_table.keys())
+
+    def set_safe_spell(self, safe_spell):
+        if not safe_spell:
+            return
+        for index in self.spell_table:
+            if isinstance(self.spell_table[index], SpellSafe):
+                self.spell_table[index].safe_spell = safe_spell
 
     def check_mana(self, cost):
         """Ensures that the player has enough mana to cast the selected spell.
@@ -214,63 +236,58 @@ class ChivalryTrainer(CasterTraining):
         120: Spell('Noble Sacrifice', 20),
     }
 
-    def __init__(self):
+    def __init__(self, safe_spell=None):
         super().__init__(self.skill_name, self.spell_table)
+        self.set_safe_spell(safe_spell)
 
 
 class MageryTrainer(CasterTraining):
-    _heal = Spell('heal', 4, Player.Serial)
     skill_name = 'Magery'
     spell_table = {
-        45: SpellSafe('Fireball', 9, Player.Serial, _heal),
-        55: SpellSafe('Lightning', 11, Player.Serial, _heal),
+        45: SpellSafe('Fireball', 9, Player.Serial),
+        55: SpellSafe('Lightning', 11, Player.Serial),
         65: Spell('Magic Reflection', 14, Player.Serial),
         75: Spell('Reveal', 20, Player.Serial),
-        90: SpellSafe('Flamestrike', 40, Player.Serial, _heal),
+        90: SpellSafe('Flamestrike', 40, Player.Serial),
         120: Spell('Earthquake', 50)
     }
 
-    def __init__(self):
-        super().__init__(MageryTrainer.skill_name, MageryTrainer.spell_table)
+    def __init__(self, safe_spell=None):
+        super().__init__(self.skill_name, self.spell_table)
+        self.set_safe_spell(safe_spell)
 
 
 class MysticismTrainer(CasterTraining):
-    _heal = Spell('heal', 4, Player.Serial)
     skill_name = 'Mysticism'
     spell_table = {
-        40: SpellSafe('Eagle Strike', 9, Player.Serial, _heal),
+        40: SpellSafe('Eagle Strike', 9, Player.Serial),
         62.9: Spell('Stone Form', 11),
         80: Spell('Cleansing Winds', 20, Player.Serial),
         95: Spell('Hail Storm', 50, Player.Serial),
         120: Spell('Nether Cyclone', 50, Player.Serial),
     }
 
-    def __init__(self):
+    def __init__(self, safe_spell=None):
         super().__init__(self.skill_name, self.spell_table)
+        self.set_safe_spell(safe_spell)
 
 
 class NecromancyTrainer(CasterTraining):
     skill_name = 'Necromancy'
     spell_table = {
-        50:
-        SpellSafe('Pain Spike', 5, Player.Serial,
-                  Spell('Heal', 4, Player.Serial)),
-        70:
-        Spell('Horrific Beast', 11),
-        90:
-        Spell('Wither', 23),
-        100:
-        Spell('Lich Form', 25),
-        120:
-        Spell('Vampiric Embrace', 25),
+        50: SpellSafe('Pain Spike', 5, Player.Serial),
+        70: Spell('Horrific Beast', 11),
+        90: Spell('Wither', 23),
+        100: Spell('Lich Form', 25),
+        120: Spell('Vampiric Embrace', 25),
     }
 
-    def __init__(self):
+    def __init__(self, safe_spell=None):
         super().__init__(self.skill_name, self.spell_table)
+        self.set_safe_spell(safe_spell)
 
 
 class SpellweavingTrainer(CasterTraining):
-    _heal = Spell('heal', 4, Player.Serial)
     skill_name = 'Spellweaving'
     spell_table = {
         20: Spell('Arcane Circle', 24),
@@ -278,8 +295,23 @@ class SpellweavingTrainer(CasterTraining):
         58: Spell('Reaper Form', 34),
         74: Spell('Essence of Wind', 40),
         90: Spell('Wildfire', 50, Player.Serial),
-        120: SpellSafe('Word of Death', 50, Player.Serial, _heal)
+        120: SpellSafe('Word of Death', 50, Player.Serial)
     }
 
-    def __init__(self):
+    def __init__(self, safe_spell=None):
         super().__init__(self.skill_name, self.spell_table)
+        self.set_safe_spell(safe_spell)
+
+
+class BushidoTrainer(CasterTraining):
+    skill_name = 'Bushido'
+    spell_table = {
+        60: Spell('Confidence', 10),
+        75: Spell('Counter Attack', 5),
+        105: Spell('Evasion', 10),
+        120: Spell('Momentum Strike', 10)
+    }
+
+    def __init__(self, safe_spell=None):
+        super().__init__(self.skill_name, self.spell_table)
+        self.set_safe_spell(safe_spell)
