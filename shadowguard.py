@@ -61,7 +61,7 @@ def bar(auto=False):
     target = closest_mobile(notoriety=[6], max_range=10)  # closest "murderer"
     if not target or not Items.UseItemByID(0x099B, -1):
         # Misc.SendMessage('no targets nearby, cancelling', colors['orange'])
-        Target.Cancel()
+        # Target.Cancel()
         return
 
     Mobiles.Message(target, colors['cyan'], '* Target *')
