@@ -5,6 +5,7 @@ use_honor = True
 dismount = True
 
 from AutoComplete import *
+
 from lib.util import Hue, MobileFilter
 
 mf = MobileFilter(serials=Friend.GetList('pets'), friend=True)
@@ -38,10 +39,9 @@ def pet_attack(honor=True, dismount=True):
         Player.HeadMessage(Hue.Red, 'Unable to find a pet!')
         return
 
-    if Misc.WaitForContext(pet, 2000, False):
-        Misc.ContextReply(pet, 1)
-        _execute(target)
-        return
+    Misc.UseContextMenu(pet.Serial, "Command: Kill", 1000)
+    _execute(target)
+    return
 
 
 pet_attack(use_honor, dismount)
