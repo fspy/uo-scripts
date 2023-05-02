@@ -25,7 +25,8 @@ class ItemQuery:
     MajorArtifact = re.compile('^major artifact$', re.IGNORECASE)
     LegendaryArtifact = re.compile('^legendary artifact$', re.IGNORECASE)
 
-    Resist = re.compile('resist (\d+)%$', re.IGNORECASE)
+    Resist = re.compile(r'\b\s+resist\s(\d+)%', re.IGNORECASE)
+    Skill = re.compile(r"\b\w+\s*\w*\s*\+\s*(5|10|15|20)\b", re.IGNORECASE)
     Weapon = re.compile('weapon damage', re.IGNORECASE)
     Gargoyle = re.compile('gargoyles only', re.IGNORECASE)
     Unravel = re.compile('(magic item)$', re.IGNORECASE)
@@ -64,12 +65,9 @@ class ItemQuery:
     def amount(self, query, min=60):
         new_items = []
         for item in self.items:
-            total = 0
-            for prop in item.Properties:
-                match = re.search(query, prop.ToString())
-                if match:
-                    total += int(match.group(1))
-            if total >= min:
+            props = ' '.join(n.ToString() for n in item.Properties)
+            matches = query.findall(props)
+            if sum(map(int, matches)) >= min:
                 new_items.append(item)
         return ItemQuery(new_items)
 
