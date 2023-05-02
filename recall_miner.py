@@ -51,7 +51,7 @@ TOOL_KIT = 0x1EB8
 PROSPECTING_TOOL = 0x0FB4
 ORE_TYPES = [
     0x19B7, 0x19B8, 0x19B9, 0x19BA, 0x0F28, 0x3192, 0x3193, 0x3194, 0x3195,
-    0x3196, 0x3197, 0x3198
+    0x3196, 0x3197, 0x3198, 0x1779
 ]
 IRON_INGOT = 0x1BF2
 TINKER_TOOLS = {'tool kit': 23, 'shovel': 72}
@@ -111,7 +111,7 @@ def get_ingots():
     chest_iron = Items.FindByID(IRON_INGOT, 0, home_chest.Serial, False)
     if chest_iron and chest_iron.Amount > iron_amount:
         Items.Move(chest_iron, Player.Backpack, iron_amount)
-        Misc.Pause(625)
+        Misc.Pause(1250)
 
 
 def move_ore():
@@ -119,7 +119,7 @@ def move_ore():
     for ore in ores:
         Items.Move(ore.Serial, home_chest.Serial, -1)
         Misc.Pause(625)
-    Misc.Pause(625)
+    Misc.Pause(1250)
 
 
 def prospect(x, y, z, id):
@@ -161,6 +161,10 @@ def travel(rune=None):
     Gumps.WaitForGump(RUNEBOOK_GUMP, 3000)
     Gumps.SendAction(RUNEBOOK_GUMP, rune)
     Misc.Pause(1250)
+
+    if Journal.SearchByType('Something is blocking the location', 'System'):
+        print('something is blocking the rune, go next')
+        travel(rune + 1)
 
 
 def do_the_mining(tile):
