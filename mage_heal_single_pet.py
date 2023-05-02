@@ -1,7 +1,8 @@
 # will make your game freeze from healing your pet non-stop with magery
 
 from AutoComplete import *
-from lib.util import MobileFilter, safe_cast, Hue
+
+from lib.util import Hue, MobileFilter, safe_cast
 
 lag = 150
 mf = MobileFilter(Friend.GetList('pets'), friend=True)
@@ -13,7 +14,7 @@ def heal(pet, threshold=0.5):
         Misc.Pause(lag)  # cure animation
         return
     if pet.Hits < pet.HitsMax * threshold:
-        while pet.Hits < pet.HitsMax and not pet.Poisoned and not pet.YellowHits:
+        while pet.Hits < pet.HitsMax * 0.9 and not pet.Poisoned and not pet.YellowHits:
             safe_cast('Greater Heal', pet)
     Misc.Pause(lag)
 
