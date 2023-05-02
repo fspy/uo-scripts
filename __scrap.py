@@ -1,12 +1,20 @@
+import sys
+
 from AutoComplete import *
 
+from lib.caster_training import *
 
-def useskill(skillname='Tracking'):
+
+def useskill(skillname='Tracking', pause=10500):
     while Player.GetSkillValue(skillname) < Player.GetSkillCap(skillname):
+        print(skillname)
         Player.UseSkill(skillname)
-        Gumps.WaitForGump(2976808305, 3000)
-        Gumps.SendAction(2976808305, 1)
-        Misc.Pause(10000)
+        if skillname == 'Tracking':
+            Gumps.WaitForGump(2976808305, 3000)
+            Gumps.SendAction(2976808305, 1)
+            Gumps.WaitForGump(2976808305, 3000)
+            Gumps.CloseGump(2976808305)
+        Misc.Pause(pause)
 
 
 def vendor_price(price):
@@ -19,25 +27,6 @@ def vendor_price(price):
     Misc.Pause(200)
 
 
-from lib.caster_training import MageryTrainer, MysticismTrainer, SpellweavingTrainer
+# MageryTrainer(safe_spell=Spell('Greater Heal', 12, Player.Serial)).run()
 
-
-MageryTrainer().run()
-MysticismTrainer().run()
-SpellweavingTrainer().run()
-
-
-while True:
-    #Spells.CastMastery('Shadow')
-    Player.UseSkill('hiding')
-    Misc.Pause(10500)
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+useskill('Hiding')
