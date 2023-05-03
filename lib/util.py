@@ -60,6 +60,11 @@ def send_notification(title, message, event='event'):
     request.urlopen(req).close()
 
 
+def show_props(item):
+    for p in item.Properties:
+        print(f'Property {hex(p.Number)}: {p.ToString()}\n')
+
+
 def head_prompt(msg, c=55):
     """Shows a head message on target prompt, instead of bottom left."""
     Player.HeadMessage(c, msg)
