@@ -12,7 +12,8 @@ import re
 from System.Collections.Generic import List
 from System import Int32
 from AutoComplete import *
-
+shop_gump = 1005351445
+result_gump = 498682919
 
 def edge_cases_tip_of_iceberg(txt):
     # dont strip numbers from power/stat scrolls
@@ -29,9 +30,11 @@ target = Target.PromptTarget("Target the item you'd like to search!", 1151)
 if target:
     item = Items.FindBySerial(target)
     name = edge_cases_tip_of_iceberg(item.Name)
-    if Gumps.CurrentGump() is not 999112:
-        Misc.WaitForContext(Player.Serial, 2000)
-        Misc.ContextReply(Player.Serial, 1)
-    Gumps.WaitForGump(999112, 2000)
-    Gumps.SendAction(999112, 2)  # Clear Search
-    Gumps.SendAdvancedAction(999112, 1, List[Int32]([1]), List[str]([name]))
+    Misc.UseContextMenu(Player.Serial, "Vendor Search", 1000)
+    # Misc.WaitForContext(Player.Serial, 2000)
+    # Misc.ContextReply(Player.Serial, 1)
+    Gumps.WaitForGump(shop_gump, 2000)
+    Gumps.SendAction(shop_gump, 2)  # Clear Search
+    Gumps.SendAdvancedAction(shop_gump, 1, List[Int32]([1]), List[str]([name]))
+    Gumps.WaitForGump(result_gump, 2000)
+    Gumps.CloseGump(shop_gump)
