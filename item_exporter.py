@@ -6,7 +6,7 @@ from AutoComplete import *
 from collections import defaultdict
 from lib.util import Hue
 
-import clr
+import clr, os
 
 clr.AddReference('System.Drawing')
 # this export needs to go after `clr.AddReference`, or RE breaks
@@ -37,12 +37,14 @@ def main(f):
         items.sort(key=lambda x: x.Name)
         for i in items:
             img_file = '{}-{}.png'.format(id, i.Hue)
-            i.Image.Save('./Data/Items/{}'.format(img_file), ImageFormat.Png)
+            i.Image.Save('./Items/{}'.format(img_file), ImageFormat.Png)
             f.write(gen_html(i, img_file))
 
 
 now = datetime.now().strftime('%Y%m%d%H%M')
-with open('./Data/Items/Export-{}.html'.format(now), 'w') as f:
+with open('./Items/item_export-{}.html'.format(now), 'w') as f:
+    if not os.path.exists('./Items'):
+        os.makedirs('./Items')
     f.write("""<!DOCTYPE html>
 <html lang="en">
 <head>

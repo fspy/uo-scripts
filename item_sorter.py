@@ -19,14 +19,15 @@ def find_gear(source, destination=Player.Backpack.Serial, settings={}):
         items = q.amount(ItemQuery.Resist, settings['resist'])
         items.move_all(destination)
 
-    if settings.get('skill'):
-        Misc.SendMessage('Moving high skill items...')
-        items = q.amount(ItemQuery.Skill, settings['skill'])
-        items.move_all(destination)
+    # if settings.get('skill'):
+    #     Misc.SendMessage('Moving high skill items...')
+    #     items = q.amount(ItemQuery.Skill, settings['skill'])
+    #     items.move_all(destination)
 
     if settings.get('caster'):
         Misc.SendMessage('Moving caster armor...')
         items = q.count(caster_armor, settings['caster'])
+        items = items.amount(ItemQuery.Resist, 60)
         items.move_all(destination)
 
     if settings.get('casterjewelry'):
@@ -37,6 +38,7 @@ def find_gear(source, destination=Player.Backpack.Serial, settings={}):
     if settings.get('fighter'):
         Misc.SendMessage('Moving fighter armor...')
         items = q.count(fighter_armor, settings['fighter'])
+        items = items.amount(ItemQuery.Resist, 60)
         items.move_all(destination)
 
     if settings.get('fighterjewelry'):
@@ -50,7 +52,7 @@ fighter_armor = re.compile(
     r'lower mana cost)', re.IGNORECASE)
 
 fighter_jewelry = re.compile(
-    r'^(swing speed increase|((hit|defense) chance|damage) increase|'
+    r'^((swing speed|damage|mana|stamina|(hit|defense) chance) increase|'
     r'(strength|dexterity) bonus)', re.IGNORECASE)
 
 caster_armor = re.compile(
@@ -76,12 +78,12 @@ containers = {
 dump_chest = 0x4031654D
 
 settings = {
-    'resist': 70,
-    'skill': 40,
+    'resist': 80,
+    'skill': 45,
     'caster': 4,
     'fighter': 5,
     'casterjewelry': 5,
-    'fighterjewelry': 4
+    'fighterjewelry': 5
 }
 
 # for cont in containers.values():

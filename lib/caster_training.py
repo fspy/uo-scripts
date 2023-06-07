@@ -244,11 +244,11 @@ class ChivalryTrainer(CasterTraining):
 class MageryTrainer(CasterTraining):
     skill_name = 'Magery'
     spell_table = {
-        45: SpellSafe('Fireball', 9, Player.Serial),
-        55: SpellSafe('Lightning', 11, Player.Serial),
-        65: Spell('Magic Reflection', 14, Player.Serial),
+        45: SpellSafe('Bless', 9, Player.Serial),
+        55: SpellSafe('Greater Heal', 11, Player.Serial),
+        65: Spell('Magic Reflection', 14),
         75: Spell('Reveal', 20, Player.Serial),
-        90: SpellSafe('Flamestrike', 40, Player.Serial),
+        90: SpellSafe('Mass Dispel', 40, Player.Serial),
         120: Spell('Earthquake', 50)
     }
 
@@ -310,6 +310,21 @@ class BushidoTrainer(CasterTraining):
         75: Spell('Counter Attack', 5),
         105: Spell('Evasion', 10),
         120: Spell('Momentum Strike', 10)
+    }
+
+    def __init__(self, safe_spell=None):
+        super().__init__(self.skill_name, self.spell_table)
+        self.set_safe_spell(safe_spell)
+
+
+class NinjitsuTrainer(CasterTraining):
+    skill_name = 'Ninjitsu'
+    spell_table = {
+        60: Spell('Mirror Image', 10),
+        70: Spell('Focus Attack', 5),
+        85: Spell('Shadow Jump', 10),
+        90: Spell('Death Strike', 10),
+        120: Spell('Shadow', 10)
     }
 
     def __init__(self, safe_spell=None):

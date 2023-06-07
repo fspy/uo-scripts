@@ -6,15 +6,16 @@ from System.Collections.Generic import List
 
 
 class Hue:
-    Red = 33
-    Yellow = 52
-    Green = 63
-    Cyan = 1195
-    Blue = 98
-    Magenta = 128
-    White = 1150
     Black = 1
+    Blue = 2122
+    Cyan = 90
     Gray = 1000
+    Green = 63
+    Magenta = 128
+    Orange = 2736
+    Red = 33
+    Yellow = 253
+    White = 1150
 
 
 class ItemFilter:
@@ -73,7 +74,7 @@ def head_prompt(msg, c=55):
 
 def safe_cast(spell, target=None, wait=3000):
     """Tries to safely cast a spell.
-    
+
     If we're paralyzed or currently waiting for a target, skip casting.
     It can also be used as a "sphere style" type of casting, if no target
     is provided: Asks for a target first, casting after.
@@ -86,3 +87,37 @@ def safe_cast(spell, target=None, wait=3000):
     Target.WaitForTarget(wait)
     Target.TargetExecute(target)
     return True
+
+
+def tile_info(x, y, kind):
+    land = Statics.GetStaticsLandInfo(x, y, Player.Map)
+
+    if land:
+        static_id = land.StaticID
+        static_z = land.StaticZ
+        is_kind = Statics.GetLandFlag(static_id, kind)
+        tile = Statics.GetStaticsTileInfo(x, y, Player.Map)
+        if tile.Count == 0:
+            static_id = 0x0000
+        if not is_kind and tile.Count == 1:
+            is_kind = Statics.GetTileFlag(tile[0].StaticID, kind)
+            if is_kind:
+                static_id = tile[0].StaticID
+                static_z = tile[0].StaticZ
+        if is_kind:
+            return x, y, static_z, static_id
+    else:
+        tile = Statics.GetStaticsTileInfo(x, y, Player.Map)
+        if tile.Count == 1:
+            tile = tile[0]
+            is_kind = Statics.GetTileFlag(tile.StaticID, kind)
+            if is_kind:
+                return x, y, static_z, static_id
+
+    return None
+
+
+def container_item_count(container):
+    for line in Items.GetPropStringList(container):
+        if "Contents:" in line:
+            return int(line.split('/')[0].replace('Contents: ', ''))

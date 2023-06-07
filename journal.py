@@ -5,15 +5,18 @@ from AutoComplete import *
 from lib.util import Hue
 
 patterns = {
-    r'concentration is disturbed': ('* FIZZLE *', Hue.Yellow),
+    r'concentration is disturbed': ('* FIZZLE *', Hue.Gray),
     r'attunement fades': ('- ATTUNEMENT -', Hue.Red),
-    r'resists the effects of death ray': ('! DEATH RAY RESIST !', Hue.Magenta),
-    r'Honorable Combat!': ('+ HONORED +', Hue.Green),
+    r'resists the effects of death ray': ('! DEATH RAY RESIST !', Hue.Yellow),
+    r'honorable combat!': ('+ Honored +', Hue.Green),
     r'You are at peace.': ('+ Mana 100% +', Hue.Cyan),
     r'enter a meditative trance.': ('~ Meditating ~', Hue.Cyan),
     r'resists spell plague.': ('! Plague Resist !', Hue.Yellow),
     r'(\d+).+?absorbed.+?(\d+).+?shielding': (r'-\1 (\2)', Hue.Red),
-    r'fallen beast, a special artifact': ('++ Artifact! ++', Hue.Green)
+    r'fallen beast, a special (reward|artifact)': ('++ Artifact! ++', Hue.Orange),
+    r'notice the crest of minax on your fallen foe': ('++ Artifact! ++', Hue.Orange),
+    r'respond immediately to the next blocked blow': ('^ Counter Attack ^', Hue.Orange),
+    r'you feel that you might be able to': ('~ Evasion ~', Hue.Blue),
 }
 
 last_message = -1

@@ -76,7 +76,7 @@ Player.HeadMessage(
     "Gathered data for all towns! Summary stored in 'trade_deals.txt'")
 
 with open('trade_deals.txt', 'w+') as f:
-    f.write('Trade Deals Summary - {}\n'.format(datetime.utcnow()))
+    f.write('# Trade Deals Summary - {}\n'.format(datetime.utcnow()))
     for town, deal in town_deals.items():
-        f.write('{}\t{}\n'.format(town, deal))
+        f.write('- **{}**: {}\n'.format(town, deal))
     f.close()

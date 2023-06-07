@@ -39,7 +39,7 @@ use_chivalry = False  # True: Sacred Journey, False: Recall
 # change these to your own or set to None to prompt each time:
 runebook_serial = 0x404D3431
 home_rune_serial = 0x401F5269
-home_chest_serial = 0x4066653C
+home_chest_serial = 0x4031654D
 ### CONFIG ###
 
 from AutoComplete import *
@@ -65,6 +65,13 @@ home_rune = Items.FindBySerial(
     or head_prompt('target your home rune (or default runebook)'))
 home_chest = Items.FindBySerial(
     home_chest_serial or head_prompt('target the chest to store ore in'))
+    
+    
+Journal.FilterText('Where do you wish to dig?')
+Journal.FilterText('loosen some rocks but fail')
+Journal.FilterText('ore and put it in your backpack')
+Journal.FilterText('no metal here to mine')
+Journal.FilterText('worn out your tool!')
 
 prospected = []
 current_rune = 0
@@ -118,8 +125,7 @@ def move_ore():
     ores = filter(lambda f: f.ItemID in ORE_TYPES, Player.Backpack.Contains)
     for ore in ores:
         Items.Move(ore.Serial, home_chest.Serial, -1)
-        Misc.Pause(625)
-    Misc.Pause(1250)
+        Misc.Pause(1250)
 
 
 def prospect(x, y, z, id):

@@ -18,7 +18,7 @@ def pet_attack(honor=True, dismount=True):
         Target.TargetExecute(target)
         Misc.Pause(200)
 
-    target = Target.GetTargetFromList('enemy')
+    target = Target.GetTargetFromList('enemies')
     if not target:
         Player.HeadMessage(90, 'No enemies around!')
         return

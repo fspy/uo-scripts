@@ -15,15 +15,14 @@ def heal(pet, threshold=0.5):
         return
     if pet.Hits < pet.HitsMax * threshold:
         while pet.Hits < pet.HitsMax * 0.9 and not pet.Poisoned and not pet.YellowHits:
-            safe_cast('Greater Heal', pet)
+            #safe_cast('Greater Heal', pet)
+            safe_cast('Heal', pet)
     Misc.Pause(lag)
 
 
 Misc.SendMessage('Auto Pet Healing Enabled!', Hue.Green)
 while True:
     pet = mf.get('Weakest')
-    if not pet:
-        Player.HeadMessage(33, 'Pet not found!')
-        Misc.Pause(lag)
-    if not pet.IsGhost and Player.DistanceTo(pet) < 10:
-        heal(pet, 0.5)
+    if pet and Player.DistanceTo(pet) < 10 and not pet.IsGhost:
+        heal(pet, 0.9)
+    Misc.Pause(lag)

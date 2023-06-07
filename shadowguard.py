@@ -12,6 +12,7 @@ from AutoComplete import *
 from System.Collections.Generic import List
 from System import Byte
 
+
 colors = {
     'green': 65,
     'cyan': 90,
@@ -54,19 +55,24 @@ def detect_room():
 
 
 def bar(auto=False):
-    if not auto:  # try to use a bottle, targetting done by user
-        return Items.UseItemByID(0x099B, -1)
+    mobile = Mobiles.Filter()
+    mobile.Enabled = True
+    mobile.Notorieties = List[Byte](bytes([6]))
+    mobile.RangeMax = 10
 
-    # auto finds target and throws bottles
-    target = closest_mobile(notoriety=[6], max_range=10)  # closest "murderer"
-    if not target or not Items.UseItemByID(0x099B, -1):
-        # Misc.SendMessage('no targets nearby, cancelling', colors['orange'])
-        # Target.Cancel()
-        return
+    filter = Items.Filter()
+    filter.Enabled = True
+    filter.Name = 'A Bottle of Liquor'
+    filter.RangeMax = 2
 
-    Mobiles.Message(target, colors['cyan'], '* Target *')
-    Target.WaitForTarget(LAG)  # idk?
-    Target.TargetExecute(target)
+    while True:
+        list = Items.ApplyFilter(filter)
+        for item in list:
+            Items.UseItem(item)
+            Target.WaitForTarget(500)
+            mobiles = Mobiles.ApplyFilter(mobile)
+            if len(mobiles) > 0:
+                Target.TargetExecute(mobiles[0])
 
 
 def orchard(auto=False):
