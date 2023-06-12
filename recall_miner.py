@@ -31,6 +31,10 @@ REQUIREMENTS:
 - Some iron ingots to make tools with (with your/in house container).
 """
 
+from AutoComplete import *
+
+from lib.util import head_prompt, safe_cast
+
 ### CONFIG ###
 shovels_to_keep = 5  # high number to stop less often
 use_prospecting = True  # use prospecting tool before mining
@@ -42,9 +46,6 @@ home_rune_serial = 0x401F5269
 home_chest_serial = 0x4031654D
 ### CONFIG ###
 
-from AutoComplete import *
-
-from lib.util import Hue, head_prompt, safe_cast
 
 SHOVEL = 0x0F39
 TOOL_KIT = 0x1EB8
@@ -65,8 +66,8 @@ home_rune = Items.FindBySerial(
     or head_prompt('target your home rune (or default runebook)'))
 home_chest = Items.FindBySerial(
     home_chest_serial or head_prompt('target the chest to store ore in'))
-    
-    
+
+
 Journal.FilterText('Where do you wish to dig?')
 Journal.FilterText('loosen some rocks but fail')
 Journal.FilterText('ore and put it in your backpack')
@@ -134,7 +135,6 @@ def prospect(x, y, z, id):
         Target.TargetExecute(x, y, z, id)
         return
 
-    # Misc.SendMessage('unable to use prospecting tool, disabling', Hue.Red)
     global use_prospecting
     use_prospecting = False
 
@@ -183,7 +183,6 @@ def do_the_mining(tile):
     Misc.Pause(200)
 
     if Journal.Search('There is no metal here to mine'):
-        # Player.HeadMessage(Hue.Yellow, "No ore here!")
         Journal.Clear('There is no metal here to mine')
         return False
 

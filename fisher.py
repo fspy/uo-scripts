@@ -1,5 +1,8 @@
 import sys
 
+from AutoComplete import *
+
+
 def find_pole():
     pole = Player.GetItemOnLayer('RightHand')
     if pole and pole.ItemID == 0x0DC0:
@@ -11,12 +14,14 @@ def find_pole():
         else:
             Misc.SendMessage('no fishing pole')
             sys.exit(99)
-            
+
+
 def get_tile(loc):
     tiles = Statics.GetStaticsTileInfo(loc.X, loc.Y, Player.Map)
     if len(tiles) != 0 and tiles[0].StaticID != 0:
         return tiles[0].StaticZ, tiles[0].StaticID
     return -5, 0
+
 
 def fish():
     pole = find_pole()
@@ -32,7 +37,7 @@ def fish():
     Misc.Beep()
     sys.exit(99)
 
-    
+
 target = Target.PromptGroundTarget('Select location to fish')
 
 Journal.Clear()

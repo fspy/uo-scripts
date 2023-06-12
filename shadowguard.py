@@ -2,25 +2,17 @@
 Shadowguard Helper
 """
 
+from AutoComplete import *
 # Settings
+from System import Byte
+from System.Collections.Generic import List
+
+from lib.util import Hue
+
 bot_mode = True  # loops the script
 auto_target = True  # automatically targets mobs @ bar
 LAG = 150
 # Settings
-
-from AutoComplete import *
-from System.Collections.Generic import List
-from System import Byte
-
-
-colors = {
-    'green': 65,
-    'cyan': 90,
-    'orange': 43,
-    'red': 1100,
-    'yellow': 52,
-    'white': 1150
-}
 
 
 def closest_item(item_name, on_ground=False):
@@ -34,7 +26,8 @@ def closest_item(item_name, on_ground=False):
 
 def closest_mobile(mobile_name=None, notoriety=[3, 4, 5, 6], max_range=2):
     mobile_filter = Mobiles.Filter()
-    if mobile_name: mobile_filter.Name = mobile_name
+    if mobile_name:
+        mobile_filter.Name = mobile_name
     mobile_filter.Notorieties = List[Byte](bytes(notoriety))
     mobile_filter.RangeMax = max_range
     results = Mobiles.ApplyFilter(mobile_filter)
@@ -54,7 +47,7 @@ def detect_room():
     return None
 
 
-def bar(auto=False):
+def bar():
     mobile = Mobiles.Filter()
     mobile.Enabled = True
     mobile.Notorieties = List[Byte](bytes([6]))
@@ -75,16 +68,16 @@ def bar(auto=False):
                 Target.TargetExecute(mobiles[0])
 
 
-def orchard(auto=False):
+def orchard():
     apple = Items.FindByID(0x09D0, -1, Player.Backpack.Serial, True)
     if not apple:
         return
 
-    Player.HeadMessage(colors['green'], apple.Name)
+    Player.HeadMessage(Hue.Green, apple.Name)
     Items.UseItem(apple)
 
 
-def armory(auto=False):
+def armory():
     unpurified = Items.FindAllByID(0x4686, 0x081b, Player.Backpack.Serial, -1)
     purified = Items.FindByID(0x4686, 0, Player.Backpack.Serial)
 
@@ -92,14 +85,14 @@ def armory(auto=False):
     closest_armor = closest_item('Cursed Suit of Armor', True)
 
     if closest_brazier and unpurified:
-        # Player.HeadMessage(colors['orange'], 'Purifying!')
+        # Player.HeadMessage(Hue.Orange, 'Purifying!')
         for i in unpurified:
             Items.UseItem(i)
             Target.WaitForTarget(LAG)
             Target.TargetExecute(closest_brazier)
 
     if closest_armor and purified:
-        # Player.HeadMessage(colors['cyan'], 'Destroying statue!')
+        # Player.HeadMessage(Hue.Cyan, 'Destroying statue!')
         Items.UseItem(purified)
         Target.WaitForTarget(1000)
         Target.TargetExecute(closest_armor)
@@ -115,30 +108,3 @@ while not Player.IsGhost:
         armory(auto_target)
 
     Misc.Pause(LAG)
-
-    if not bot_mode:
-        break
-"""
-
-
-#sort canal piece if found
-if canal:
-    if canal[0].ItemID == 0x9BEF:
-        Items.Move(canal[0].Serial, Player.Backpack.Serial, 1, 1, 1)  #top left
-    elif canal[0].ItemID == 0x9BF4:
-        Items.Move(canal[0].Serial, Player.Backpack.Serial, 1, 95,
-                   1)  #top middle
-    elif canal[0].ItemID == 0x9BEB:
-        Items.Move(canal[0].Serial, Player.Backpack.Serial, 1, 150,
-                   1)  #top middle
-    elif canal[0].ItemID == 0x9BF8:
-        Items.Move(canal[0].Serial, Player.Backpack.Serial, 1, 1,
-                   150)  #top middle
-    elif canal[0].ItemID == 0x9BE7:
-        Items.Move(canal[0].Serial, Player.Backpack.Serial, 1, 95,
-                   150)  #top middle
-    elif canal[0].ItemID == 0x9BFC:
-        Items.Move(canal[0].Serial, Player.Backpack.Serial, 1, 150,
-                   150)  #top middle
-
-"""

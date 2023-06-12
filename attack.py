@@ -1,12 +1,13 @@
 # create a friends list called 'pets' and add your pets there.
 # `use_honor` will try to use honor before sending pet
 # `dismount` assumes your pet is your mount, so it dismounts
-use_honor = True
-dismount = True
-
 from AutoComplete import *
 
 from lib.util import Hue, MobileFilter
+
+use_honor = True
+dismount = True
+
 
 mf = MobileFilter(serials=Friend.GetList('pets'), friend=True)
 
@@ -18,7 +19,7 @@ def pet_attack(honor=True, dismount=True):
         Target.TargetExecute(target)
         Misc.Pause(200)
 
-    target = Target.GetTargetFromList('enemies')
+    target = Target.GetTargetFromList('enemy')
     if not target:
         Player.HeadMessage(90, 'No enemies around!')
         return

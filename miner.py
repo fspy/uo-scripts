@@ -11,6 +11,8 @@
 # - A fire beetle;
 # - A blue (giant) beetle;
 #
+from AutoComplete import *
+
 ### CONFIG ###
 # Serial to your Fire Beetle
 fire_beetle = Target.PromptTarget('Target your fire beetle', 43)
@@ -31,7 +33,6 @@ prospect = True
 sturdy = True
 ### CONFIG ###
 
-from AutoComplete import *
 
 SHOVEL = 0x0F39
 TOOL_KIT = 0x1EB8

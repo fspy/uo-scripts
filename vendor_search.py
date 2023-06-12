@@ -1,7 +1,10 @@
-item = Items.FindBySerial(Target.PromptTarget('What do you want to search?', 62))
-
-from System.Collections.Generic import List
+from AutoComplete import *
 from System import Int32
+from System.Collections.Generic import List
+
+item = Items.FindBySerial(Target.PromptTarget(
+    'What do you want to search?', 62))
+
 
 vs_gump = 1005351445
 Misc.UseContextMenu(Player.Serial, 'Vendor Search', 5000)

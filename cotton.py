@@ -15,6 +15,7 @@ cotton plant nearby,
 # don't forget to add 0x0DF9 to scavenger!
 
 from AutoComplete import *
+
 from lib.util import Hue, ItemFilter
 
 cotton_item_id = 0x0DF9
@@ -84,9 +85,10 @@ def pick_cotton():
     while distance(cotton, Player) > 2:
         Player.PathFindTo(cotton.Position)
         Misc.Pause(2000)
-    
+
     Items.UseItem(cotton)
     Misc.Pause(625)
+
 
 Timer.Create('cottonwarning', 1)
 while not Player.IsGhost:

@@ -16,7 +16,8 @@ nf.Bodies.Add(0x02DF)
 
 def click_stone():
     stone = Items.FindByID(0x03bf, 0, -1, 2)
-    if not stone: return
+    if not stone:
+        return
     Items.UseItem(stone)
     Items.Message(stone, 1266, '* Clicked! *')
     Misc.Pause(625)

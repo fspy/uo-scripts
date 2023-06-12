@@ -23,12 +23,14 @@ last_message = -1
 while True:
     messages = [e for e in Journal.GetJournalEntry(last_message)]
     for message in messages:
-        if message.Type != 'System': continue
+        if message.Type != 'System':
+            continue
 
         text = message.Text
         for pattern, (display, color) in patterns.items():
             match = re.search(pattern, text, re.U | re.IGNORECASE)
-            if not match: continue
+            if not match:
+                continue
 
             if match.groups():
                 display = re.sub(r'\\(\d+)',

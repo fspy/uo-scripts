@@ -1,6 +1,8 @@
-from collections import namedtuple
 import os
+from collections import namedtuple
+
 from AutoComplete import *
+
 from lib.util import Hue
 
 csv = False

@@ -1,4 +1,5 @@
 from AutoComplete import *
+
 item = Target.PromptTarget('Target item to organize:', 1151)
 
 if not item:
@@ -13,10 +14,10 @@ x, y = item.Position.X, item.Position.Y
 for i in sorted(items, key=lambda x: x.Name):
     print(i.Name)
     Items.Move(i.Serial, cont, 0, x, y)
-    x += 8 # 10
+    x += 8  # 10
     if x > 156:
-        x = 44 # item.Position.X # 44
-        y += 15 # 20
+        x = 44  # item.Position.X # 44
+        y += 15  # 20
     Misc.Pause(625)
 
 Misc.SendMessage('Done organizing!', 1151)

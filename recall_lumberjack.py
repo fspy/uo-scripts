@@ -5,7 +5,7 @@ Recall Lumberjack
 
 from AutoComplete import *
 
-from lib.util import head_prompt, safe_cast, tile_info
+from lib.util import head_prompt, safe_cast
 
 ### CONFIG ###
 use_chivalry = False  # True: Sacred Journey, False: Recall
@@ -49,7 +49,7 @@ def travel(rune=None):
     Items.UseItem(lumberjack_runebook)
     Gumps.WaitForGump(RUNEBOOK_GUMP, 3000)
     Gumps.SendAction(RUNEBOOK_GUMP, rune)
-    Misc.Pause(1250) # 2500
+    Misc.Pause(1250)  # 2500
 
     if Journal.SearchByType('Something is blocking the location', 'System'):
         print('something is blocking the rune, go next')
@@ -133,6 +133,6 @@ while not Player.IsGhost:
             if Player.Weight >= drop_weight:
                 travel()
                 move_wood()
-                #Misc.Pause(1250)
+                # Misc.Pause(1250)
                 travel(rune)
     current_rune += 1

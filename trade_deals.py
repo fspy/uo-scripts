@@ -1,5 +1,7 @@
 from datetime import datetime
+
 from AutoComplete import *
+
 from lib.util import Hue
 
 stone_id = 0x0ED4

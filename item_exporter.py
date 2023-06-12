@@ -1,15 +1,16 @@
 # exports a container to a html file with their corresponding graphics
 # uses `style.css` for styling. there is one provided or you can make your own
 # files are saved at CUO's Data directory.
-from datetime import datetime
-from AutoComplete import *
+import os
 from collections import defaultdict
+from datetime import datetime
+
+import clr
+from AutoComplete import *
+
 from lib.util import Hue
 
-import clr, os
-
 clr.AddReference('System.Drawing')
-# this export needs to go after `clr.AddReference`, or RE breaks
 from System.Drawing.Imaging import *
 
 
