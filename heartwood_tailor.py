@@ -54,7 +54,7 @@ def make_items(category, item, amount):
     action(craft_gump, category)
     action(craft_gump, item)
 
-    while amount > 1: # already made 1 above
+    while amount > 1:  # already made 1 above
         use_tool()
         action(craft_gump, 21)  # make last
         amount -= 1
