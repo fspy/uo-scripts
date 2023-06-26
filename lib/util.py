@@ -1,7 +1,7 @@
 from urllib import parse, request
 
 from AutoComplete import *
-from System import Int32
+from System import Byte, Int32
 from System.Collections.Generic import List
 
 
@@ -19,12 +19,16 @@ class Hue:
 
 
 class ItemFilter:
-    def __init__(self, graphics=[], max_range=-1, min_range=-1, on_ground=-1):
+    def __init__(self, graphics=[], name=None, hues=[], max_range=-1, min_range=-1, on_ground=-1):
         self.filter = Items.Filter()
         self.filter.Graphics = List[Int32](graphics)
         self.filter.RangeMin = min_range
         self.filter.RangeMax = max_range
+        self.filter.Hues = List[Int32](hues)
         self.filter.OnGround = on_ground
+
+        if name:
+            self.filter.Name = name
 
     def get(self, criteria):
         self.items = Items.ApplyFilter(self.filter)
@@ -32,12 +36,18 @@ class ItemFilter:
 
 
 class MobileFilter:
-    def __init__(self, serials=[], friend=False, max_range=10, line_of_sight=False):
+    def __init__(self, serials=[], name=None, friend=False, notorieties=[], max_range=10, line_of_sight=False):
         self.filter = Mobiles.Filter()
-        self.filter.Serials = serials
+        self.filter.Serials = List[Int32](serials)
         self.filter.Friend = friend
         self.filter.RangeMax = max_range
         self.filter.CheckLineOfSight = line_of_sight
+
+        if name:
+            self.filter.Name = name
+
+        if notorieties:
+            self.filter.Notorieties = List[Byte](bytes(notorieties))
 
     def get(self, criteria):
         self.mobiles = Mobiles.ApplyFilter(self.filter)
