@@ -1,6 +1,3 @@
 {
-  "recommendations": [
-    "cesarsl.uos",
-    "ms-python.python",
-  ]
+  "recommendations": ["cesarsl.uos", "ms-python.python"]
 }

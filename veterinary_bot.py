@@ -1,14 +1,12 @@
 from AutoComplete import *
-from System import Byte
-from System.Collections.Generic import List
 
-f = Mobiles.Filter()
-f.RangeMax = 2
-f.Notorieties = List[Byte](bytes([1, 2]))
+from lib.util import MobileFilter
+
+f = MobileFilter(max_range=2, notorieties=[1, 2])
 
 Journal.Clear('owner has been asked to sanctify')
 while True:
-    mob = Mobiles.Select(Mobiles.ApplyFilter(f), 'Weakest')
+    mob = f.get('Weakest')
     if not mob:
         Misc.Pause(1000)
         continue

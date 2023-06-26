@@ -1,18 +1,13 @@
 from AutoComplete import *
-from System import Byte
-from System.Collections.Generic import List
+
+from lib.util import MobileFilter
+
+ml = MobileFilter(max_range=6, notorieties=[3, 4, 5, 6], friend=False)
 
 
 def mobs_list(range=6):
-    fil = Mobiles.Filter()
-    fil.Enabled = True
-    fil.RangeMax = range
-    fil.Notorieties = List[Byte](bytes([3, 4, 5, 6]))
-    fil.IsGhost = False
-    fil.Friend = False
-    mobs = Mobiles.ApplyFilter(fil)
-
-    return sorted(mobs, key=Player.DistanceTo)
+    ml.filter.RangeMax = range
+    return sorted(ml.get(), key=Player.DistanceTo)
 
 
 use_eoo = False
