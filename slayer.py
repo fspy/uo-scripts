@@ -1,15 +1,17 @@
+
 import re
 from collections import defaultdict, namedtuple
 
 from AutoComplete import *
 
-from lib.util import Hue, search_subcontainers, show_props
+from lib.util import Hue, search_subcontainers
 
 SkillValue = namedtuple("Skill", ["Name", "Value"])
 
 
 class Slayer:
     gump_id = 835374663
+    re = re.compile(r"(.+?)( slayer)?$", re.IGNORECASE)
 
     ids = [
         1060457,  # air elemental
@@ -42,49 +44,50 @@ class Slayer:
     ]
 
     def __init__(self) -> None:
-        # self.skill = self.detect_skill()
+        self.active = 0
         self.slayers = self.find_weapons()
+        self.gump()
 
-    # def detect_skill(self):
-    #     skills = ["Magery", "Necromancy", "Swords"]
-    #     result = SkillValue(None, 0)
-    #     for s in skills:
-    #         val = Player.GetSkillValue(s)
-    #         if val > result.Value:
-    #             result = SkillValue(s, val)
-    #     return result.Name
+    def get_slayer_prop(self, item):
+        if not any(prop.Number == 0x103134 for prop in item.Properties):
+            return None  # not a swordsmanship weapon
+        slayer_prop = next(
+            (prop.ToString() for prop in item.Properties if prop.Number in self.ids), None)
+        if not slayer_prop:
+            return None
+        return re.sub(self.re, r"\1", slayer_prop).lower()
 
-    def _get_slayer(self, item):
-        if any(prop.Number == 0x103134 for prop in item.Properties):
-            # 0x103134 swordsmanship
-            for prop in item.Properties:
-                if prop.Number in self.ids:
-                    return prop.ToString()
-        return None
-
-    def _unequip(self, layer="LeftHand"):
-        while Player.CheckLayer(layer):
-            Player.UnEquipItemByLayer(layer)
-            Misc.Pause(625)
+    def get_equipped_slayer(self):
+        if not Player.CheckLayer('LeftHand'):
+            return None, None
+        weapon = Player.GetItemOnLayer('LeftHand')
+        return self.get_slayer_prop(weapon), weapon
 
     def find_weapons(self):
-        self._unequip()
         weapons = defaultdict(None)
+
         for item in search_subcontainers(Player.Backpack):
-            slayer = self._get_slayer(item)
+            slayer = self.get_slayer_prop(item)
             if not slayer:
                 continue
-            key = re.sub(r"(.+?)( slayer)?$", r"\1", slayer).lower()
-            weapons[key] = item
+            weapons[slayer] = item
+
+        eqslayer, eqw = self.get_equipped_slayer()
+        if eqslayer:
+            weapons[eqslayer] = eqw
+            self.active = sorted(weapons).index(eqslayer) + 1
+
         return weapons
 
     def equip_slayer(self, kind):
-        self._unequip()
+        while Player.CheckLayer('LeftHand'):
+            Player.UnEquipItemByLayer('LeftHand')
+            Misc.Pause(625)
         Player.EquipItem(self.slayers[kind])
-        Misc.Pause(200)
+        Misc.Pause(500)
 
-    def gump(self, active=0, progress=False):
-        gd = Gumps.CreateGump(True, False, True, False)
+    def gump(self, progress=False):
+        gd = Gumps.CreateGump(True, False, False, False)
         gump_height = 50 + 28 * len(self.slayers)
         Gumps.AddBackground(gd, 0, 0, 160, gump_height, 9270)
         Gumps.AddAlphaRegion(gd, 0, 0, 160, gump_height)
@@ -94,8 +97,8 @@ class Slayer:
         for btn_id, slayer_type in enumerate(sorted(self.slayers), 1):
             color = (
                 Hue.Yellow
-                if active == btn_id and progress
-                else (Hue.Green if active == btn_id else Hue.Red)
+                if self.active == btn_id and progress
+                else (Hue.Green if self.active == btn_id else Hue.Red)
             )
             Gumps.AddButton(gd, 18, y_idx, 5837, 5838, btn_id, 1, 0)
             Gumps.AddLabel(gd, 48, y_idx, color, slayer_type.capitalize())
@@ -107,21 +110,17 @@ class Slayer:
         )
 
     def loop(self):
-        active = 0
         while True:
-            self.gump(active)
-            Misc.Pause(500)
+            Misc.Pause(1)
             gd = Gumps.GetGumpData(self.gump_id)
             if gd.buttonid > 0:
-                active = gd.buttonid
-                self.gump(active, True)
+                self.active = gd.buttonid
+                self.gump(progress=True)
                 slayer = sorted(self.slayers)[gd.buttonid - 1]
                 self.equip_slayer(slayer)
-                self.gump(active)
-            else:
-                Gumps.SendAction(self.gump_id, 0)
+                self.gump()
+                self.slayers = self.find_weapons()
 
 
-# show_props()
 s = Slayer()
 s.loop()
