@@ -64,19 +64,6 @@ caster_jewelry = re.compile(
     r'lower (mana|reagent) cost)|spell damage increase|'
     r'faster cast(ing| recovery)', re.IGNORECASE)
 
-containers = {
-    'head': 0x40722C94,
-    'neck': 0x40722B88,
-    'chest': 0x40722B9C,
-    'arms': 0x4072208F,
-    'hands': 0x40316502,
-    'legs': 0x40722114,
-    'bracelet': 0x407220A9,
-    'ring': 0x407220C7,
-}
-
-dump_chest = 0x4031654D
-
 settings = {
     'resist': 80,
     'skill': 45,
@@ -86,12 +73,8 @@ settings = {
     'fighterjewelry': 5
 }
 
-# for cont in containers.values():
-#     find_gear(cont, Player.Backpack.Serial, settings)
-
 src = head_prompt('Target container to sort')
 dst = head_prompt('Target where to put items')
 find_gear(src, dst, settings)
-# find_gear(dump_chest, Player.Backpack.Serial, settings)
 
 Misc.SendMessage("Done sorting items!", Hue.Cyan)

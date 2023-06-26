@@ -6,7 +6,6 @@ from lib.util import tile_info
 
 def useskill(skillname='Tracking', pause=10500):
     while Player.GetSkillValue(skillname) < Player.GetSkillCap(skillname):
-        print(skillname)
         Player.UseSkill(skillname)
         if skillname == 'Tracking':
             Gumps.WaitForGump(2976808305, 3000)
@@ -65,9 +64,22 @@ def mine_sand():
     Target.TargetResource(shovel, 'sand')
     Misc.Pause(200)
 
-#mine_sand()
-#useskill('Hiding')
+def make_last():
+    Gumps.WaitForGump(949095101, 2000)
+    Gumps.SendAction(949095101, 21)
+    Gumps.WaitForGump(949095101, 2000)
 
-while True: 
-    vendor_price(5000)
-    Misc.Pause(500)
+def scribe():
+    while Player.GetRealSkillValue('Inscribe') < Player.GetSkillCap('Inscribe'):
+        make_last()
+        if Player.Mana < 50:
+            Player.UseSkill('meditation')
+            while Player.Mana < 210:
+                Misc.Pause(1)
+
+    
+#useskill('Hiding')
+#vendor_price(5000)
+mr_white()
+#ChivalryTrainer().run()
+# while True: mine_sand()

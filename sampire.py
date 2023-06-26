@@ -17,10 +17,10 @@ def mobs_list(range=6):
 
 use_eoo = False
 use_df = False
-use_cw = True
+use_cw = False
 use_ls = False
 use_ca = True
-use_honor = True
+use_honor = False
 
 default_pause = 200
 
@@ -80,6 +80,6 @@ while not Player.IsGhost and Player.Visible:
         Target.TargetExecute(victims[0])
         Journal.WaitJournal('Honorable', 1000)
 
-    while Mobiles.FindBySerial(victims[0].Serial) and Player.DistanceTo(victims[0]) <= 6:
+    while Mobiles.FindBySerial(victims[0].Serial) and Player.DistanceTo(victims[0]) < 2:
         fighting(victims[0], len(mobs_list(1)) > 1)
         Misc.Pause(default_pause)

@@ -17,7 +17,7 @@ for i in sorted(items, key=lambda x: x.Name):
     x += 8  # 10
     if x > 156:
         x = 44  # item.Position.X # 44
-        y += 15  # 20
-    Misc.Pause(625)
+        y += 16  # 20
+    Misc.Pause(666)
 
 Misc.SendMessage('Done organizing!', 1151)
