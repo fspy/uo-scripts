@@ -30,9 +30,11 @@ class ItemFilter:
         if name:
             self.filter.Name = name
 
-    def get(self, criteria):
+    def get(self, criteria=None):
         self.items = Items.ApplyFilter(self.filter)
-        return Items.Select(self.items, criteria)
+        if criteria:
+            return Items.Select(self.items, criteria)
+        return self.items
 
 
 class MobileFilter:
@@ -49,9 +51,11 @@ class MobileFilter:
         if notorieties:
             self.filter.Notorieties = List[Byte](bytes(notorieties))
 
-    def get(self, criteria):
+    def get(self, criteria=None):
         self.mobiles = Mobiles.ApplyFilter(self.filter)
-        return Mobiles.Select(self.mobiles, criteria)
+        if criteria:
+            return Mobiles.Select(self.mobiles, criteria)
+        return self.mobiles
 
 
 def send_notification(title, message, event="event"):
