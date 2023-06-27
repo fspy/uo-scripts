@@ -1,4 +1,6 @@
 from AutoComplete import *
+from System import Byte, Int32
+from System.Collections.Generic import List
 
 
 class ItemFilter:
