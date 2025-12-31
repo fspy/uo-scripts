@@ -243,6 +243,13 @@ def find_fire_beetle() -> int:
     return 0
 
 
+def dismount_if_mounted() -> None:
+    """Dismount if currently mounted (mining requires being on foot)."""
+    if API.Player.Mounted:
+        API.Dismount()
+        API.Pause(0.5)
+
+
 # =========================
 # TRAVEL FUNCTIONS
 # =========================
@@ -313,6 +320,7 @@ def recall_to_mining_spot(runebook: Runebook, index: int) -> bool:
         
         if success and wait_for_travel():
             API.SysMsg(f"Successfully recalled to spot {index}")
+            dismount_if_mounted()
             return True
         
         if attempt < MAX_TRAVEL_RETRIES:
@@ -432,6 +440,9 @@ if mining_runebook_serial:
 
 # Determine max spots (16 runes per runebook, 0-indexed)
 max_mining_spots = 16
+
+# Dismount before starting (mining requires being on foot)
+dismount_if_mounted()
 
 # Track depletion per offset so we can rotate through all 4 directions.
 depleted_offsets = set()

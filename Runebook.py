@@ -6,8 +6,9 @@ Provides:
 - Travel utility functions (wait for travel, cast-and-target recall)
 
 Based on button formula from PlayTazUO/PublicLegionScripts RunebookRecaller.py
+
+Note: API module is injected by Legion engine at runtime, no import needed
 """
-import API
 import time
 
 # Runebook constants
