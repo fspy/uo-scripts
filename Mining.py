@@ -447,19 +447,74 @@ while not API.StopRequested:
         beetle = smelt_all_ore(beetle)
 
         # If we're still heavy but there's nothing left we can smelt,
-        # don't get stuck in an infinite "Heavy" loop.
+        # travel home to drop items (if travel is configured)
         if is_heavy() and not find_smeltable_ore():
-            API.SysMsg("Still heavy but no smeltable ore left; stopping")
-            break
+            if home_rune_serial and drop_container_serial:
+                API.SysMsg("Still heavy after smelting -> banking ingots at home")
+                
+                # Travel home
+                if not recall_home(home_rune_serial):
+                    API.SysMsg("Failed to recall home; stopping")
+                    break
+                
+                # Drop ingots and other configured items
+                dropped = drop_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
+                
+                if dropped == 0:
+                    API.SysMsg("No items to drop but still heavy; stopping")
+                    break
+                
+                # Return to current mining spot
+                if mining_runebook:
+                    if not recall_to_mining_spot(mining_runebook, current_spot_index):
+                        API.SysMsg("Failed to return to mining spot; stopping")
+                        break
+                    
+                    # Re-find beetle after teleport
+                    beetle = find_fire_beetle()
+                    if not beetle:
+                        beetle = load_beetle_serial()
+                    if not beetle:
+                        API.SysMsg("Cannot find beetle after teleport; stopping")
+                        break
+                else:
+                    API.SysMsg("No mining runebook configured; cannot return to spot")
+                    break
+            else:
+                API.SysMsg("Still heavy but no home/container configured; stopping")
+                break
 
         API.Pause(0.25)
         continue
 
-    # If all 4 tiles are depleted, wait and try again.
+    # If all 4 tiles are depleted, travel to next spot (if runebook configured)
     if len(depleted_offsets) >= len(MINE_OFFSETS):
         depleted_offsets.clear()
-        API.SysMsg("All 4 mining tiles depleted; waiting")
-        API.Pause(ALL_DEPLETED_PAUSE)
+        
+        if mining_runebook:
+            API.SysMsg("All 4 mining tiles depleted; traveling to next spot")
+            
+            # Recall to next spot and update index
+            success, current_spot_index = recall_to_next_spot(
+                mining_runebook, current_spot_index, max_mining_spots
+            )
+            
+            if not success:
+                API.SysMsg("Failed to travel to next spot; stopping")
+                break
+            
+            # Re-find beetle after teleport
+            beetle = find_fire_beetle()
+            if not beetle:
+                beetle = load_beetle_serial()
+            if not beetle:
+                API.SysMsg("Cannot find beetle after teleport; stopping")
+                break
+        else:
+            # No runebook configured, fall back to waiting
+            API.SysMsg("All 4 mining tiles depleted; waiting")
+            API.Pause(ALL_DEPLETED_PAUSE)
+        
         continue
 
     mined_any = False
