@@ -1,0 +1,198 @@
+"""
+Runebook.py - Reusable runebook interaction module for Legion Scripts
+
+Provides:
+- Runebook class for gump-based recall to specific rune indices
+- Travel utility functions (wait for travel, cast-and-target recall)
+
+Based on button formula from PlayTazUO/PublicLegionScripts RunebookRecaller.py
+"""
+import API
+import time
+
+# Runebook constants
+RUNEBOOK_GRAPHIC = 0x22C5
+RUNEBOOK_GUMP_ID = 0x59
+
+# Button formula: recall_button = base + (rune_index * stride)
+# From PublicLegionScripts: recall button for rune N = 5 + (N * 6)
+RECALL_BUTTON_BASE = 5
+RECALL_BUTTON_STRIDE = 6
+
+# Sacred Journey assumed to be offset by 1 (needs verification)
+SJ_BUTTON_BASE = 6
+SJ_BUTTON_STRIDE = 6
+
+# Travel detection messages
+TRAVEL_SUCCESS_MSGS = [
+    "You recall",
+    "You have been teleported",
+]
+
+TRAVEL_FAIL_MSGS = [
+    "You have not yet recovered",
+    "Spell fizzles",
+    "Target is blocked",
+    "You are not powerful enough",
+]
+
+
+class Runebook:
+    """Interact with a runebook via its gump."""
+    
+    def __init__(self, serial: int):
+        """
+        Initialize a Runebook wrapper.
+        
+        Args:
+            serial: The runebook item serial
+        """
+        self.serial = serial
+    
+    def open(self, timeout: float = 2.0) -> bool:
+        """
+        Open the runebook gump.
+        
+        Args:
+            timeout: How long to wait for gump to appear
+            
+        Returns:
+            True if gump opened successfully
+        """
+        API.UseObject(self.serial)
+        return API.WaitForGump(RUNEBOOK_GUMP_ID, timeout)
+    
+    def close(self) -> None:
+        """Close the runebook gump if open."""
+        if API.HasGump(RUNEBOOK_GUMP_ID):
+            API.CloseGump(RUNEBOOK_GUMP_ID)
+    
+    def recall_to_index(self, index: int) -> bool:
+        """
+        Recall to rune at index (0-15).
+        Opens gump if needed, clicks recall button.
+        
+        Args:
+            index: Rune index (0-15)
+            
+        Returns:
+            True if button was clicked (not if travel succeeded)
+        """
+        if index < 0 or index > 15:
+            API.SysMsg(f"Invalid rune index: {index}", 32)
+            return False
+        
+        # Open gump if not already open
+        if not API.HasGump(RUNEBOOK_GUMP_ID):
+            if not self.open():
+                API.SysMsg("Failed to open runebook", 32)
+                return False
+        
+        # Calculate and click recall button
+        button_id = RECALL_BUTTON_BASE + (index * RECALL_BUTTON_STRIDE)
+        result = API.ReplyGump(button_id, RUNEBOOK_GUMP_ID)
+        
+        # Give server time to process
+        API.Pause(0.5)
+        return result
+    
+    def sacred_journey_to_index(self, index: int) -> bool:
+        """
+        Sacred Journey (Chivalry) to rune at index (0-15).
+        
+        Args:
+            index: Rune index (0-15)
+            
+        Returns:
+            True if button was clicked (not if travel succeeded)
+        """
+        if index < 0 or index > 15:
+            API.SysMsg(f"Invalid rune index: {index}", 32)
+            return False
+        
+        # Open gump if not already open
+        if not API.HasGump(RUNEBOOK_GUMP_ID):
+            if not self.open():
+                API.SysMsg("Failed to open runebook", 32)
+                return False
+        
+        # Calculate and click Sacred Journey button
+        button_id = SJ_BUTTON_BASE + (index * SJ_BUTTON_STRIDE)
+        result = API.ReplyGump(button_id, RUNEBOOK_GUMP_ID)
+        
+        # Give server time to process
+        API.Pause(0.5)
+        return result
+
+
+def wait_for_travel(timeout: float = 5.0) -> bool:
+    """
+    Wait for recall/SJ travel to complete.
+    Monitors journal for success/failure messages and position changes.
+    
+    Args:
+        timeout: Maximum time to wait for travel
+        
+    Returns:
+        True if travel succeeded, False if failed or timeout
+    """
+    API.ClearJournal()
+    start_pos = (API.Player.X, API.Player.Y)
+    deadline = time.time() + timeout
+    
+    while time.time() < deadline and not API.StopRequested:
+        # Check for success messages
+        if API.InJournalAny(TRAVEL_SUCCESS_MSGS):
+            API.Pause(0.5)  # Brief pause to let position update
+            return True
+        
+        # Check for failure messages
+        if API.InJournalAny(TRAVEL_FAIL_MSGS):
+            return False
+        
+        # Check if position changed significantly (fallback detection)
+        if abs(API.Player.X - start_pos[0]) > 5 or abs(API.Player.Y - start_pos[1]) > 5:
+            return True
+        
+        API.Pause(0.1)
+    
+    # Timeout
+    return False
+
+
+def recall_and_target(target_serial: int, use_sacred_journey: bool = False) -> bool:
+    """
+    Cast Recall or Sacred Journey spell and target an item (rune/runebook).
+    Used for simple "go home" type travel where we just target the item.
+    
+    Args:
+        target_serial: Serial of the rune or runebook to target
+        use_sacred_journey: If True, use Sacred Journey (Chivalry), else Recall (Magery)
+        
+    Returns:
+        True if travel succeeded
+    """
+    spell = "Sacred Journey" if use_sacred_journey else "Recall"
+    
+    API.ClearJournal()
+    API.CastSpell(spell)
+    
+    if not API.WaitForTarget(timeout=5):
+        API.SysMsg(f"{spell} failed - no target cursor", 32)
+        return False
+    
+    API.Target(target_serial)
+    return wait_for_travel()
+
+
+def find_runebook_in_backpack() -> int:
+    """
+    Find the first runebook in the player's backpack.
+    
+    Returns:
+        Runebook serial, or 0 if not found
+    """
+    book = API.FindType(RUNEBOOK_GRAPHIC, API.Backpack)
+    if book:
+        return book.Serial
+    return 0
