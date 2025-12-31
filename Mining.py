@@ -36,7 +36,25 @@ DEPLETED_MSGS = [
 ]
 
 # How long to wait after all 4 tiles are depleted.
+# NOTE: This is replaced by runebook travel when enabled
 ALL_DEPLETED_PAUSE = 15.0
+
+# =========================
+# TRAVEL & RUNEBOOK CONFIG
+# =========================
+
+# Fire Beetle auto-detection
+FIRE_BEETLE_GRAPHIC = 0x00A9
+FIRE_BEETLE_HUE = 1161
+
+# Items to drop at home storage
+INGOT_TYPE = 0x1BF2
+DROP_ITEM_TYPES = [INGOT_TYPE]  # Add gemstone graphics as needed
+
+# Travel settings
+USE_SACRED_JOURNEY = False  # True = Chivalry Sacred Journey, False = Magery Recall
+MAX_TRAVEL_RETRIES = 3
+TRAVEL_RETRY_DELAY = 2.0  # Seconds between retry attempts
 
 
 def is_heavy() -> bool:
@@ -161,27 +179,47 @@ def smelt_all_ore(beetle_serial: int) -> int:
     return beetle_serial
 
 
+# =========================
+# PERSISTENT VARIABLES
+# =========================
+
 PERSIST_KEY_BEETLE = "Mining.FireBeetleSerial"
+PERSIST_KEY_MINING_BOOK = "Mining.MiningRunebookSerial"
+PERSIST_KEY_HOME_RUNE = "Mining.HomeRuneSerial"
+PERSIST_KEY_DROP_CONTAINER = "Mining.DropContainerSerial"
+PERSIST_KEY_CURRENT_SPOT = "Mining.CurrentSpotIndex"
 
 
-def load_beetle_serial():
-    # Persistent vars are stored as strings. Accept either decimal ("123") or hex ("0x123").
-    serial_str = API.GetPersistentVar(PERSIST_KEY_BEETLE, "0", API.PersistentVar.Char)
+def load_persistent_int(key: str, default: int = 0) -> int:
+    """
+    Load a persistent integer variable.
+    Accepts either decimal or hex strings.
+    """
+    value_str = API.GetPersistentVar(key, str(default), API.PersistentVar.Char)
     try:
-        serial = int(str(serial_str).strip(), 0)
+        value = int(str(value_str).strip(), 0)
     except Exception:
-        return 0
+        return default
+    
+    if value < 0:
+        return default
+    
+    return value
 
-    if serial <= 0:
-        return 0
 
-    # Don't hard-fail if the mobile isn't currently in client awareness.
-    # We'll still try to use the serial; you can retarget if needed.
-    return serial
+def save_persistent_int(key: str, value: int) -> None:
+    """Save a persistent integer variable."""
+    API.SavePersistentVar(key, str(int(value)), API.PersistentVar.Char)
+
+
+def load_beetle_serial() -> int:
+    """Load beetle serial from persistent storage."""
+    return load_persistent_int(PERSIST_KEY_BEETLE, 0)
 
 
 def save_beetle_serial(serial: int) -> None:
-    API.SavePersistentVar(PERSIST_KEY_BEETLE, str(int(serial)), API.PersistentVar.Char)
+    """Save beetle serial to persistent storage."""
+    save_persistent_int(PERSIST_KEY_BEETLE, serial)
 
 
 beetle = load_beetle_serial()
