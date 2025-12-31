@@ -222,15 +222,49 @@ def save_beetle_serial(serial: int) -> None:
     save_persistent_int(PERSIST_KEY_BEETLE, serial)
 
 
-beetle = load_beetle_serial()
+# =========================
+# FIRE BEETLE AUTO-DETECTION
+# =========================
 
-if not beetle:
-    API.SysMsg("Target your fire beetle (for smelting)")
-    beetle = API.RequestTarget()
-    if beetle:
-        save_beetle_serial(beetle)
+def find_fire_beetle() -> int:
+    """
+    Find nearest fire beetle by graphic and hue.
+    Returns serial or 0 if not found.
+    """
+    mobiles = API.GetAllMobiles(graphic=FIRE_BEETLE_GRAPHIC)
+    if not mobiles:
+        return 0
+    
+    for mob in mobiles:
+        if mob.Hue == FIRE_BEETLE_HUE:
+            return mob.Serial
+    
+    return 0
+
+
+# =========================
+# BEETLE INITIALIZATION
+# =========================
+
+# Try to auto-detect beetle first
+beetle = find_fire_beetle()
+
+if beetle:
+    API.SysMsg(f"Auto-detected fire beetle: {hex(beetle)}")
+    # Save for future use
+    save_beetle_serial(beetle)
 else:
-    API.SysMsg(f"Using saved beetle serial: {hex(beetle)}")
+    # Fall back to saved serial
+    beetle = load_beetle_serial()
+    
+    if not beetle:
+        # Finally, prompt for manual targeting
+        API.SysMsg("Target your fire beetle (for smelting)")
+        beetle = API.RequestTarget()
+        if beetle:
+            save_beetle_serial(beetle)
+    else:
+        API.SysMsg(f"Using saved beetle serial: {hex(beetle)}")
 
 # Don't force retarget on startup.
 # The client might not be aware of the beetle yet (range/visibility), but the serial
