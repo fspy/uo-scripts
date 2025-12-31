@@ -1,4 +1,5 @@
 import API
+from Runebook import Runebook, wait_for_travel, recall_and_target
 
 # =========================
 # CONFIG
@@ -243,6 +244,146 @@ def find_fire_beetle() -> int:
 
 
 # =========================
+# TRAVEL FUNCTIONS
+# =========================
+
+def setup_travel_targets():
+    """
+    Load or prompt for mining runebook, home rune, and drop container.
+    Returns: (mining_runebook_serial, home_rune_serial, drop_container_serial, current_spot_index)
+    """
+    # Load mining runebook
+    mining_book = load_persistent_int(PERSIST_KEY_MINING_BOOK, 0)
+    if not mining_book:
+        API.SysMsg("Target your mining runebook (with all mining spots)")
+        mining_book = API.RequestTarget()
+        if mining_book:
+            save_persistent_int(PERSIST_KEY_MINING_BOOK, mining_book)
+            API.SysMsg(f"Saved mining runebook: {hex(mining_book)}")
+        else:
+            API.SysMsg("No mining runebook targeted")
+    else:
+        API.SysMsg(f"Using saved mining runebook: {hex(mining_book)}")
+    
+    # Load home rune/book
+    home_rune = load_persistent_int(PERSIST_KEY_HOME_RUNE, 0)
+    if not home_rune:
+        API.SysMsg("Target your home rune or runebook (for banking)")
+        home_rune = API.RequestTarget()
+        if home_rune:
+            save_persistent_int(PERSIST_KEY_HOME_RUNE, home_rune)
+            API.SysMsg(f"Saved home rune: {hex(home_rune)}")
+        else:
+            API.SysMsg("No home rune targeted")
+    else:
+        API.SysMsg(f"Using saved home rune: {hex(home_rune)}")
+    
+    # Load drop container
+    drop_container = load_persistent_int(PERSIST_KEY_DROP_CONTAINER, 0)
+    if not drop_container:
+        API.SysMsg("Target your storage container at home (for dropping ingots)")
+        drop_container = API.RequestTarget()
+        if drop_container:
+            save_persistent_int(PERSIST_KEY_DROP_CONTAINER, drop_container)
+            API.SysMsg(f"Saved drop container: {hex(drop_container)}")
+        else:
+            API.SysMsg("No drop container targeted")
+    else:
+        API.SysMsg(f"Using saved drop container: {hex(drop_container)}")
+    
+    # Load current spot index
+    current_spot = load_persistent_int(PERSIST_KEY_CURRENT_SPOT, 0)
+    API.SysMsg(f"Current mining spot index: {current_spot}")
+    
+    return mining_book, home_rune, drop_container, current_spot
+
+
+def recall_to_mining_spot(runebook: Runebook, index: int) -> bool:
+    """
+    Recall to a specific mining spot with retry logic.
+    Returns True if successful, False otherwise.
+    """
+    for attempt in range(1, MAX_TRAVEL_RETRIES + 1):
+        API.SysMsg(f"Recalling to mining spot {index} (attempt {attempt}/{MAX_TRAVEL_RETRIES})")
+        
+        if USE_SACRED_JOURNEY:
+            success = runebook.sacred_journey_to_index(index)
+        else:
+            success = runebook.recall_to_index(index)
+        
+        if success and wait_for_travel():
+            API.SysMsg(f"Successfully recalled to spot {index}")
+            return True
+        
+        if attempt < MAX_TRAVEL_RETRIES:
+            API.SysMsg(f"Travel failed, retrying in {TRAVEL_RETRY_DELAY}s...")
+            API.Pause(TRAVEL_RETRY_DELAY)
+    
+    API.SysMsg(f"Failed to recall to spot {index} after {MAX_TRAVEL_RETRIES} attempts")
+    return False
+
+
+def recall_to_next_spot(runebook: Runebook, current_idx: int, max_spots: int) -> tuple:
+    """
+    Cycle to next mining spot and recall there.
+    Returns: (success: bool, new_index: int)
+    """
+    next_idx = (current_idx + 1) % max_spots
+    API.SysMsg(f"All tiles depleted, moving to next spot: {current_idx} -> {next_idx}")
+    
+    # Save the new index before traveling
+    save_persistent_int(PERSIST_KEY_CURRENT_SPOT, next_idx)
+    
+    success = recall_to_mining_spot(runebook, next_idx)
+    return success, next_idx
+
+
+def recall_home(home_serial: int) -> bool:
+    """
+    Cast Recall or Sacred Journey and target the home rune/book.
+    Returns True if successful, False otherwise.
+    """
+    for attempt in range(1, MAX_TRAVEL_RETRIES + 1):
+        API.SysMsg(f"Recalling home (attempt {attempt}/{MAX_TRAVEL_RETRIES})")
+        
+        success = recall_and_target(home_serial, USE_SACRED_JOURNEY)
+        
+        if success:
+            API.SysMsg("Successfully recalled home")
+            return True
+        
+        if attempt < MAX_TRAVEL_RETRIES:
+            API.SysMsg(f"Travel home failed, retrying in {TRAVEL_RETRY_DELAY}s...")
+            API.Pause(TRAVEL_RETRY_DELAY)
+    
+    API.SysMsg(f"Failed to recall home after {MAX_TRAVEL_RETRIES} attempts")
+    return False
+
+
+def drop_items_at_home(container_serial: int, item_types: list) -> int:
+    """
+    Move all items of specified types to the storage container.
+    Returns: count of items dropped
+    """
+    dropped_count = 0
+    
+    for item_type in item_types:
+        while not API.StopRequested:
+            item = API.FindType(item_type, API.Backpack)
+            if not item:
+                break
+            
+            API.MoveItem(item.Serial, 0, container_serial)
+            API.Pause(0.5)  # Wait for server response
+            dropped_count += 1
+    
+    if dropped_count > 0:
+        API.SysMsg(f"Dropped {dropped_count} items in storage")
+    
+    return dropped_count
+
+
+# =========================
 # BEETLE INITIALIZATION
 # =========================
 
@@ -275,6 +416,22 @@ if not beetle:
     API.Stop()
 
 API.SysMsg("Mining started (will smelt when heavy)")
+
+# =========================
+# TRAVEL TARGET INITIALIZATION
+# =========================
+
+# Setup travel targets (mining runebook, home rune, drop container)
+mining_runebook_serial, home_rune_serial, drop_container_serial, current_spot_index = setup_travel_targets()
+
+# Initialize Runebook wrapper if we have a mining runebook
+mining_runebook = None
+if mining_runebook_serial:
+    mining_runebook = Runebook(mining_runebook_serial)
+    API.SysMsg(f"Mining runebook initialized (current spot: {current_spot_index})")
+
+# Determine max spots (16 runes per runebook, 0-indexed)
+max_mining_spots = 16
 
 # Track depletion per offset so we can rotate through all 4 directions.
 depleted_offsets = set()
