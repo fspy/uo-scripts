@@ -235,6 +235,27 @@ loop_delay = 0.1
 # After each chop, give the backpack a moment to update.
 post_chop_check_delay = 0.1
 
+# Dismount delay when equipping axe
+dismount_pause = 0.5
+
+# Delay when clearing right hand to re-equip
+clear_hand_pause = 0.25
+
+# Wait for target cursor timeout
+target_cursor_timeout = 0.75
+
+# Wait message retry delay
+wait_msg_retry_delay = 0.25
+
+# Retry delay when waiting on wait_msgs during log chopping
+wait_msg_log_retry = 0.5
+
+# Pathfinding timeout in seconds
+pathfind_timeout = 10
+
+# System message color for errors/warnings
+error_msg_color = 32
+
 # Journal messages that indicate no wood / out of range / invalid target.
 # Keep these as *substrings* (we match case-insensitive against recent journal entries).
 depleted_msgs = [
@@ -269,54 +290,8 @@ def chebyshev_dist(x1: int, y1: int, x2: int, y2: int) -> int:
     return max(abs(x1 - x2), abs(y1 - y2))
 
 
-def find_axe():
-    two_handed = API.FindLayer("TwoHanded")
-    if two_handed and two_handed.Graphic == AXE_TYPE:
-        return two_handed
-
-    one_handed = API.FindLayer("OneHanded")
-    if one_handed and one_handed.Graphic == AXE_TYPE:
-        return one_handed
-
-    return API.FindType(AXE_TYPE, API.Backpack)
-
-
-def ensure_axe_equipped(axe):
-    if not axe:
-        return None
-
-    two_handed = API.FindLayer("TwoHanded")
-    if two_handed and two_handed.Graphic == AXE_TYPE:
-        return two_handed
-
-    one_handed = API.FindLayer("OneHanded")
-    if one_handed and one_handed.Graphic == AXE_TYPE:
-        return one_handed
-
-    if API.Player.Mount:
-        API.Dismount(skipQueue=True)
-        API.Pause(0.5)
-
-    # Try a straight equip first.
-    API.EquipItem(int(axe.Serial))
-    API.Pause(equip_delay)
-
-    two_handed = API.FindLayer("TwoHanded")
-    if two_handed and two_handed.Graphic == AXE_TYPE:
-        return two_handed
-
-    one_handed = API.FindLayer("OneHanded")
-    if one_handed and one_handed.Graphic == AXE_TYPE:
-        return one_handed
-
-    # If hands are occupied, free the right hand slot and retry.
-    if API.FindLayer("TwoHanded") or API.FindLayer("OneHanded"):
-        API.ClearRightHand()
-        API.Pause(0.25)
-
-    API.EquipItem(int(axe.Serial))
-    API.Pause(equip_delay)
-
+def _get_equipped_axe() -> API.PyItem | None:
+    """Check if axe is equipped in either hand. Returns equipped axe or None."""
     two_handed = API.FindLayer("TwoHanded")
     if two_handed and two_handed.Graphic == AXE_TYPE:
         return two_handed
@@ -326,6 +301,44 @@ def ensure_axe_equipped(axe):
         return one_handed
 
     return None
+
+
+def find_axe() -> API.PyItem | None:
+    equipped = _get_equipped_axe()
+    if equipped:
+        return equipped
+    return API.FindType(AXE_TYPE, API.Backpack)
+
+
+def ensure_axe_equipped(axe: API.PyItem | None) -> API.PyItem | None:
+    if not axe:
+        return None
+
+    equipped = _get_equipped_axe()
+    if equipped:
+        return equipped
+
+    if API.Player.Mount:
+        API.Dismount(skipQueue=True)
+        API.Pause(dismount_pause)
+
+    # Try a straight equip first.
+    API.EquipItem(int(axe.Serial))
+    API.Pause(equip_delay)
+
+    equipped = _get_equipped_axe()
+    if equipped:
+        return equipped
+
+    # If hands are occupied, free the right hand slot and retry.
+    if API.FindLayer("TwoHanded") or API.FindLayer("OneHanded"):
+        API.ClearRightHand()
+        API.Pause(clear_hand_pause)
+
+    API.EquipItem(int(axe.Serial))
+    API.Pause(equip_delay)
+
+    return _get_equipped_axe()
 
 
 _last_tree_debug_time = 0.0
@@ -341,14 +354,14 @@ def _tree_graphics_set() -> set:
     return _tree_tile_graphics_cache
 
 
-def _graphic_matches_tree(static) -> bool:
+def _graphic_matches_tree(static: API.PyStatic) -> bool:
     if not use_tree_graphic_list:
         return False
     graphic = int(getattr(static, "Graphic", 0) or 0)
     return graphic in _tree_graphics_set()
 
 
-def find_trees(scan_range: int) -> list:
+def find_trees(scan_range: int) -> list[API.PyStatic]:
     global _last_tree_debug_time
 
     px, py = int(API.Player.X), int(API.Player.Y)
@@ -361,7 +374,6 @@ def find_trees(scan_range: int) -> list:
 
     # Summary counts (optional)
     total = 0
-    included = 0
     is_tree_count = 0
     veg_count = 0
     los_excluded = 0
@@ -410,8 +422,6 @@ def find_trees(scan_range: int) -> list:
             los_excluded += 1
             continue
 
-        included += 1
-
         key = (int(s.X), int(s.Y))
         existing = by_xy.get(key)
         if existing is None:
@@ -436,7 +446,7 @@ def find_trees(scan_range: int) -> list:
     return list(by_xy.values())
 
 
-def nearest_tree(scan_range: int, depleted_until: dict):
+def nearest_tree(scan_range: int, depleted_until: dict) -> API.PyStatic | None:
     now = time.time()
     px, py = int(API.Player.X), int(API.Player.Y)
 
@@ -460,21 +470,21 @@ def nearest_tree(scan_range: int, depleted_until: dict):
     return available[0]
 
 
-def pathfind_to_tree(tree) -> bool:
+def pathfind_to_tree(tree: API.PyStatic) -> bool:
     return API.Pathfind(
         int(tree.X),
         int(tree.Y),
         int(tree.Z),
         distance=pathfind_distance,
         wait=True,
-        timeout=10,
+        timeout=pathfind_timeout,
     )
 
 
-def chop_tree(axe, tree) -> bool:
+def chop_tree(axe: API.PyItem | None, tree: API.PyStatic) -> bool:
     axe = ensure_axe_equipped(axe)
     if not axe:
-        API.SysMsg("Could not equip axe; stopping", 32)
+        API.SysMsg("Could not equip axe; stopping", error_msg_color)
         API.Stop()
         return False
 
@@ -490,14 +500,14 @@ def chop_tree(axe, tree) -> bool:
     API.UseObject(int(axe.Serial))
 
     # Wait briefly for a cursor; if WaitForTarget is flaky, fall back to HasTarget.
-    if API.WaitForTarget(timeout=0.75) or API.HasTarget("any"):
+    if API.WaitForTarget(timeout=target_cursor_timeout) or API.HasTarget("any"):
         API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
 
     API.Pause(chop_delay)
     return True
 
 
-def _journal_has_any_recent(substrings, seconds) -> bool:
+def _journal_has_any_recent(substrings: list[str], seconds: float) -> bool:
     entries = API.GetJournalEntries(seconds) or []
     for entry in entries:
         text = str(getattr(entry, "Text", "") or "").lower()
@@ -547,7 +557,7 @@ def _pack_warn(msg: str) -> None:
         return
 
     _last_pack_warn_time = now
-    API.SysMsg(msg, 32)
+    API.SysMsg(msg, error_msg_color)
 
 
 def dump_boards_to_pack() -> bool:
@@ -633,7 +643,7 @@ def log_amount_in_pack() -> int:
     return total
 
 
-def chop_all_logs_in_pack(axe) -> bool:
+def chop_all_logs_in_pack(axe: API.PyItem | None) -> bool:
     """Chop all logs in pack. Returns True if successful, False if pack dump failed."""
     while not API.StopRequested:
         logs = API.FindTypeAll(log_type, API.Backpack) or []
@@ -649,7 +659,7 @@ def chop_all_logs_in_pack(axe) -> bool:
             # PreTarget to avoid targeting the ground/tile by mistake.
             axe = ensure_axe_equipped(axe)
             if not axe:
-                API.SysMsg("Could not equip axe; stopping", 32)
+                API.SysMsg("Could not equip axe; stopping", error_msg_color)
                 API.Stop()
                 return False
 
@@ -657,14 +667,14 @@ def chop_all_logs_in_pack(axe) -> bool:
             API.UseObject(int(axe.Serial))
 
             # If a target cursor still appears, pretarget didn't apply; cancel so we don't hang.
-            if API.WaitForTarget(timeout=0.25):
+            if API.WaitForTarget(timeout=clear_hand_pause):
                 API.CancelTarget()
 
             API.Pause(chop_delay)
             API.CancelPreTarget()
 
             if API.InJournalAny(wait_msgs):
-                API.Pause(0.5)
+                API.Pause(wait_msg_log_retry)
 
         # After converting a batch of logs, dump boards if enabled.
         if USE_PACK_DUMP:
@@ -685,13 +695,13 @@ def warn_if_still_heavy(last_warn: float) -> float:
     if is_overweight():
         API.SysMsg(
             f"OVERWEIGHT: Can't move ({API.Player.Weight}/{API.Player.WeightMax}). Drop items or convert logs.",
-            32,
+            error_msg_color,
         )
         API.Msg("OVERWEIGHT: Can't move")
     else:
         API.SysMsg(
             f"WARNING: Near weight limit ({API.Player.Weight}/{API.Player.WeightMax})",
-            32,
+            error_msg_color,
         )
         API.Msg("Overweight warning!")
 
@@ -713,7 +723,7 @@ API.SysMsg(f"Pack dump: {'ON' if USE_PACK_DUMP else 'OFF'}")
 
 if USE_PACK_DUMP:
     if not pack_destination_serial:
-        API.SysMsg("PACK DUMP SETUP: Target pack animal or its backpack", 32)
+        API.SysMsg("PACK DUMP SETUP: Target pack animal or its backpack", error_msg_color)
         pack_destination_serial = int(
             API.RequestTarget(timeout=pack_prompt_timeout) or 0
         )
@@ -726,12 +736,12 @@ if USE_PACK_DUMP:
         else:
             API.SysMsg(
                 "Pack dump target isn't a container and isn't a mobile with a backpack; pack dump disabled",
-                32,
+                error_msg_color,
             )
             pack_destination_serial = 0
             USE_PACK_DUMP = False
     else:
-        API.SysMsg("No pack dump target set; continuing without pack dump", 32)
+        API.SysMsg("No pack dump target set; continuing without pack dump", error_msg_color)
         USE_PACK_DUMP = False
 
 # Map of (x,y) -> time() until which we ignore it
@@ -748,12 +758,12 @@ consecutive_pack_failures = 0
 while not API.StopRequested:
     axe = find_axe()
     if not axe:
-        API.SysMsg("No gargish axe (0x48B2) found; stopping", 32)
+        API.SysMsg("No gargish axe (0x48B2) found; stopping", error_msg_color)
         break
 
     axe = ensure_axe_equipped(axe)
     if not axe:
-        API.SysMsg("Could not equip gargish axe; stopping", 32)
+        API.SysMsg("Could not equip gargish axe; stopping", error_msg_color)
         break
 
     if is_near_max(weight_buffer):
@@ -767,7 +777,7 @@ while not API.StopRequested:
                 API.SysMsg(
                     f"Pack dump failed {consecutive_pack_failures} times. "
                     "Empty pack animal or disable pack dump to continue.",
-                    32
+                    error_msg_color
                 )
                 break
         else:
@@ -816,7 +826,7 @@ while not API.StopRequested:
                     API.SysMsg(
                         f"Pack dump failed {consecutive_pack_failures} times. "
                         "Empty pack animal or disable pack dump to continue.",
-                        32
+                        error_msg_color
                     )
                     API.Stop()
                     break
@@ -850,7 +860,7 @@ while not API.StopRequested:
             break
 
         if _journal_has_any_recent(wait_msgs, chop_result_window):
-            API.Pause(0.25)
+            API.Pause(wait_msg_retry_delay)
 
         if tree_attempts.get(key, 0) >= max_attempts_per_tree:
             API.SysMsg("No progress on this tree; skipping temporarily")
