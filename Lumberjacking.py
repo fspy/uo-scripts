@@ -349,7 +349,9 @@ def find_trees(scan_range: int) -> list:
     name_count = 0
     los_excluded = 0
 
-    # De-dup by (x,y), keeping the highest Z for that tile.
+    # De-dup by (x,y). Trees often have multiple statics at the same tile
+    # (trunk + canopy). Prefer the Z closest to the player so we target/pathfind
+    # to the trunk instead of a high canopy component.
     by_xy = {}
 
     for s in statics:
@@ -387,7 +389,11 @@ def find_trees(scan_range: int) -> list:
         if not include:
             continue
 
-        if FILTER_LINE_OF_SIGHT and hasattr(s, "HasLineOfSightFrom") and not s.HasLineOfSightFrom():
+        if (
+            FILTER_LINE_OF_SIGHT
+            and hasattr(s, "HasLineOfSightFrom")
+            and not s.HasLineOfSightFrom()
+        ):
             los_excluded += 1
             continue
 
@@ -395,8 +401,16 @@ def find_trees(scan_range: int) -> list:
 
         key = (int(s.X), int(s.Y))
         existing = by_xy.get(key)
-        if existing is None or int(getattr(s, "Z", 0)) > int(getattr(existing, "Z", 0)):
+        if existing is None:
             by_xy[key] = s
+        else:
+            existing_z = int(getattr(existing, "Z", 0) or 0)
+            z = int(getattr(s, "Z", 0) or 0)
+
+            # Keep the candidate closest to player Z.
+            player_z = int(getattr(API.Player, "Z", 0) or 0)
+            if abs(z - player_z) < abs(existing_z - player_z):
+                by_xy[key] = s
 
     if DEBUG_TREE_COUNTS:
         now = time.time()
@@ -476,9 +490,9 @@ def wait_for_chop_result() -> None:
     """Wait briefly for any chopping-related journal output."""
     deadline = time.time() + CHOP_RESULT_TIMEOUT
     while time.time() < deadline and not API.StopRequested:
-        if _journal_has_any_recent(DEPLETED_MSGS, CHOP_RESULT_WINDOW) or _journal_has_any_recent(
-            WAIT_MSGS, CHOP_RESULT_WINDOW
-        ):
+        if _journal_has_any_recent(
+            DEPLETED_MSGS, CHOP_RESULT_WINDOW
+        ) or _journal_has_any_recent(WAIT_MSGS, CHOP_RESULT_WINDOW):
             return
         API.Pause(CHOP_RESULT_POLL)
 
