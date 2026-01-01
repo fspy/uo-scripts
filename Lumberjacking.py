@@ -13,6 +13,9 @@ AXE_TYPE = 0x48B2
 # Logs
 LOG_TYPE = 0x1BDD
 
+# Boards (result from chopping logs)
+BOARD_TYPE = 0x1BD7
+
 # Search radius for trees (in tiles)
 TREE_SCAN_RANGE = 12
 
@@ -199,6 +202,13 @@ PATHFIND_DISTANCE = 1
 
 # When weight is within this many stones of max, convert logs -> boards
 WEIGHT_BUFFER = 30
+
+# Optional: dump boards into a pack animal/container when heavy.
+# Set PACK_DESTINATION_SERIAL to the pack animal (mobile) OR its backpack (container item).
+USE_PACK_DUMP = False
+PACK_DESTINATION_SERIAL = 0
+PACK_DUMP_DISTANCE = 2
+PACK_DUMP_PAUSE = 0.7
 
 # If still within this many stones after converting logs, warn
 WARN_BUFFER = 10
@@ -503,6 +513,44 @@ def wait_for_chop_result() -> None:
         API.Pause(CHOP_RESULT_POLL)
 
 
+def _resolve_pack_destination() -> int:
+    """Return container serial to drop boards into, or 0 if unavailable."""
+    if not USE_PACK_DUMP or not PACK_DESTINATION_SERIAL:
+        return 0
+
+    # PACK_DESTINATION_SERIAL may be either:
+    # - the pack animal backpack item serial (container)
+    # - or the pack animal mobile serial (which exposes .Backpack)
+    item = API.FindItem(int(PACK_DESTINATION_SERIAL))
+    if item:
+        if getattr(item, "IsContainer", False):
+            return int(item.Serial)
+        return 0
+
+    mob = API.FindMobile(int(PACK_DESTINATION_SERIAL))
+    if mob and getattr(mob, "Backpack", None):
+        return int(mob.Backpack.Serial)
+
+    return 0
+
+
+def dump_boards_to_pack() -> None:
+    dest = _resolve_pack_destination()
+    if not dest:
+        return
+
+    boards = API.FindTypeAll(BOARD_TYPE, API.Backpack) or []
+    if not boards:
+        return
+
+    # Moves can fail if the follower is too far away; keep it conservative.
+    for b in boards:
+        if API.StopRequested:
+            return
+        API.MoveItem(int(b.Serial), int(dest))
+        API.Pause(PACK_DUMP_PAUSE)
+
+
 def chop_all_logs_in_pack(axe) -> None:
     while not API.StopRequested:
         logs = API.FindTypeAll(LOG_TYPE, API.Backpack) or []
@@ -534,6 +582,9 @@ def chop_all_logs_in_pack(axe) -> None:
 
             if API.InJournalAny(WAIT_MSGS):
                 API.Pause(0.5)
+
+        # After converting a batch of logs, dump boards if enabled.
+        dump_boards_to_pack()
 
 
 def warn_if_still_heavy(last_warn: float) -> float:
@@ -570,6 +621,14 @@ elif API.HasTarget("any"):
     API.CancelTarget()
 
 API.SysMsg("Lumberjacking started (tree scan + pathfind)")
+
+if USE_PACK_DUMP and not PACK_DESTINATION_SERIAL:
+    API.SysMsg("Target your pack animal (or its backpack) to dump boards", 32)
+    PACK_DESTINATION_SERIAL = int(API.RequestTarget(timeout=15) or 0)
+    if PACK_DESTINATION_SERIAL:
+        API.SysMsg(f"Pack dump target set: 0x{PACK_DESTINATION_SERIAL:X}")
+    else:
+        API.SysMsg("No pack dump target set; continuing without pack dump", 32)
 
 # Map of (x,y) -> time() until which we ignore it
 # Used for depleted/unreachable trees.
