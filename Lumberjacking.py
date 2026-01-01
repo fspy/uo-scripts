@@ -196,9 +196,9 @@ depleted_ttl_seconds = 180.0
 max_attempts_per_tree = 6
 
 # Timing
-action_delay = 0.5      # pause after server actions (chop, equip, move item)
-loop_delay = 0.1        # main loop pacing
-journal_window = 2.0    # how far back to check journal (seconds)
+action_delay = 0.5  # pause after server actions (chop, equip, move item)
+loop_delay = 0.1  # main loop pacing
+journal_window = 2.0  # how far back to check journal (seconds)
 message_cooldown = 5.0  # prevent message spam (debug/warnings)
 
 # Debug
@@ -656,12 +656,8 @@ API.SysMsg(f"Pack dump: {'ON' if USE_PACK_DUMP else 'OFF'}")
 
 if USE_PACK_DUMP:
     if not pack_destination_serial:
-        API.SysMsg(
-            "PACK DUMP SETUP: Target pack animal or its backpack", 32
-        )
-        pack_destination_serial = int(
-            API.RequestTarget(timeout=15.0) or 0
-        )
+        API.SysMsg("PACK DUMP SETUP: Target pack animal or its backpack", 32)
+        pack_destination_serial = int(API.RequestTarget(timeout=15.0) or 0)
 
     if pack_destination_serial:
         API.SysMsg(f"Pack dump target set: 0x{pack_destination_serial:X}")
@@ -676,9 +672,7 @@ if USE_PACK_DUMP:
             pack_destination_serial = 0
             USE_PACK_DUMP = False
     else:
-        API.SysMsg(
-            "No pack dump target set; continuing without pack dump", 32
-        )
+        API.SysMsg("No pack dump target set; continuing without pack dump", 32)
         USE_PACK_DUMP = False
 
 # Map of (x,y) -> time() until which we ignore it
@@ -714,7 +708,7 @@ while not API.StopRequested:
                 API.SysMsg(
                     f"Pack dump failed {consecutive_pack_failures} times. "
                     "Empty pack animal or disable pack dump to continue.",
-                    32
+                    32,
                 )
                 break
         else:
@@ -763,7 +757,7 @@ while not API.StopRequested:
                     API.SysMsg(
                         f"Pack dump failed {consecutive_pack_failures} times. "
                         "Empty pack animal or disable pack dump to continue.",
-                        32
+                        32,
                     )
                     API.Stop()
                     break
