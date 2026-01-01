@@ -8,22 +8,18 @@ import API
 # =========================
 
 # Gargish axe graphic
-AXE_TYPE = 0x48B2
+AXE_GRAPHIC = 0x48B2
 
-# Logs
-log_type = 0x1BDD
-
-# Boards (result from chopping logs)
-board_type = 0x1BD7
+# Logs and boards
+LOG_GRAPHIC = 0x1BDD
+BOARD_GRAPHIC = 0x1BD7
 
 # Search radius for trees (in tiles)
-tree_scan_range = 16
+SCAN_RANGE = 16
 
 # Tree tile graphics from ServUO source for reliable detection.
 # If your shard uses custom tree graphics, extend this list.
-# NOTE: keep this as a plain list so it can be edited in-game.
-# We build a cached set() at runtime for fast membership tests.
-tree_tile_graphics = [
+TREE_TILE_GRAPHICS = [
     0x4CCA,
     0x4CCB,
     0x4CCC,
@@ -175,43 +171,46 @@ tree_tile_graphics = [
     0x52C7,
 ]
 
+# Build set for O(1) lookup
+TREE_GRAPHICS = set(TREE_TILE_GRAPHICS)
+
 # Pathfind to within this distance of the tree
-pathfind_distance = 1
+PATHFIND_DISTANCE = 1
 
-# When weight is within this many stones of max, convert logs -> boards and warn
-weight_buffer = 60
+# When weight is within this many stones of max, convert logs -> boards
+WEIGHT_BUFFER = 60
 
-# Optional: dump boards into a pack animal/container when heavy.
-# Set pack_destination_serial to the pack animal (mobile) OR its backpack (container item).
-USE_PACK_DUMP = True
-pack_destination_serial = 0
-pack_board_capacity = 1600
-max_consecutive_pack_failures = 3
+# Pack dump settings
+PACK_DUMP_ENABLED = True
+PACK_TARGET = 0  # Set at runtime via targeting
+PACK_CAPACITY = 1600
+MAX_PACK_FAILURES = 3
 
 # Mark trees as "depleted" for this long (seconds)
-depleted_ttl_seconds = 180.0
+DEPLETED_COOLDOWN = 180.0
 
 # If we attempt the same tree this many times without success/depletion,
 # mark it "depleted" temporarily to avoid getting stuck.
-max_attempts_per_tree = 6
+MAX_TREE_ATTEMPTS = 6
 
 # Timing
-action_delay = 0.5  # pause after server actions (chop, equip, move item)
-loop_delay = 0.1  # main loop pacing
-journal_window = 2.0  # how far back to check journal (seconds)
-message_cooldown = 5.0  # prevent message spam (debug/warnings)
+ACTION_DELAY = 0.5  # pause after server actions (chop, equip, move item)
+LOOP_DELAY = 0.1  # main loop pacing
+JOURNAL_WINDOW = 2.0  # how far back to check journal (seconds)
+MESSAGE_COOLDOWN = 5.0  # prevent message spam (warnings)
 
-# Debug
-debug_tree_counts = True
+# Feature flags
+USE_TARGET_RESOURCE = True  # Try API.TargetResource first (faster, server-dependent)
+RUNAWAY_ON_FULL = True  # Say "[runaway" when pack full to teleport to Luna
 
 # Journal messages that indicate chop succeeded or tree still has wood
-success_msgs = [
-    "and put them in your backpack",     # got wood
-    "fail to produce any useable wood",  # chopped but no wood this swing
+SUCCESS_MSGS = [
+    "and put them in your backpack",
+    "fail to produce any useable wood",
 ]
 
-# Journal messages that indicate tree depleted or unreachable - move to next tree
-depleted_msgs = [
+# Journal messages that indicate tree depleted or unreachable
+DEPLETED_MSGS = [
     "not enough wood here to harvest",
     "too far away",
     "cannot see that",
@@ -219,241 +218,79 @@ depleted_msgs = [
     "cannot use an axe on that",
 ]
 
-# Journal messages that indicate you should pause/retry.
-wait_msgs = [
+# Journal messages that indicate you should pause/retry
+WAIT_MSGS = [
     "you must wait",
 ]
 
 
-def is_near_max(buffer: int) -> bool:
-    if not API.Player or API.Player.WeightMax is None or API.Player.Weight is None:
+# =========================
+# STATE
+# =========================
+
+
+class LumberjackState:
+    """Holds all runtime state for the lumberjacking session."""
+
+    def __init__(self):
+        self.depleted_until = {}  # (x,y) -> expiry timestamp
+        self.tree_attempts = {}  # (x,y) -> attempt count
+        self.last_warn_time = 0.0
+        self.last_msg_time = 0.0
+        self.pack_failures = 0
+        self.pack_dest = 0  # resolved container serial
+        self.target_resource_works = True  # disable if TargetResource fails
+
+
+# =========================
+# HELPERS
+# =========================
+
+
+def count_items(graphic, container):
+    """Count total amount of items with graphic in container."""
+    items = API.FindTypeAll(graphic, container) or []
+    return sum(getattr(it, "Amount", 0) or 0 for it in items)
+
+
+def is_heavy():
+    """True if near max weight (within WEIGHT_BUFFER)."""
+    p = API.Player
+    if not p or p.WeightMax is None or p.Weight is None:
         return False
-    return API.Player.Weight >= (API.Player.WeightMax - buffer)
+    return p.Weight >= p.WeightMax - WEIGHT_BUFFER
 
 
-def is_overweight() -> bool:
-    if not API.Player or API.Player.WeightMax is None or API.Player.Weight is None:
+def is_overweight():
+    """True if over max weight."""
+    p = API.Player
+    if not p or p.WeightMax is None or p.Weight is None:
         return False
-    return API.Player.Weight > API.Player.WeightMax
+    return p.Weight > p.WeightMax
 
 
-def chebyshev_dist(x1: int, y1: int, x2: int, y2: int) -> int:
-    return max(abs(x1 - x2), abs(y1 - y2))
+def stop_script(msg):
+    """Stop script with error message."""
+    API.SysMsg(msg, 32)
+    API.Stop()
 
 
-def _get_equipped_axe():
-    """Check if axe is equipped in either hand. Returns equipped axe or None."""
-    two_handed = API.FindLayer("TwoHanded")
-    if two_handed and two_handed.Graphic == AXE_TYPE:
-        return two_handed
-
-    one_handed = API.FindLayer("OneHanded")
-    if one_handed and one_handed.Graphic == AXE_TYPE:
-        return one_handed
-
-    return None
-
-
-def find_axe():
-    equipped = _get_equipped_axe()
-    if equipped:
-        return equipped
-    return API.FindType(AXE_TYPE, API.Backpack)
-
-
-def ensure_axe_equipped(axe):
-    if not axe:
-        return None
-
-    equipped = _get_equipped_axe()
-    if equipped:
-        return equipped
-
-    if API.Player.Mount:
-        API.Dismount(skipQueue=True)
-        API.Pause(0.5)
-
-    # Try a straight equip first.
-    API.EquipItem(int(axe.Serial))
-    API.Pause(action_delay)
-
-    equipped = _get_equipped_axe()
-    if equipped:
-        return equipped
-
-    # If hands are occupied, free the right hand slot and retry.
-    if API.FindLayer("TwoHanded") or API.FindLayer("OneHanded"):
-        API.ClearRightHand()
-        API.Pause(0.25)
-
-    API.EquipItem(int(axe.Serial))
-    API.Pause(action_delay)
-
-    return _get_equipped_axe()
-
-
-_last_message_time = 0.0
-
-_tree_tile_graphics_cache = None
-
-
-def _tree_graphics_set():
-    global _tree_tile_graphics_cache
-    if _tree_tile_graphics_cache is None:
-        _tree_tile_graphics_cache = set([int(g) for g in (tree_tile_graphics or [])])
-    return _tree_tile_graphics_cache
-
-
-def _graphic_matches_tree(static) -> bool:
-    graphic = int(getattr(static, "Graphic", 0) or 0)
-    return graphic in _tree_graphics_set()
-
-
-def find_trees(scan_range: int):
-    global _last_message_time
-
-    px, py = int(API.Player.X), int(API.Player.Y)
-    statics = API.GetStaticsInArea(
-        px - scan_range, py - scan_range, px + scan_range, py + scan_range
-    )
-
-    if not statics:
-        return []
-
-    # Summary counts (optional)
-    total = 0
-    is_tree_count = 0
-    veg_count = 0
-
-    # De-dup by (x,y). Trees often have multiple statics at the same tile
-    # (trunk + canopy). Prefer the Z closest to the player so we target/pathfind
-    # to the trunk instead of a high canopy component.
-    by_xy = {}
-
-    for s in statics:
-        total += 1
-
-        if getattr(s, "IsDestroyed", False):
-            continue
-
-        is_tree = bool(getattr(s, "IsTree", False))
-        is_veg = bool(getattr(s, "IsVegetation", False))
-        graphic_match = _graphic_matches_tree(s)
-
-        if is_tree or graphic_match:
-            is_tree_count += 1
-        if is_veg:
-            veg_count += 1
-
-        # Conservative inclusion:
-        # - Always include IsTree or known tree graphics
-        # - Otherwise include vegetation ONLY when impassible
-        #   (reduces grabbing flowers/grass that can't be chopped).
-        is_impassible = bool(getattr(s, "IsImpassible", False))
-        include = False
-        if is_tree or graphic_match:
-            include = True
-        elif is_veg and is_impassible:
-            include = True
-
-        if not include:
-            continue
-
-        key = (int(s.X), int(s.Y))
-        existing = by_xy.get(key)
-        if existing is None:
-            by_xy[key] = s
-        else:
-            existing_z = int(getattr(existing, "Z", 0) or 0)
-            z = int(getattr(s, "Z", 0) or 0)
-
-            # Keep the candidate closest to player Z.
-            player_z = int(getattr(API.Player, "Z", 0) or 0)
-            if abs(z - player_z) < abs(existing_z - player_z):
-                by_xy[key] = s
-
-    if debug_tree_counts:
-        now = time.time()
-        if now - _last_message_time >= message_cooldown:
-            _last_message_time = now
-            API.SysMsg(
-                f"TreeScan: total={total} included={len(by_xy)} treeish={is_tree_count} veg={veg_count}"
-            )
-
-    return list(by_xy.values())
-
-
-def nearest_tree(scan_range: int, depleted_until):
+def throttled_msg(state, msg, hue=946):
+    """Send message if cooldown elapsed. Returns True if sent."""
     now = time.time()
-    px, py = int(API.Player.X), int(API.Player.Y)
-
-    trees = find_trees(scan_range)
-    if not trees:
-        return None
-
-    # Filter depleted
-    available = []
-    for t in trees:
-        key = (int(t.X), int(t.Y))
-        until = depleted_until.get(key, 0.0)
-        if until > now:
-            continue
-        available.append(t)
-
-    if not available:
-        return None
-
-    available.sort(key=lambda t: chebyshev_dist(px, py, int(t.X), int(t.Y)))
-    return available[0]
-
-
-def pathfind_to_tree(tree) -> bool:
-    return API.Pathfind(
-        int(tree.X),
-        int(tree.Y),
-        int(tree.Z),
-        distance=pathfind_distance,
-        wait=True,
-        timeout=10,
-    )
-
-
-def chop_tree(axe, tree) -> bool:
-    axe = ensure_axe_equipped(axe)
-    if not axe:
-        API.SysMsg("Could not equip axe; stopping", 32)
-        API.Stop()
-        return False
-
-    # If we're already holding a target cursor (common during server lag),
-    # just retarget the tree and don't spam additional axe uses.
-    if API.HasTarget("any"):
-        API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
-    else:
-        # Some servers/clients will re-use the last target after the first chop,
-        # meaning no target cursor appears on subsequent swings.
-        API.UseObject(int(axe.Serial))
-
-        # Wait briefly for a cursor; if WaitForTarget is flaky, fall back to HasTarget.
-        if API.WaitForTarget(timeout=0.75) or API.HasTarget("any"):
-            API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
-
-    # Wait for journal feedback - exit early when any message appears
-    wait_for_journal(success_msgs + depleted_msgs + wait_msgs, timeout=action_delay)
-    return True
-
-
-def _journal_has_any_recent(substrings, seconds: float) -> bool:
-    entries = API.GetJournalEntries(seconds) or []
-    for entry in entries:
-        text = str(getattr(entry, "Text", "") or "").lower()
-        for sub in substrings:
-            if sub in text:
-                return True
+    if now - state.last_msg_time >= MESSAGE_COOLDOWN:
+        state.last_msg_time = now
+        API.SysMsg(msg, hue)
+        return True
     return False
 
 
-def wait_for_journal(msgs, timeout: float = 2.0) -> bool:
+def chebyshev(x1, y1, x2, y2):
+    """Chebyshev distance (max of x/y deltas)."""
+    return max(abs(x1 - x2), abs(y1 - y2))
+
+
+def wait_for_journal(msgs, timeout):
     """Wait for any message to appear in journal. Returns True if found."""
     deadline = time.time() + timeout
     while time.time() < deadline and not API.StopRequested:
@@ -463,127 +300,302 @@ def wait_for_journal(msgs, timeout: float = 2.0) -> bool:
     return False
 
 
-def _resolve_pack_destination() -> int:
-    """Return container serial to drop boards into, or 0 if unavailable."""
-    if not USE_PACK_DUMP or not pack_destination_serial:
+# =========================
+# AXE FUNCTIONS
+# =========================
+
+
+def get_equipped_axe():
+    """Check if axe is equipped in either hand. Returns equipped axe or None."""
+    two_handed = API.FindLayer("TwoHanded")
+    if two_handed and two_handed.Graphic == AXE_GRAPHIC:
+        return two_handed
+
+    one_handed = API.FindLayer("OneHanded")
+    if one_handed and one_handed.Graphic == AXE_GRAPHIC:
+        return one_handed
+
+    return None
+
+
+def find_axe():
+    """Find axe in hands or backpack."""
+    equipped = get_equipped_axe()
+    if equipped:
+        return equipped
+    return API.FindType(AXE_GRAPHIC, API.Backpack)
+
+
+def ensure_axe_equipped(axe):
+    """Equip axe if not already equipped. Returns equipped axe or None."""
+    if not axe:
+        return None
+
+    equipped = get_equipped_axe()
+    if equipped:
+        return equipped
+
+    # Dismount if mounted
+    if API.Player.Mount:
+        API.Dismount(skipQueue=True)
+        API.Pause(0.5)
+
+    # Try direct equip
+    API.EquipItem(axe.Serial)
+    API.Pause(ACTION_DELAY)
+
+    equipped = get_equipped_axe()
+    if equipped:
+        return equipped
+
+    # Free right hand if occupied
+    if API.FindLayer("TwoHanded") or API.FindLayer("OneHanded"):
+        API.ClearRightHand()
+        API.Pause(0.25)
+
+    API.EquipItem(axe.Serial)
+    API.Pause(ACTION_DELAY)
+
+    return get_equipped_axe()
+
+
+# =========================
+# TREE FUNCTIONS
+# =========================
+
+
+def is_valid_tree(static):
+    """Check if static is a harvestable tree."""
+    if getattr(static, "IsDestroyed", False):
+        return False
+
+    # Direct tree flag (client property)
+    if getattr(static, "IsTree", False):
+        return True
+
+    # Known tree graphic
+    if getattr(static, "Graphic", 0) in TREE_GRAPHICS:
+        return True
+
+    # Impassable vegetation (catches some edge cases)
+    if getattr(static, "IsVegetation", False) and getattr(
+        static, "IsImpassible", False
+    ):
+        return True
+
+    return False
+
+
+def find_nearest_tree(state):
+    """Find nearest non-depleted tree within SCAN_RANGE."""
+    px, py = API.Player.X, API.Player.Y
+    statics = API.GetStaticsInArea(
+        px - SCAN_RANGE, py - SCAN_RANGE, px + SCAN_RANGE, py + SCAN_RANGE
+    )
+
+    if not statics:
+        return None
+
+    # De-dup by (x,y). Trees often have multiple statics at the same tile.
+    # Prefer the Z closest to the player (trunk instead of canopy).
+    now = time.time()
+    player_z = API.Player.Z
+    trees = {}
+
+    for s in statics:
+        if not is_valid_tree(s):
+            continue
+
+        key = (s.X, s.Y)
+
+        # Skip depleted trees
+        if state.depleted_until.get(key, 0) > now:
+            continue
+
+        # Keep candidate closest to player Z
+        if key not in trees:
+            trees[key] = s
+        else:
+            existing = trees[key]
+            existing_z = getattr(existing, "Z", 0) or 0
+            s_z = getattr(s, "Z", 0) or 0
+            if abs(s_z - player_z) < abs(existing_z - player_z):
+                trees[key] = s
+
+    if not trees:
+        return None
+
+    # Sort by distance, return nearest
+    return min(trees.values(), key=lambda t: chebyshev(px, py, t.X, t.Y))
+
+
+def pathfind_to_tree(tree):
+    """Pathfind to tree. Returns True if successful."""
+    return API.Pathfind(
+        tree.X, tree.Y, tree.Z, distance=PATHFIND_DISTANCE, wait=True, timeout=10
+    )
+
+
+def mark_depleted(state, tree):
+    """Mark tree as depleted for DEPLETED_COOLDOWN seconds."""
+    key = (tree.X, tree.Y)
+    state.depleted_until[key] = time.time() + DEPLETED_COOLDOWN
+    state.tree_attempts.pop(key, None)
+
+
+def cleanup_depleted(state):
+    """Remove expired depletion entries."""
+    now = time.time()
+    state.depleted_until = {k: v for k, v in state.depleted_until.items() if v > now}
+    # Also clean up attempts for trees no longer being tracked
+    state.tree_attempts = {
+        k: v for k, v in state.tree_attempts.items() if k in state.depleted_until
+    }
+
+
+# =========================
+# PACK DUMP FUNCTIONS
+# =========================
+
+
+def resolve_pack_dest(serial):
+    """Resolve pack destination serial. Returns container serial or 0."""
+    if not serial:
         return 0
 
-    # pack_destination_serial may be either:
-    # - the pack animal backpack item serial (container)
-    # - or the pack animal mobile serial (which exposes .Backpack)
-    item = API.FindItem(int(pack_destination_serial))
-    if item:
-        if getattr(item, "IsContainer", False):
-            return int(item.Serial)
-        return 0
+    # Check if it's a container item
+    item = API.FindItem(serial)
+    if item and getattr(item, "IsContainer", False):
+        return item.Serial
 
-    mob = API.FindMobile(int(pack_destination_serial))
+    # Check if it's a mobile with a backpack
+    mob = API.FindMobile(serial)
     if mob and getattr(mob, "Backpack", None):
-        return int(mob.Backpack.Serial)
+        return mob.Backpack.Serial
 
     return 0
 
 
-def _pack_warn(msg: str) -> None:
-    global _last_message_time
+def setup_pack_dest():
+    """Setup pack destination. Returns container serial or 0."""
+    if PACK_TARGET:
+        dest = resolve_pack_dest(PACK_TARGET)
+        if dest:
+            return dest
 
-    now = time.time()
-    if now - _last_message_time < message_cooldown:
-        return
+    API.SysMsg("Target pack animal or its backpack", 32)
+    target = API.RequestTarget(timeout=15.0)
+    if not target:
+        return 0
 
-    _last_message_time = now
-    API.SysMsg(msg, 32)
+    dest = resolve_pack_dest(target)
+    if dest:
+        API.SysMsg(f"Pack destination: 0x{dest:X}")
+        return dest
+    else:
+        API.SysMsg("Invalid pack target (not a container or mobile with backpack)", 32)
+        return 0
 
 
-def dump_boards_to_pack() -> bool:
-    """Dump boards to pack animal. Returns True if successful, False if pack is full."""
-    dest = _resolve_pack_destination()
+def dump_boards_to_pack(state):
+    """Dump boards to pack. Returns True if successful or pack has space."""
+    dest = state.pack_dest
     if not dest:
-        _pack_warn("Pack dump enabled, but no valid destination found")
+        throttled_msg(state, "Pack dump enabled but no valid destination", 32)
         return False
 
-    boards_in_pack = board_amount_in_pack()
-    if boards_in_pack <= 0:
-        return True  # Nothing to dump is considered success
+    boards_in_backpack = count_items(BOARD_GRAPHIC, API.Backpack)
+    if boards_in_backpack <= 0:
+        return True  # Nothing to dump
 
-    capacity = int(pack_board_capacity)
-    if capacity <= 0:
-        return False
+    existing = count_items(BOARD_GRAPHIC, dest)
+    remaining = max(0, PACK_CAPACITY - existing)
 
-    # How many boards are already in the destination container?
-    # NOTE: this depends on the container being in-range/visible.
-    existing_in_dest = board_amount_in_container(dest)
-    remaining = max(0, capacity - existing_in_dest)
     if remaining <= 0:
-        _pack_warn(f"Pack is full ({existing_in_dest}/{capacity} boards)")
-        return False
+        throttled_msg(state, f"Pack full ({existing}/{PACK_CAPACITY} boards)", 32)
+        return False  # Pack is full
 
-    boards = API.FindTypeAll(board_type, API.Backpack) or []
-    if not boards:
-        return True  # No boards to move
-
+    boards = API.FindTypeAll(BOARD_GRAPHIC, API.Backpack) or []
     moved_any = False
 
-    # Moves can fail if the follower is too far away (or pack not accessible).
     for b in boards:
-        if API.StopRequested:
-            return False
-        if remaining <= 0:
+        if API.StopRequested or remaining <= 0:
             break
 
-        amount = int(getattr(b, "Amount", 0) or 0)
+        amount = getattr(b, "Amount", 0) or 0
         if amount <= 0:
             continue
 
-        move_amount = amount if amount <= remaining else remaining
-        API.MoveItem(int(b.Serial), int(dest), amt=int(move_amount))
-        API.Pause(action_delay)
-        remaining -= int(move_amount)
+        move_amt = min(amount, remaining)
+        API.MoveItem(b.Serial, dest, amt=move_amt)
+        API.Pause(ACTION_DELAY)
+        remaining -= move_amt
         moved_any = True
 
     if not moved_any:
-        _pack_warn(
-            f"Pack dump didn't move boards (dest=0x{int(dest):X}). Is the pack animal nearby/open?"
-        )
+        throttled_msg(state, "Failed to move boards to pack (is it nearby?)", 32)
         return False
 
-    if remaining <= 0:
-        _pack_warn(f"Pack is full ({capacity}/{capacity} boards)")
+    return remaining > 0  # True if pack still has space
+
+
+def handle_full_pack():
+    """Handle full pack scenario. Returns False to stop script."""
+    if RUNAWAY_ON_FULL:
+        API.SysMsg("Pack full! Running away to safety...", 32)
+        API.Msg("[runaway")
+        API.Pause(2.0)
+    stop_script("Pack animal full - cannot continue")
+    return False
+
+
+# =========================
+# CHOPPING FUNCTIONS
+# =========================
+
+
+def chop_tree(state, axe, tree):
+    """Chop a tree. Returns True if action was sent."""
+    axe = ensure_axe_equipped(axe)
+    if not axe:
+        stop_script("Could not equip axe")
         return False
 
+    # If we're already holding a target cursor, just retarget
+    if API.HasTarget("any"):
+        API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
+        wait_for_journal(SUCCESS_MSGS + DEPLETED_MSGS + WAIT_MSGS, ACTION_DELAY)
+        return True
+
+    # Try TargetResource if enabled (server-dependent feature)
+    if USE_TARGET_RESOURCE and state.target_resource_works:
+        API.TargetResource(axe.Serial, 2)  # 2 = wood
+        API.Pause(ACTION_DELAY)
+
+        # Check if it worked
+        if API.InJournalAny(SUCCESS_MSGS + DEPLETED_MSGS):
+            return True
+
+        # TargetResource didn't work - disable and fall through to manual
+        state.target_resource_works = False
+        API.SysMsg("TargetResource not supported - using manual targeting")
+
+    # Manual targeting
+    API.UseObject(axe.Serial)
+
+    if API.WaitForTarget(timeout=0.75) or API.HasTarget("any"):
+        API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
+
+    wait_for_journal(SUCCESS_MSGS + DEPLETED_MSGS + WAIT_MSGS, ACTION_DELAY)
     return True
 
 
-def board_amount_in_pack() -> int:
-    items = API.FindTypeAll(board_type, API.Backpack) or []
-    total = 0
-    for it in items:
-        total += int(getattr(it, "Amount", 0) or 0)
-    return total
-
-
-def board_amount_in_container(container_serial: int) -> int:
-    items = API.FindTypeAll(board_type, int(container_serial)) or []
-    total = 0
-    for it in items:
-        total += int(getattr(it, "Amount", 0) or 0)
-    return total
-
-
-def log_amount_in_pack() -> int:
-    items = API.FindTypeAll(log_type, API.Backpack) or []
-    total = 0
-    for it in items:
-        total += int(getattr(it, "Amount", 0) or 0)
-    return total
-
-
-def chop_all_logs_in_pack(axe) -> bool:
-    """Chop all logs in pack. Returns True if successful, False if pack dump failed."""
+def chop_all_logs(state, axe):
+    """Convert all logs to boards. Returns True if successful."""
     while not API.StopRequested:
-        logs = API.FindTypeAll(log_type, API.Backpack) or []
+        logs = API.FindTypeAll(LOG_GRAPHIC, API.Backpack) or []
         if not logs:
-            return True
+            break
 
         for log in logs:
             if API.StopRequested:
@@ -591,46 +603,128 @@ def chop_all_logs_in_pack(axe) -> bool:
 
             API.ClearJournal()
 
-            # PreTarget to avoid targeting the ground/tile by mistake.
             axe = ensure_axe_equipped(axe)
             if not axe:
-                API.SysMsg("Could not equip axe; stopping", 32)
-                API.Stop()
+                stop_script("Could not equip axe")
                 return False
 
-            API.PreTarget(int(log.Serial))
-            API.UseObject(int(axe.Serial))
+            # PreTarget to avoid targeting ground/tile
+            API.PreTarget(log.Serial)
+            API.UseObject(axe.Serial)
 
-            # If a target cursor still appears, pretarget didn't apply; cancel so we don't hang.
+            # Cancel if target cursor appears (pretarget didn't apply)
             if API.WaitForTarget(timeout=0.25):
                 API.CancelTarget()
 
-            API.Pause(action_delay)
+            API.Pause(ACTION_DELAY)
             API.CancelPreTarget()
 
-            if API.InJournalAny(wait_msgs):
-                API.Pause(action_delay)
+            if API.InJournalAny(WAIT_MSGS):
+                API.Pause(ACTION_DELAY)
 
-        # After converting a batch of logs, dump boards if enabled.
-        if USE_PACK_DUMP:
-            if not dump_boards_to_pack():
-                return False
+        # Dump boards after each batch
+        if PACK_DUMP_ENABLED:
+            if not dump_boards_to_pack(state):
+                state.pack_failures += 1
+                if state.pack_failures >= MAX_PACK_FAILURES:
+                    # Pack is full - check if still heavy
+                    if is_heavy():
+                        return handle_full_pack()
+            else:
+                state.pack_failures = 0
+    
+    # Final dump attempt after all logs processed
+    if PACK_DUMP_ENABLED and state.pack_dest:
+        if not dump_boards_to_pack(state):
+            state.pack_failures += 1
+            if state.pack_failures >= MAX_PACK_FAILURES and is_heavy():
+                return handle_full_pack()
+        else:
+            state.pack_failures = 0
 
     return True
 
 
-def warn_if_still_heavy(last_warn: float) -> float:
-    if not is_near_max(weight_buffer):
-        return last_warn
+def harvest_tree(state, axe, tree):
+    """Harvest a single tree until depleted or stuck."""
+    px, py = API.Player.X, API.Player.Y
+    dist = chebyshev(px, py, tree.X, tree.Y)
+
+    # Pathfind if needed
+    if dist > PATHFIND_DISTANCE:
+        if not pathfind_to_tree(tree):
+            mark_depleted(state, tree)
+            return
+
+    key = (tree.X, tree.Y)
+    API.ClearJournal()
+
+    # Harvest loop
+    while not API.StopRequested:
+        # Weight check
+        if is_heavy():
+            warn_weight(state)
+            if not chop_all_logs(state, axe):
+                return  # Pack full, already handled
+            warn_weight(state)
+            if is_heavy():
+                break
+
+        # Track inventory before chop
+        before_logs = count_items(LOG_GRAPHIC, API.Backpack)
+        before_boards = count_items(BOARD_GRAPHIC, API.Backpack)
+
+        chop_tree(state, axe, tree)
+        API.Pause(LOOP_DELAY)
+
+        # Track inventory after chop
+        after_logs = count_items(LOG_GRAPHIC, API.Backpack)
+        after_boards = count_items(BOARD_GRAPHIC, API.Backpack)
+
+        # Inventory-based progress detection
+        progress = (after_logs > before_logs) or (after_boards > before_boards)
+
+        # Also check journal for success messages
+        if progress or API.InJournalAny(SUCCESS_MSGS):
+            state.tree_attempts[key] = 0
+        else:
+            state.tree_attempts[key] = state.tree_attempts.get(key, 0) + 1
+
+        # Check for depletion
+        if API.InJournalAny(DEPLETED_MSGS):
+            mark_depleted(state, tree)
+            break
+
+        # Check for wait message
+        if API.InJournalAny(WAIT_MSGS):
+            API.Pause(ACTION_DELAY)
+
+        # Give up if stuck
+        if state.tree_attempts.get(key, 0) >= MAX_TREE_ATTEMPTS:
+            API.SysMsg("No progress on tree - skipping temporarily")
+            mark_depleted(state, tree)
+            break
+
+
+# =========================
+# WARNING FUNCTIONS
+# =========================
+
+
+def warn_weight(state):
+    """Warn player about weight status (throttled)."""
+    if not is_heavy():
+        return
 
     now = time.time()
-    if now - last_warn < message_cooldown:
-        return last_warn
+    if now - state.last_warn_time < MESSAGE_COOLDOWN:
+        return
+
+    state.last_warn_time = now
 
     if is_overweight():
         API.SysMsg(
-            f"OVERWEIGHT: Can't move ({API.Player.Weight}/{API.Player.WeightMax}). Drop items or convert logs.",
-            32,
+            f"OVERWEIGHT: Can't move ({API.Player.Weight}/{API.Player.WeightMax})", 32
         )
         API.Msg("OVERWEIGHT: Can't move")
     else:
@@ -640,170 +734,70 @@ def warn_if_still_heavy(last_warn: float) -> float:
         )
         API.Msg("Overweight warning!")
 
-    return now
-
 
 # =========================
 # MAIN
 # =========================
 
-if API.HasTarget("beneficial"):
-    API.Stop()
-elif API.HasTarget("any"):
-    API.CancelTarget()
 
-API.SysMsg("Lumberjacking started (tree scan + pathfind)")
+def main():
+    # Handle existing target cursor
+    if API.HasTarget("beneficial"):
+        API.Stop()
+        return
+    if API.HasTarget("any"):
+        API.CancelTarget()
 
-API.SysMsg(f"Pack dump: {'ON' if USE_PACK_DUMP else 'OFF'}")
+    API.SysMsg("Lumberjacking started")
 
-if USE_PACK_DUMP:
-    if not pack_destination_serial:
-        API.SysMsg("PACK DUMP SETUP: Target pack animal or its backpack", 32)
-        pack_destination_serial = int(API.RequestTarget(timeout=15.0) or 0)
+    state = LumberjackState()
 
-    if pack_destination_serial:
-        API.SysMsg(f"Pack dump target set: 0x{pack_destination_serial:X}")
-        resolved = _resolve_pack_destination()
-        if resolved:
-            API.SysMsg(f"Pack dump container: 0x{resolved:X}")
+    # Setup pack dump
+    if PACK_DUMP_ENABLED:
+        state.pack_dest = setup_pack_dest()
+        if state.pack_dest:
+            API.SysMsg(f"Pack dump enabled: 0x{state.pack_dest:X}")
         else:
-            API.SysMsg(
-                "Pack dump target isn't a container and isn't a mobile with a backpack; pack dump disabled",
-                32,
-            )
-            pack_destination_serial = 0
-            USE_PACK_DUMP = False
-    else:
-        API.SysMsg("No pack dump target set; continuing without pack dump", 32)
-        USE_PACK_DUMP = False
+            API.SysMsg("Pack dump disabled - no valid target", 32)
 
-# Map of (x,y) -> time() until which we ignore it
-# Used for depleted/unreachable trees.
-depleted_until = {}
+    # Main loop
+    while not API.StopRequested:
+        # Find and equip axe
+        axe = find_axe()
+        if not axe:
+            stop_script(f"No axe found (graphic 0x{AXE_GRAPHIC:X})")
+            break
 
-# Map of (x,y) -> attempt count (to avoid getting stuck if journal matching fails).
-tree_attempts = {}
+        axe = ensure_axe_equipped(axe)
+        if not axe:
+            stop_script("Could not equip axe")
+            break
 
-last_warn_time = 0.0
-consecutive_pack_failures = 0
+        # Weight management
+        if is_heavy():
+            warn_weight(state)
+            if not chop_all_logs(state, axe):
+                break  # Pack full, already handled
+            warn_weight(state)
+            if is_heavy():
+                API.Pause(LOOP_DELAY)
+                continue
 
+        # Cleanup expired depletion entries
+        cleanup_depleted(state)
 
-while not API.StopRequested:
-    axe = find_axe()
-    if not axe:
-        API.SysMsg("No gargish axe (0x48B2) found; stopping", 32)
-        break
-
-    axe = ensure_axe_equipped(axe)
-    if not axe:
-        API.SysMsg("Could not equip gargish axe; stopping", 32)
-        break
-
-    if is_near_max(weight_buffer):
-        # When overweight, pathfinding won't happen; make it obvious.
-        last_warn_time = warn_if_still_heavy(last_warn_time)
-
-        # Try to recover by converting logs -> boards.
-        if not chop_all_logs_in_pack(axe):
-            consecutive_pack_failures += 1
-            if consecutive_pack_failures >= max_consecutive_pack_failures:
-                API.SysMsg(
-                    f"Pack dump failed {consecutive_pack_failures} times. "
-                    "Empty pack animal or disable pack dump to continue.",
-                    32,
-                )
-                break
-        else:
-            consecutive_pack_failures = 0
-
-        last_warn_time = warn_if_still_heavy(last_warn_time)
-
-        API.Pause(loop_delay)
-        continue
-
-    # Clean up expired entries
-    now = time.time()
-    expired = [k for k, until in depleted_until.items() if until <= now]
-    for k in expired:
-        depleted_until.pop(k, None)
-        tree_attempts.pop(k, None)
-
-    tree = nearest_tree(tree_scan_range, depleted_until)
-    if not tree:
-        API.SysMsg("No available trees nearby")
-        API.Pause(1.0)
-        continue
-
-    px, py = int(API.Player.X), int(API.Player.Y)
-    dist = chebyshev_dist(px, py, int(tree.X), int(tree.Y))
-
-    if dist > pathfind_distance:
-        if not pathfind_to_tree(tree):
-            depleted_until[(int(tree.X), int(tree.Y))] = now + depleted_ttl_seconds
-            API.Pause(loop_delay)
+        # Find tree
+        tree = find_nearest_tree(state)
+        if not tree:
+            API.SysMsg("No trees nearby")
+            API.Pause(1.0)
             continue
 
-    key = (int(tree.X), int(tree.Y))
+        # Harvest tree
+        harvest_tree(state, axe, tree)
+        API.Pause(LOOP_DELAY)
 
-    # Clear journal before starting on this tree to avoid false positives from previous trees.
-    API.ClearJournal()
+    API.SysMsg("Lumberjacking finished")
 
-    # Harvest this tree until depleted.
-    # We still keep the attempt safeguard in case journal detection fails.
-    while not API.StopRequested:
-        if is_near_max(weight_buffer):
-            last_warn_time = warn_if_still_heavy(last_warn_time)
-            if not chop_all_logs_in_pack(axe):
-                consecutive_pack_failures += 1
-                if consecutive_pack_failures >= max_consecutive_pack_failures:
-                    API.SysMsg(
-                        f"Pack dump failed {consecutive_pack_failures} times. "
-                        "Empty pack animal or disable pack dump to continue.",
-                        32,
-                    )
-                    API.Stop()
-                    break
-            else:
-                consecutive_pack_failures = 0
-            last_warn_time = warn_if_still_heavy(last_warn_time)
-            break
 
-        before_logs = log_amount_in_pack()
-        before_boards = board_amount_in_pack()
-
-        chop_tree(axe, tree)
-        API.Pause(loop_delay)
-
-        after_logs = log_amount_in_pack()
-        after_boards = board_amount_in_pack()
-
-        # Inventory-based progress detection is fast and reliable.
-        progress = (after_logs > before_logs) or (after_boards > before_boards)
-
-        # Also reset attempts if we see success messages (handles lag where inventory hasn't updated yet)
-        if progress or _journal_has_any_recent(success_msgs, journal_window):
-            tree_attempts[key] = 0
-        else:
-            # Only do a very short journal wait if we didn't detect progress.
-            wait_for_journal(depleted_msgs + wait_msgs, timeout=journal_window)
-            tree_attempts[key] = tree_attempts.get(key, 0) + 1
-
-        if _journal_has_any_recent(depleted_msgs, journal_window):
-            depleted_until[key] = time.time() + depleted_ttl_seconds
-            tree_attempts.pop(key, None)
-            break
-
-        if _journal_has_any_recent(wait_msgs, journal_window):
-            API.Pause(action_delay)
-
-        if tree_attempts.get(key, 0) >= max_attempts_per_tree:
-            API.SysMsg("No progress on this tree; skipping temporarily")
-            depleted_until[key] = time.time() + depleted_ttl_seconds
-            tree_attempts.pop(key, None)
-            break
-
-        API.Pause(loop_delay)
-
-    API.Pause(loop_delay)
-
-API.SysMsg("Lumberjacking script finished")
+main()
