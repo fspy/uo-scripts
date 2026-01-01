@@ -1,7 +1,5 @@
 # pyright: reportCallIssue=false
 
-from __future__ import annotations
-
 import time
 import API
 
@@ -242,7 +240,7 @@ def chebyshev_dist(x1: int, y1: int, x2: int, y2: int) -> int:
     return max(abs(x1 - x2), abs(y1 - y2))
 
 
-def _get_equipped_axe() -> API.PyItem | None:
+def _get_equipped_axe():
     """Check if axe is equipped in either hand. Returns equipped axe or None."""
     two_handed = API.FindLayer("TwoHanded")
     if two_handed and two_handed.Graphic == AXE_TYPE:
@@ -255,14 +253,14 @@ def _get_equipped_axe() -> API.PyItem | None:
     return None
 
 
-def find_axe() -> API.PyItem | None:
+def find_axe():
     equipped = _get_equipped_axe()
     if equipped:
         return equipped
     return API.FindType(AXE_TYPE, API.Backpack)
 
 
-def ensure_axe_equipped(axe: API.PyItem | None) -> API.PyItem | None:
+def ensure_axe_equipped(axe):
     if not axe:
         return None
 
@@ -305,14 +303,14 @@ def _tree_graphics_set() -> set:
     return _tree_tile_graphics_cache
 
 
-def _graphic_matches_tree(static: API.PyStatic) -> bool:
+def _graphic_matches_tree(static) -> bool:
     if not use_tree_graphic_list:
         return False
     graphic = int(getattr(static, "Graphic", 0) or 0)
     return graphic in _tree_graphics_set()
 
 
-def find_trees(scan_range: int) -> list[API.PyStatic]:
+def find_trees(scan_range: int) -> list:
     global _last_message_time
 
     px, py = int(API.Player.X), int(API.Player.Y)
@@ -386,7 +384,7 @@ def find_trees(scan_range: int) -> list[API.PyStatic]:
     return list(by_xy.values())
 
 
-def nearest_tree(scan_range: int, depleted_until: dict) -> API.PyStatic | None:
+def nearest_tree(scan_range: int, depleted_until: dict):
     now = time.time()
     px, py = int(API.Player.X), int(API.Player.Y)
 
@@ -410,7 +408,7 @@ def nearest_tree(scan_range: int, depleted_until: dict) -> API.PyStatic | None:
     return available[0]
 
 
-def pathfind_to_tree(tree: API.PyStatic) -> bool:
+def pathfind_to_tree(tree) -> bool:
     return API.Pathfind(
         int(tree.X),
         int(tree.Y),
@@ -421,7 +419,7 @@ def pathfind_to_tree(tree: API.PyStatic) -> bool:
     )
 
 
-def chop_tree(axe: API.PyItem | None, tree: API.PyStatic) -> bool:
+def chop_tree(axe, tree) -> bool:
     axe = ensure_axe_equipped(axe)
     if not axe:
         API.SysMsg("Could not equip axe; stopping", 32)
@@ -582,7 +580,7 @@ def log_amount_in_pack() -> int:
     return total
 
 
-def chop_all_logs_in_pack(axe: API.PyItem | None) -> bool:
+def chop_all_logs_in_pack(axe) -> bool:
     """Chop all logs in pack. Returns True if successful, False if pack dump failed."""
     while not API.StopRequested:
         logs = API.FindTypeAll(log_type, API.Backpack) or []
