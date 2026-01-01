@@ -17,19 +17,20 @@ LOG_TYPE = 0x1BDD
 BOARD_TYPE = 0x1BD7
 
 # Search radius for trees (in tiles)
-TREE_SCAN_RANGE = 12
+TREE_SCAN_RANGE = 16
 
 # Tree detection behavior
 INCLUDE_VEGETATION = True
-USE_NAME_FALLBACK = True
 FILTER_LINE_OF_SIGHT = False
-DEBUG_TREE_COUNTS = False
+DEBUG_TREE_COUNTS = True
 
 # Prefer explicit graphics list (from ServUO tile tables) for conservative detection.
 # If your shard uses custom tree graphics, extend this list.
 USE_TREE_GRAPHIC_LIST = True
-TREE_TILE_GRAPHICS = set(
-    [
+
+# NOTE: keep this as a plain list so it can be edited in-game.
+# We build a cached set() at runtime for fast membership tests.
+TREE_TILE_GRAPHICS = [
         0x4CCA,
         0x4CCB,
         0x4CCC,
@@ -179,19 +180,6 @@ TREE_TILE_GRAPHICS = set(
         0x52C5,
         0x52C6,
         0x52C7,
-    ]
-)
-
-# Fallback keywords for shards where tree statics aren't flagged as IsTree.
-# Kept conservative by also requiring impassible for non-IsTree matches.
-TREE_NAME_KEYWORDS = [
-    "tree",
-    "oak",
-    "pine",
-    "yew",
-    "willow",
-    "cedar",
-    "cypress",
 ]
 
 # Prevent DEBUG_TREE_COUNTS from spamming every loop.
@@ -205,7 +193,7 @@ WEIGHT_BUFFER = 30
 
 # Optional: dump boards into a pack animal/container when heavy.
 # Set PACK_DESTINATION_SERIAL to the pack animal (mobile) OR its backpack (container item).
-USE_PACK_DUMP = False
+USE_PACK_DUMP = True
 PACK_DESTINATION_SERIAL = 0
 PACK_DUMP_DISTANCE = 2
 PACK_DUMP_PAUSE = 0.7
@@ -337,22 +325,21 @@ def ensure_axe_equipped(axe):
 _last_tree_debug_time = 0.0
 _last_pack_warn_time = 0.0
 
+_tree_tile_graphics_cache = None
 
-def _name_matches_tree(static) -> bool:
-    name = str(getattr(static, "Name", "") or "").lower()
-    if not name:
-        return False
-    for kw in TREE_NAME_KEYWORDS:
-        if kw in name:
-            return True
-    return False
+
+def _tree_graphics_set() -> set:
+    global _tree_tile_graphics_cache
+    if _tree_tile_graphics_cache is None:
+        _tree_tile_graphics_cache = set([int(g) for g in (TREE_TILE_GRAPHICS or [])])
+    return _tree_tile_graphics_cache
 
 
 def _graphic_matches_tree(static) -> bool:
     if not USE_TREE_GRAPHIC_LIST:
         return False
     graphic = int(getattr(static, "Graphic", 0) or 0)
-    return graphic in TREE_TILE_GRAPHICS
+    return graphic in _tree_graphics_set()
 
 
 def find_trees(scan_range: int) -> list:
@@ -371,8 +358,8 @@ def find_trees(scan_range: int) -> list:
     included = 0
     is_tree_count = 0
     veg_count = 0
-    name_count = 0
     los_excluded = 0
+
 
     # De-dup by (x,y). Trees often have multiple statics at the same tile
     # (trunk + canopy). Prefer the Z closest to the player so we target/pathfind
@@ -388,14 +375,11 @@ def find_trees(scan_range: int) -> list:
         is_tree = bool(getattr(s, "IsTree", False))
         is_veg = bool(getattr(s, "IsVegetation", False))
         graphic_match = _graphic_matches_tree(s)
-        name_match = _name_matches_tree(s) if USE_NAME_FALLBACK else False
 
         if is_tree or graphic_match:
             is_tree_count += 1
         if is_veg:
             veg_count += 1
-        if name_match:
-            name_count += 1
 
         # Conservative inclusion:
         # - Always include IsTree or known tree graphics
@@ -407,8 +391,6 @@ def find_trees(scan_range: int) -> list:
             include = True
         else:
             if INCLUDE_VEGETATION and is_veg and is_impassible:
-                include = True
-            elif USE_NAME_FALLBACK and name_match and is_impassible:
                 include = True
 
         if not include:
@@ -442,7 +424,7 @@ def find_trees(scan_range: int) -> list:
         if now - _last_tree_debug_time >= TREE_DEBUG_COOLDOWN_SECONDS:
             _last_tree_debug_time = now
             API.SysMsg(
-                f"TreeScan: total={total} included={len(by_xy)} treeish={is_tree_count} veg={veg_count} name={name_count} los_excl={los_excluded}"
+                f"TreeScan: total={total} included={len(by_xy)} treeish={is_tree_count} veg={veg_count} los_excl={los_excluded}"
             )
 
     return list(by_xy.values())
@@ -683,7 +665,9 @@ API.SysMsg(f"Pack dump: {'ON' if USE_PACK_DUMP else 'OFF'}")
 if USE_PACK_DUMP:
     if not PACK_DESTINATION_SERIAL:
         API.SysMsg("PACK DUMP SETUP: Target pack animal or its backpack", 32)
-        PACK_DESTINATION_SERIAL = int(API.RequestTarget(timeout=PACK_PROMPT_TIMEOUT) or 0)
+        PACK_DESTINATION_SERIAL = int(
+            API.RequestTarget(timeout=PACK_PROMPT_TIMEOUT) or 0
+        )
 
     if PACK_DESTINATION_SERIAL:
         API.SysMsg(f"Pack dump target set: 0x{PACK_DESTINATION_SERIAL:X}")
