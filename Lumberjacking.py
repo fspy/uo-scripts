@@ -1,5 +1,7 @@
 # pyright: reportCallIssue=false
 
+from __future__ import annotations
+
 import time
 import API
 
