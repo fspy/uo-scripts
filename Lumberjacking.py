@@ -247,6 +247,12 @@ def is_near_max(buffer: int) -> bool:
     return API.Player.Weight >= (API.Player.WeightMax - buffer)
 
 
+def is_overweight() -> bool:
+    if not API.Player or API.Player.WeightMax is None or API.Player.Weight is None:
+        return False
+    return API.Player.Weight > API.Player.WeightMax
+
+
 def chebyshev_dist(x1: int, y1: int, x2: int, y2: int) -> int:
     return max(abs(x1 - x2), abs(y1 - y2))
 
@@ -538,11 +544,19 @@ def warn_if_still_heavy(last_warn: float) -> float:
     if now - last_warn < WARN_COOLDOWN_SECONDS:
         return last_warn
 
-    API.SysMsg(
-        f"WARNING: Near weight limit ({API.Player.Weight}/{API.Player.WeightMax})",
-        32,
-    )
-    API.Msg("Overweight warning!")
+    if is_overweight():
+        API.SysMsg(
+            f"OVERWEIGHT: Can't move ({API.Player.Weight}/{API.Player.WeightMax}). Drop items or convert logs.",
+            32,
+        )
+        API.Msg("OVERWEIGHT: Can't move")
+    else:
+        API.SysMsg(
+            f"WARNING: Near weight limit ({API.Player.Weight}/{API.Player.WeightMax})",
+            32,
+        )
+        API.Msg("Overweight warning!")
+
     return now
 
 
@@ -579,8 +593,13 @@ while not API.StopRequested:
         break
 
     if is_near_max(WEIGHT_BUFFER):
+        # When overweight, pathfinding won't happen; make it obvious.
+        last_warn_time = warn_if_still_heavy(last_warn_time)
+
+        # Try to recover by converting logs -> boards.
         chop_all_logs_in_pack(axe)
         last_warn_time = warn_if_still_heavy(last_warn_time)
+
         API.Pause(LOOP_DELAY)
         continue
 
