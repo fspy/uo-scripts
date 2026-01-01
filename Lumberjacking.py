@@ -213,6 +213,9 @@ PACK_DUMP_PAUSE = 0.7
 # If USE_PACK_DUMP is enabled but no destination is set, prompt on start.
 PACK_PROMPT_TIMEOUT = 15.0
 
+# Prevent pack warnings from spamming.
+PACK_WARN_COOLDOWN_SECONDS = 8.0
+
 # If still within this many stones after converting logs, warn
 WARN_BUFFER = 10
 WARN_COOLDOWN_SECONDS = 10.0
@@ -332,6 +335,7 @@ def ensure_axe_equipped(axe):
 
 
 _last_tree_debug_time = 0.0
+_last_pack_warn_time = 0.0
 
 
 def _name_matches_tree(static) -> bool:
@@ -539,21 +543,43 @@ def _resolve_pack_destination() -> int:
     return 0
 
 
+def _pack_warn(msg: str) -> None:
+    global _last_pack_warn_time
+
+    now = time.time()
+    if now - _last_pack_warn_time < PACK_WARN_COOLDOWN_SECONDS:
+        return
+
+    _last_pack_warn_time = now
+    API.SysMsg(msg, 32)
+
+
 def dump_boards_to_pack() -> None:
     dest = _resolve_pack_destination()
     if not dest:
+        _pack_warn("Pack dump enabled, but no valid destination found")
+        return
+
+    before = board_amount_in_pack()
+    if before <= 0:
         return
 
     boards = API.FindTypeAll(BOARD_TYPE, API.Backpack) or []
     if not boards:
         return
 
-    # Moves can fail if the follower is too far away; keep it conservative.
+    # Moves can fail if the follower is too far away (or pack not accessible).
     for b in boards:
         if API.StopRequested:
             return
         API.MoveItem(int(b.Serial), int(dest))
         API.Pause(PACK_DUMP_PAUSE)
+
+    after = board_amount_in_pack()
+    if after >= before:
+        _pack_warn(
+            f"Pack dump didn't move boards (dest=0x{int(dest):X}). Is the pack animal nearby/open?"
+        )
 
 
 def board_amount_in_pack() -> int:
@@ -644,9 +670,11 @@ elif API.HasTarget("any"):
 
 API.SysMsg("Lumberjacking started (tree scan + pathfind)")
 
-if USE_PACK_DUMP and not PACK_DESTINATION_SERIAL:
-    API.SysMsg("Target your pack animal (or its backpack) to dump boards", 32)
-    PACK_DESTINATION_SERIAL = int(API.RequestTarget(timeout=PACK_PROMPT_TIMEOUT) or 0)
+if USE_PACK_DUMP:
+    if not PACK_DESTINATION_SERIAL:
+        API.SysMsg("Target your pack animal (or its backpack) to dump boards", 32)
+        PACK_DESTINATION_SERIAL = int(API.RequestTarget(timeout=PACK_PROMPT_TIMEOUT) or 0)
+
     if PACK_DESTINATION_SERIAL:
         API.SysMsg(f"Pack dump target set: 0x{PACK_DESTINATION_SERIAL:X}")
         resolved = _resolve_pack_destination()
