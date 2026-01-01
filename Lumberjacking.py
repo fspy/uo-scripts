@@ -207,7 +207,7 @@ def chop_tree(axe, tree) -> bool:
     return True
 
 
-def _journal_has_any_recent(substrings: list[str], seconds: float) -> bool:
+def _journal_has_any_recent(substrings, seconds) -> bool:
     entries = API.GetJournalEntries(seconds) or []
     for entry in entries:
         text = str(getattr(entry, "Text", "") or "").lower()
