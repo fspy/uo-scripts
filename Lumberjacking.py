@@ -31,6 +31,7 @@ DEPLETED_TTL_SECONDS = 180.0
 
 # Delays
 CHOP_DELAY = 0.65
+EQUIP_DELAY = 0.6
 LOOP_DELAY = 0.25
 
 # Journal messages that indicate no wood / out of range / invalid target
@@ -68,6 +69,51 @@ def find_axe():
         return left
 
     return API.FindType(AXE_TYPE, API.Backpack)
+
+
+def ensure_axe_equipped(axe):
+    if not axe:
+        return None
+
+    right = API.FindLayer("RightHand")
+    if right and right.Graphic == AXE_TYPE:
+        return right
+
+    left = API.FindLayer("LeftHand")
+    if left and left.Graphic == AXE_TYPE:
+        return left
+
+    if API.Player.Mount:
+        API.Dismount(skipQueue=True)
+        API.Pause(0.5)
+
+    cleared = False
+
+    right = API.FindLayer("RightHand")
+    if right:
+        API.ClearRightHand()
+        cleared = True
+
+    left = API.FindLayer("LeftHand")
+    if left:
+        API.ClearLeftHand()
+        cleared = True
+
+    if cleared:
+        API.Pause(0.25)
+
+    API.EquipItem(int(axe.Serial))
+    API.Pause(EQUIP_DELAY)
+
+    right = API.FindLayer("RightHand")
+    if right and right.Graphic == AXE_TYPE:
+        return right
+
+    left = API.FindLayer("LeftHand")
+    if left and left.Graphic == AXE_TYPE:
+        return left
+
+    return None
 
 
 def find_trees(scan_range: int) -> list:
@@ -128,8 +174,14 @@ def pathfind_to_tree(tree) -> bool:
 
 
 def chop_tree(axe, tree) -> bool:
+    axe = ensure_axe_equipped(axe)
+    if not axe:
+        API.SysMsg("Could not equip axe; stopping", 32)
+        API.Stop()
+        return False
+
     API.ClearJournal()
-    API.UseObject(axe.Serial)
+    API.UseObject(int(axe.Serial))
 
     if not API.WaitForTarget(timeout=5):
         return False
@@ -152,8 +204,14 @@ def chop_all_logs_in_pack(axe) -> None:
             API.ClearJournal()
 
             # PreTarget to avoid targeting the ground/tile by mistake.
+            axe = ensure_axe_equipped(axe)
+            if not axe:
+                API.SysMsg("Could not equip axe; stopping", 32)
+                API.Stop()
+                return
+
             API.PreTarget(int(log.Serial))
-            API.UseObject(axe.Serial)
+            API.UseObject(int(axe.Serial))
 
             # If a target cursor still appears, pretarget didn't apply; cancel so we don't hang.
             if API.WaitForTarget(timeout=0.25):
@@ -202,6 +260,11 @@ while not API.StopRequested:
     axe = find_axe()
     if not axe:
         API.SysMsg("No gargish axe (0x48B2) found; stopping", 32)
+        break
+
+    axe = ensure_axe_equipped(axe)
+    if not axe:
+        API.SysMsg("Could not equip gargish axe; stopping", 32)
         break
 
     if is_near_max(WEIGHT_BUFFER):
