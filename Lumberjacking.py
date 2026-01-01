@@ -380,7 +380,7 @@ def find_trees(scan_range: int):
     return list(by_xy.values())
 
 
-def nearest_tree(scan_range: int, depleted_until: dict):
+def nearest_tree(scan_range: int, depleted_until):
     now = time.time()
     px, py = int(API.Player.X), int(API.Player.Y)
 
@@ -441,7 +441,7 @@ def chop_tree(axe, tree) -> bool:
     return True
 
 
-def _journal_has_any_recent(substrings: list[str], seconds: float) -> bool:
+def _journal_has_any_recent(substrings, seconds: float) -> bool:
     entries = API.GetJournalEntries(seconds) or []
     for entry in entries:
         text = str(getattr(entry, "Text", "") or "").lower()
@@ -451,7 +451,7 @@ def _journal_has_any_recent(substrings: list[str], seconds: float) -> bool:
     return False
 
 
-def wait_for_journal(msgs: list[str], timeout: float = 2.0) -> bool:
+def wait_for_journal(msgs, timeout: float = 2.0) -> bool:
     """Wait for any message to appear in journal. Returns True if found."""
     deadline = time.time() + timeout
     while time.time() < deadline and not API.StopRequested:
