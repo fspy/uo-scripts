@@ -29,6 +29,12 @@ WARN_COOLDOWN_SECONDS = 10.0
 # Mark trees as "depleted" for this long (seconds)
 DEPLETED_TTL_SECONDS = 180.0
 
+# After targeting a tree, wait up to this long for server messages.
+# Some shards send the "no wood" message slightly late; if we clear the journal too soon,
+# we miss it and keep retrying the same tree.
+CHOP_RESULT_TIMEOUT = 1.5
+CHOP_RESULT_POLL = 0.1
+
 # Delays
 CHOP_DELAY = 0.65
 EQUIP_DELAY = 0.6
@@ -193,6 +199,15 @@ def chop_tree(axe, tree) -> bool:
     return True
 
 
+def wait_for_chop_result() -> None:
+    """Wait briefly for journal messages related to chopping."""
+    deadline = time.time() + CHOP_RESULT_TIMEOUT
+    while time.time() < deadline and not API.StopRequested:
+        if API.InJournalAny(DEPLETED_MSGS) or API.InJournalAny(WAIT_MSGS):
+            return
+        API.Pause(CHOP_RESULT_POLL)
+
+
 def chop_all_logs_in_pack(axe) -> None:
     while not API.StopRequested:
         logs = API.FindTypeAll(LOG_TYPE, API.Backpack) or []
@@ -297,6 +312,9 @@ while not API.StopRequested:
             continue
 
     chop_tree(axe, tree)
+
+    # Wait for delayed server messages so we don't miss depletion.
+    wait_for_chop_result()
 
     if API.InJournalAny(DEPLETED_MSGS, clearMatches=True):
         depleted_until[(int(tree.X), int(tree.Y))] = time.time() + DEPLETED_TTL_SECONDS
