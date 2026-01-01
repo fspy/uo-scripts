@@ -426,18 +426,17 @@ def chop_tree(axe, tree) -> bool:
     # just retarget the tree and don't spam additional axe uses.
     if API.HasTarget("any"):
         API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
-        API.Pause(action_delay)
-        return True
+    else:
+        # Some servers/clients will re-use the last target after the first chop,
+        # meaning no target cursor appears on subsequent swings.
+        API.UseObject(int(axe.Serial))
 
-    # Some servers/clients will re-use the last target after the first chop,
-    # meaning no target cursor appears on subsequent swings.
-    API.UseObject(int(axe.Serial))
+        # Wait briefly for a cursor; if WaitForTarget is flaky, fall back to HasTarget.
+        if API.WaitForTarget(timeout=0.75) or API.HasTarget("any"):
+            API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
 
-    # Wait briefly for a cursor; if WaitForTarget is flaky, fall back to HasTarget.
-    if API.WaitForTarget(timeout=0.75) or API.HasTarget("any"):
-        API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
-
-    API.Pause(action_delay)
+    # Wait for journal feedback - exit early when any message appears
+    wait_for_journal(["you put"] + depleted_msgs + wait_msgs, timeout=action_delay)
     return True
 
 
