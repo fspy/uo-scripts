@@ -19,11 +19,6 @@ board_type = 0x1BD7
 # Search radius for trees (in tiles)
 tree_scan_range = 16
 
-# Tree detection behavior
-include_vegetation = True
-filter_line_of_sight = False
-debug_tree_counts = True
-
 # Prefer explicit graphics list (from ServUO tile tables) for conservative detection.
 # If your shard uses custom tree graphics, extend this list.
 use_tree_graphic_list = True
@@ -31,230 +26,185 @@ use_tree_graphic_list = True
 # NOTE: keep this as a plain list so it can be edited in-game.
 # We build a cached set() at runtime for fast membership tests.
 tree_tile_graphics = [
-        0x4CCA,
-        0x4CCB,
-        0x4CCC,
-        0x4CCD,
-        0x4CD0,
-        0x4CD3,
-        0x4CD6,
-        0x4CD8,
-        0x4CDA,
-        0x4CDD,
-        0x4CE0,
-        0x4CE3,
-        0x4CE6,
-        0x4CF8,
-        0x4CFB,
-        0x4CFE,
-        0x4D01,
-        0x4D41,
-        0x4D42,
-        0x4D43,
-        0x4D44,
-        0x4D57,
-        0x4D58,
-        0x4D59,
-        0x4D5A,
-        0x4D5B,
-        0x4D6E,
-        0x4D6F,
-        0x4D70,
-        0x4D71,
-        0x4D72,
-        0x4D84,
-        0x4D85,
-        0x4D86,
-        0x52B5,
-        0x52B6,
-        0x52B7,
-        0x52B8,
-        0x52B9,
-        0x52BA,
-        0x52BB,
-        0x52BC,
-        0x52BD,
-        0x4CCE,
-        0x4CCF,
-        0x4CD1,
-        0x4CD2,
-        0x4CD4,
-        0x4CD5,
-        0x4CD7,
-        0x4CD9,
-        0x4CDB,
-        0x4CDC,
-        0x4CDE,
-        0x4CDF,
-        0x4CE1,
-        0x4CE2,
-        0x4CE4,
-        0x4CE5,
-        0x4CE7,
-        0x4CE8,
-        0x4CF9,
-        0x4CFA,
-        0x4CFC,
-        0x4CFD,
-        0x4CFF,
-        0x4D00,
-        0x4D02,
-        0x4D03,
-        0x4D45,
-        0x4D46,
-        0x4D47,
-        0x4D48,
-        0x4D49,
-        0x4D4A,
-        0x4D4B,
-        0x4D4C,
-        0x4D4D,
-        0x4D4E,
-        0x4D4F,
-        0x4D50,
-        0x4D51,
-        0x4D52,
-        0x4D53,
-        0x4D5C,
-        0x4D5D,
-        0x4D5E,
-        0x4D5F,
-        0x4D60,
-        0x4D61,
-        0x4D62,
-        0x4D63,
-        0x4D64,
-        0x4D65,
-        0x4D66,
-        0x4D67,
-        0x4D68,
-        0x4D69,
-        0x4D73,
-        0x4D74,
-        0x4D75,
-        0x4D76,
-        0x4D77,
-        0x4D78,
-        0x4D79,
-        0x4D7A,
-        0x4D7B,
-        0x4D7C,
-        0x4D7D,
-        0x4D7E,
-        0x4D7F,
-        0x4D87,
-        0x4D88,
-        0x4D89,
-        0x4D8A,
-        0x4D8B,
-        0x4D8C,
-        0x4D8D,
-        0x4D8E,
-        0x4D8F,
-        0x4D90,
-        0x4D95,
-        0x4D96,
-        0x4D97,
-        0x4D99,
-        0x4D9A,
-        0x4D9B,
-        0x4D9D,
-        0x4D9E,
-        0x4D9F,
-        0x4DA1,
-        0x4DA2,
-        0x4DA3,
-        0x4DA5,
-        0x4DA6,
-        0x4DA7,
-        0x4DA9,
-        0x4DAA,
-        0x4DAB,
-        0x52BE,
-        0x52BF,
-        0x52C0,
-        0x52C1,
-        0x52C2,
-        0x52C3,
-        0x52C4,
-        0x52C5,
-        0x52C6,
-        0x52C7,
+    0x4CCA,
+    0x4CCB,
+    0x4CCC,
+    0x4CCD,
+    0x4CD0,
+    0x4CD3,
+    0x4CD6,
+    0x4CD8,
+    0x4CDA,
+    0x4CDD,
+    0x4CE0,
+    0x4CE3,
+    0x4CE6,
+    0x4CF8,
+    0x4CFB,
+    0x4CFE,
+    0x4D01,
+    0x4D41,
+    0x4D42,
+    0x4D43,
+    0x4D44,
+    0x4D57,
+    0x4D58,
+    0x4D59,
+    0x4D5A,
+    0x4D5B,
+    0x4D6E,
+    0x4D6F,
+    0x4D70,
+    0x4D71,
+    0x4D72,
+    0x4D84,
+    0x4D85,
+    0x4D86,
+    0x52B5,
+    0x52B6,
+    0x52B7,
+    0x52B8,
+    0x52B9,
+    0x52BA,
+    0x52BB,
+    0x52BC,
+    0x52BD,
+    0x4CCE,
+    0x4CCF,
+    0x4CD1,
+    0x4CD2,
+    0x4CD4,
+    0x4CD5,
+    0x4CD7,
+    0x4CD9,
+    0x4CDB,
+    0x4CDC,
+    0x4CDE,
+    0x4CDF,
+    0x4CE1,
+    0x4CE2,
+    0x4CE4,
+    0x4CE5,
+    0x4CE7,
+    0x4CE8,
+    0x4CF9,
+    0x4CFA,
+    0x4CFC,
+    0x4CFD,
+    0x4CFF,
+    0x4D00,
+    0x4D02,
+    0x4D03,
+    0x4D45,
+    0x4D46,
+    0x4D47,
+    0x4D48,
+    0x4D49,
+    0x4D4A,
+    0x4D4B,
+    0x4D4C,
+    0x4D4D,
+    0x4D4E,
+    0x4D4F,
+    0x4D50,
+    0x4D51,
+    0x4D52,
+    0x4D53,
+    0x4D5C,
+    0x4D5D,
+    0x4D5E,
+    0x4D5F,
+    0x4D60,
+    0x4D61,
+    0x4D62,
+    0x4D63,
+    0x4D64,
+    0x4D65,
+    0x4D66,
+    0x4D67,
+    0x4D68,
+    0x4D69,
+    0x4D73,
+    0x4D74,
+    0x4D75,
+    0x4D76,
+    0x4D77,
+    0x4D78,
+    0x4D79,
+    0x4D7A,
+    0x4D7B,
+    0x4D7C,
+    0x4D7D,
+    0x4D7E,
+    0x4D7F,
+    0x4D87,
+    0x4D88,
+    0x4D89,
+    0x4D8A,
+    0x4D8B,
+    0x4D8C,
+    0x4D8D,
+    0x4D8E,
+    0x4D8F,
+    0x4D90,
+    0x4D95,
+    0x4D96,
+    0x4D97,
+    0x4D99,
+    0x4D9A,
+    0x4D9B,
+    0x4D9D,
+    0x4D9E,
+    0x4D9F,
+    0x4DA1,
+    0x4DA2,
+    0x4DA3,
+    0x4DA5,
+    0x4DA6,
+    0x4DA7,
+    0x4DA9,
+    0x4DAA,
+    0x4DAB,
+    0x52BE,
+    0x52BF,
+    0x52C0,
+    0x52C1,
+    0x52C2,
+    0x52C3,
+    0x52C4,
+    0x52C5,
+    0x52C6,
+    0x52C7,
 ]
-
-# Prevent DEBUG_TREE_COUNTS from spamming every loop.
-tree_debug_cooldown_seconds = 5.0
 
 # Pathfind to within this distance of the tree
 pathfind_distance = 1
 
-# When weight is within this many stones of max, convert logs -> boards
-weight_buffer = 30
+# When weight is within this many stones of max, convert logs -> boards and warn
+weight_buffer = 60
 
 # Optional: dump boards into a pack animal/container when heavy.
 # Set pack_destination_serial to the pack animal (mobile) OR its backpack (container item).
 USE_PACK_DUMP = True
 pack_destination_serial = 0
-pack_dump_distance = 2
-pack_dump_pause = 0.7
-
-# If USE_PACK_DUMP is enabled but no destination is set, prompt on start.
-pack_prompt_timeout = 15.0
-
-# Prevent pack warnings from spamming.
-pack_warn_cooldown_seconds = 8.0
-
-# Pack animal board capacity (approximate; shard-dependent)
 pack_board_capacity = 1600
-
-# If still within this many stones after converting logs, warn
-warn_buffer = 10
-warn_cooldown_seconds = 10.0
-
-# If pack dump fails this many consecutive times, stop the script
 max_consecutive_pack_failures = 3
 
 # Mark trees as "depleted" for this long (seconds)
 depleted_ttl_seconds = 180.0
 
-# After targeting a tree, we *optionally* scan journal output for "depleted".
-# Prefer inventory-based detection for speed/reliability; journal is fallback.
-chop_result_window = 1.0
-chop_result_timeout = 0.35
-chop_result_poll = 0.05
-
 # If we attempt the same tree this many times without success/depletion,
 # mark it "depleted" temporarily to avoid getting stuck.
 max_attempts_per_tree = 6
 
-# Delays
-chop_delay = 0.45
-equip_delay = 0.4
-loop_delay = 0.1
+# Timing
+action_delay = 0.5      # pause after server actions (chop, equip, move item)
+loop_delay = 0.1        # main loop pacing
+journal_window = 2.0    # how far back to check journal (seconds)
+message_cooldown = 5.0  # prevent message spam (debug/warnings)
 
-# After each chop, give the backpack a moment to update.
-post_chop_check_delay = 0.1
-
-# Dismount delay when equipping axe
-dismount_pause = 0.5
-
-# Delay when clearing right hand to re-equip
-clear_hand_pause = 0.25
-
-# Wait for target cursor timeout
-target_cursor_timeout = 0.75
-
-# Wait message retry delay
-wait_msg_retry_delay = 0.25
-
-# Retry delay when waiting on wait_msgs during log chopping
-wait_msg_log_retry = 0.5
-
-# Pathfinding timeout in seconds
-pathfind_timeout = 10
-
-# System message color for errors/warnings
-error_msg_color = 32
+# Debug
+debug_tree_counts = True
 
 # Journal messages that indicate no wood / out of range / invalid target.
 # Keep these as *substrings* (we match case-insensitive against recent journal entries).
@@ -320,11 +270,11 @@ def ensure_axe_equipped(axe: API.PyItem | None) -> API.PyItem | None:
 
     if API.Player.Mount:
         API.Dismount(skipQueue=True)
-        API.Pause(dismount_pause)
+        API.Pause(0.5)
 
     # Try a straight equip first.
     API.EquipItem(int(axe.Serial))
-    API.Pause(equip_delay)
+    API.Pause(action_delay)
 
     equipped = _get_equipped_axe()
     if equipped:
@@ -333,16 +283,15 @@ def ensure_axe_equipped(axe: API.PyItem | None) -> API.PyItem | None:
     # If hands are occupied, free the right hand slot and retry.
     if API.FindLayer("TwoHanded") or API.FindLayer("OneHanded"):
         API.ClearRightHand()
-        API.Pause(clear_hand_pause)
+        API.Pause(0.25)
 
     API.EquipItem(int(axe.Serial))
-    API.Pause(equip_delay)
+    API.Pause(action_delay)
 
     return _get_equipped_axe()
 
 
-_last_tree_debug_time = 0.0
-_last_pack_warn_time = 0.0
+_last_message_time = 0.0
 
 _tree_tile_graphics_cache = None
 
@@ -362,7 +311,7 @@ def _graphic_matches_tree(static: API.PyStatic) -> bool:
 
 
 def find_trees(scan_range: int) -> list[API.PyStatic]:
-    global _last_tree_debug_time
+    global _last_message_time
 
     px, py = int(API.Player.X), int(API.Player.Y)
     statics = API.GetStaticsInArea(
@@ -376,8 +325,6 @@ def find_trees(scan_range: int) -> list[API.PyStatic]:
     total = 0
     is_tree_count = 0
     veg_count = 0
-    los_excluded = 0
-
 
     # De-dup by (x,y). Trees often have multiple statics at the same tile
     # (trunk + canopy). Prefer the Z closest to the player so we target/pathfind
@@ -401,25 +348,16 @@ def find_trees(scan_range: int) -> list[API.PyStatic]:
 
         # Conservative inclusion:
         # - Always include IsTree or known tree graphics
-        # - Otherwise include vegetation/name matches ONLY when impassible
+        # - Otherwise include vegetation ONLY when impassible
         #   (reduces grabbing flowers/grass that can't be chopped).
         is_impassible = bool(getattr(s, "IsImpassible", False))
         include = False
         if is_tree or graphic_match:
             include = True
-        else:
-            if include_vegetation and is_veg and is_impassible:
-                include = True
+        elif is_veg and is_impassible:
+            include = True
 
         if not include:
-            continue
-
-        if (
-            filter_line_of_sight
-            and hasattr(s, "HasLineOfSightFrom")
-            and not s.HasLineOfSightFrom()
-        ):
-            los_excluded += 1
             continue
 
         key = (int(s.X), int(s.Y))
@@ -437,10 +375,10 @@ def find_trees(scan_range: int) -> list[API.PyStatic]:
 
     if debug_tree_counts:
         now = time.time()
-        if now - _last_tree_debug_time >= tree_debug_cooldown_seconds:
-            _last_tree_debug_time = now
+        if now - _last_message_time >= message_cooldown:
+            _last_message_time = now
             API.SysMsg(
-                f"TreeScan: total={total} included={len(by_xy)} treeish={is_tree_count} veg={veg_count} los_excl={los_excluded}"
+                f"TreeScan: total={total} included={len(by_xy)} treeish={is_tree_count} veg={veg_count}"
             )
 
     return list(by_xy.values())
@@ -477,14 +415,14 @@ def pathfind_to_tree(tree: API.PyStatic) -> bool:
         int(tree.Z),
         distance=pathfind_distance,
         wait=True,
-        timeout=pathfind_timeout,
+        timeout=10,
     )
 
 
 def chop_tree(axe: API.PyItem | None, tree: API.PyStatic) -> bool:
     axe = ensure_axe_equipped(axe)
     if not axe:
-        API.SysMsg("Could not equip axe; stopping", error_msg_color)
+        API.SysMsg("Could not equip axe; stopping", 32)
         API.Stop()
         return False
 
@@ -492,7 +430,7 @@ def chop_tree(axe: API.PyItem | None, tree: API.PyStatic) -> bool:
     # just retarget the tree and don't spam additional axe uses.
     if API.HasTarget("any"):
         API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
-        API.Pause(chop_delay)
+        API.Pause(action_delay)
         return True
 
     # Some servers/clients will re-use the last target after the first chop,
@@ -500,10 +438,10 @@ def chop_tree(axe: API.PyItem | None, tree: API.PyStatic) -> bool:
     API.UseObject(int(axe.Serial))
 
     # Wait briefly for a cursor; if WaitForTarget is flaky, fall back to HasTarget.
-    if API.WaitForTarget(timeout=target_cursor_timeout) or API.HasTarget("any"):
+    if API.WaitForTarget(timeout=0.75) or API.HasTarget("any"):
         API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
 
-    API.Pause(chop_delay)
+    API.Pause(action_delay)
     return True
 
 
@@ -517,15 +455,14 @@ def _journal_has_any_recent(substrings: list[str], seconds: float) -> bool:
     return False
 
 
-def wait_for_chop_result() -> None:
-    """Wait briefly for any chopping-related journal output."""
-    deadline = time.time() + chop_result_timeout
+def wait_for_journal(msgs: list[str], timeout: float = 2.0) -> bool:
+    """Wait for any message to appear in journal. Returns True if found."""
+    deadline = time.time() + timeout
     while time.time() < deadline and not API.StopRequested:
-        if _journal_has_any_recent(
-            depleted_msgs, chop_result_window
-        ) or _journal_has_any_recent(wait_msgs, chop_result_window):
-            return
-        API.Pause(chop_result_poll)
+        if API.InJournalAny(msgs):
+            return True
+        API.Pause(0.05)
+    return False
 
 
 def _resolve_pack_destination() -> int:
@@ -550,14 +487,14 @@ def _resolve_pack_destination() -> int:
 
 
 def _pack_warn(msg: str) -> None:
-    global _last_pack_warn_time
+    global _last_message_time
 
     now = time.time()
-    if now - _last_pack_warn_time < pack_warn_cooldown_seconds:
+    if now - _last_message_time < message_cooldown:
         return
 
-    _last_pack_warn_time = now
-    API.SysMsg(msg, error_msg_color)
+    _last_message_time = now
+    API.SysMsg(msg, 32)
 
 
 def dump_boards_to_pack() -> bool:
@@ -602,7 +539,7 @@ def dump_boards_to_pack() -> bool:
 
         move_amount = amount if amount <= remaining else remaining
         API.MoveItem(int(b.Serial), int(dest), amt=int(move_amount))
-        API.Pause(pack_dump_pause)
+        API.Pause(action_delay)
         remaining -= int(move_amount)
         moved_any = True
 
@@ -615,7 +552,7 @@ def dump_boards_to_pack() -> bool:
     if remaining <= 0:
         _pack_warn(f"Pack is full ({capacity}/{capacity} boards)")
         return False
-    
+
     return True
 
 
@@ -659,7 +596,7 @@ def chop_all_logs_in_pack(axe: API.PyItem | None) -> bool:
             # PreTarget to avoid targeting the ground/tile by mistake.
             axe = ensure_axe_equipped(axe)
             if not axe:
-                API.SysMsg("Could not equip axe; stopping", error_msg_color)
+                API.SysMsg("Could not equip axe; stopping", 32)
                 API.Stop()
                 return False
 
@@ -667,41 +604,41 @@ def chop_all_logs_in_pack(axe: API.PyItem | None) -> bool:
             API.UseObject(int(axe.Serial))
 
             # If a target cursor still appears, pretarget didn't apply; cancel so we don't hang.
-            if API.WaitForTarget(timeout=clear_hand_pause):
+            if API.WaitForTarget(timeout=0.25):
                 API.CancelTarget()
 
-            API.Pause(chop_delay)
+            API.Pause(action_delay)
             API.CancelPreTarget()
 
             if API.InJournalAny(wait_msgs):
-                API.Pause(wait_msg_log_retry)
+                API.Pause(action_delay)
 
         # After converting a batch of logs, dump boards if enabled.
         if USE_PACK_DUMP:
             if not dump_boards_to_pack():
                 return False
-    
+
     return True
 
 
 def warn_if_still_heavy(last_warn: float) -> float:
-    if not is_near_max(warn_buffer):
+    if not is_near_max(weight_buffer):
         return last_warn
 
     now = time.time()
-    if now - last_warn < warn_cooldown_seconds:
+    if now - last_warn < message_cooldown:
         return last_warn
 
     if is_overweight():
         API.SysMsg(
             f"OVERWEIGHT: Can't move ({API.Player.Weight}/{API.Player.WeightMax}). Drop items or convert logs.",
-            error_msg_color,
+            32,
         )
         API.Msg("OVERWEIGHT: Can't move")
     else:
         API.SysMsg(
             f"WARNING: Near weight limit ({API.Player.Weight}/{API.Player.WeightMax})",
-            error_msg_color,
+            32,
         )
         API.Msg("Overweight warning!")
 
@@ -723,9 +660,11 @@ API.SysMsg(f"Pack dump: {'ON' if USE_PACK_DUMP else 'OFF'}")
 
 if USE_PACK_DUMP:
     if not pack_destination_serial:
-        API.SysMsg("PACK DUMP SETUP: Target pack animal or its backpack", error_msg_color)
+        API.SysMsg(
+            "PACK DUMP SETUP: Target pack animal or its backpack", 32
+        )
         pack_destination_serial = int(
-            API.RequestTarget(timeout=pack_prompt_timeout) or 0
+            API.RequestTarget(timeout=15.0) or 0
         )
 
     if pack_destination_serial:
@@ -736,12 +675,14 @@ if USE_PACK_DUMP:
         else:
             API.SysMsg(
                 "Pack dump target isn't a container and isn't a mobile with a backpack; pack dump disabled",
-                error_msg_color,
+                32,
             )
             pack_destination_serial = 0
             USE_PACK_DUMP = False
     else:
-        API.SysMsg("No pack dump target set; continuing without pack dump", error_msg_color)
+        API.SysMsg(
+            "No pack dump target set; continuing without pack dump", 32
+        )
         USE_PACK_DUMP = False
 
 # Map of (x,y) -> time() until which we ignore it
@@ -758,12 +699,12 @@ consecutive_pack_failures = 0
 while not API.StopRequested:
     axe = find_axe()
     if not axe:
-        API.SysMsg("No gargish axe (0x48B2) found; stopping", error_msg_color)
+        API.SysMsg("No gargish axe (0x48B2) found; stopping", 32)
         break
 
     axe = ensure_axe_equipped(axe)
     if not axe:
-        API.SysMsg("Could not equip gargish axe; stopping", error_msg_color)
+        API.SysMsg("Could not equip gargish axe; stopping", 32)
         break
 
     if is_near_max(weight_buffer):
@@ -777,12 +718,12 @@ while not API.StopRequested:
                 API.SysMsg(
                     f"Pack dump failed {consecutive_pack_failures} times. "
                     "Empty pack animal or disable pack dump to continue.",
-                    error_msg_color
+                    32
                 )
                 break
         else:
             consecutive_pack_failures = 0
-        
+
         last_warn_time = warn_if_still_heavy(last_warn_time)
 
         API.Pause(loop_delay)
@@ -826,7 +767,7 @@ while not API.StopRequested:
                     API.SysMsg(
                         f"Pack dump failed {consecutive_pack_failures} times. "
                         "Empty pack animal or disable pack dump to continue.",
-                        error_msg_color
+                        32
                     )
                     API.Stop()
                     break
@@ -839,7 +780,7 @@ while not API.StopRequested:
         before_boards = board_amount_in_pack()
 
         chop_tree(axe, tree)
-        API.Pause(post_chop_check_delay)
+        API.Pause(loop_delay)
 
         after_logs = log_amount_in_pack()
         after_boards = board_amount_in_pack()
@@ -851,16 +792,16 @@ while not API.StopRequested:
             tree_attempts[key] = 0
         else:
             # Only do a very short journal wait if we didn't detect progress.
-            wait_for_chop_result()
+            wait_for_journal(depleted_msgs + wait_msgs, timeout=journal_window)
             tree_attempts[key] = tree_attempts.get(key, 0) + 1
 
-        if _journal_has_any_recent(depleted_msgs, chop_result_window):
+        if _journal_has_any_recent(depleted_msgs, journal_window):
             depleted_until[key] = time.time() + depleted_ttl_seconds
             tree_attempts.pop(key, None)
             break
 
-        if _journal_has_any_recent(wait_msgs, chop_result_window):
-            API.Pause(wait_msg_retry_delay)
+        if _journal_has_any_recent(wait_msgs, journal_window):
+            API.Pause(action_delay)
 
         if tree_attempts.get(key, 0) >= max_attempts_per_tree:
             API.SysMsg("No progress on this tree; skipping temporarily")
