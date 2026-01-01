@@ -490,11 +490,19 @@ def chop_tree(axe, tree) -> bool:
         API.Stop()
         return False
 
+    # If we're already holding a target cursor (common during server lag),
+    # just retarget the tree and don't spam additional axe uses.
+    if API.HasTarget("any"):
+        API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
+        API.Pause(CHOP_DELAY)
+        return True
+
     # Some servers/clients will re-use the last target after the first chop,
-    # meaning no target cursor appears on subsequent swings. Handle both cases.
+    # meaning no target cursor appears on subsequent swings.
     API.UseObject(int(axe.Serial))
 
-    if API.WaitForTarget(timeout=0.75):
+    # Wait briefly for a cursor; if WaitForTarget is flaky, fall back to HasTarget.
+    if API.WaitForTarget(timeout=0.75) or API.HasTarget("any"):
         API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
 
     API.Pause(CHOP_DELAY)
@@ -670,9 +678,11 @@ elif API.HasTarget("any"):
 
 API.SysMsg("Lumberjacking started (tree scan + pathfind)")
 
+API.SysMsg(f"Pack dump: {'ON' if USE_PACK_DUMP else 'OFF'}")
+
 if USE_PACK_DUMP:
     if not PACK_DESTINATION_SERIAL:
-        API.SysMsg("Target your pack animal (or its backpack) to dump boards", 32)
+        API.SysMsg("PACK DUMP SETUP: Target pack animal or its backpack", 32)
         PACK_DESTINATION_SERIAL = int(API.RequestTarget(timeout=PACK_PROMPT_TIMEOUT) or 0)
 
     if PACK_DESTINATION_SERIAL:
@@ -681,7 +691,10 @@ if USE_PACK_DUMP:
         if resolved:
             API.SysMsg(f"Pack dump container: 0x{resolved:X}")
         else:
-            API.SysMsg("Pack dump target could not be resolved; pack dump disabled", 32)
+            API.SysMsg(
+                "Pack dump target isn't a container and isn't a mobile with a backpack; pack dump disabled",
+                32,
+            )
             PACK_DESTINATION_SERIAL = 0
             USE_PACK_DUMP = False
     else:
