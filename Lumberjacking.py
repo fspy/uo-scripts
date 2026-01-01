@@ -60,13 +60,13 @@ def chebyshev_dist(x1: int, y1: int, x2: int, y2: int) -> int:
 
 
 def find_axe():
-    right = API.FindLayer("RightHand")
-    if right and right.Graphic == AXE_TYPE:
-        return right
+    two_handed = API.FindLayer("TwoHanded")
+    if two_handed and two_handed.Graphic == AXE_TYPE:
+        return two_handed
 
-    left = API.FindLayer("LeftHand")
-    if left and left.Graphic == AXE_TYPE:
-        return left
+    one_handed = API.FindLayer("OneHanded")
+    if one_handed and one_handed.Graphic == AXE_TYPE:
+        return one_handed
 
     return API.FindType(AXE_TYPE, API.Backpack)
 
@@ -75,43 +75,45 @@ def ensure_axe_equipped(axe):
     if not axe:
         return None
 
-    right = API.FindLayer("RightHand")
-    if right and right.Graphic == AXE_TYPE:
-        return right
+    two_handed = API.FindLayer("TwoHanded")
+    if two_handed and two_handed.Graphic == AXE_TYPE:
+        return two_handed
 
-    left = API.FindLayer("LeftHand")
-    if left and left.Graphic == AXE_TYPE:
-        return left
+    one_handed = API.FindLayer("OneHanded")
+    if one_handed and one_handed.Graphic == AXE_TYPE:
+        return one_handed
 
     if API.Player.Mount:
         API.Dismount(skipQueue=True)
         API.Pause(0.5)
 
-    cleared = False
+    # Try a straight equip first.
+    API.EquipItem(int(axe.Serial))
+    API.Pause(EQUIP_DELAY)
 
-    right = API.FindLayer("RightHand")
-    if right:
+    two_handed = API.FindLayer("TwoHanded")
+    if two_handed and two_handed.Graphic == AXE_TYPE:
+        return two_handed
+
+    one_handed = API.FindLayer("OneHanded")
+    if one_handed and one_handed.Graphic == AXE_TYPE:
+        return one_handed
+
+    # If hands are occupied, free the right hand slot and retry.
+    if API.FindLayer("TwoHanded") or API.FindLayer("OneHanded"):
         API.ClearRightHand()
-        cleared = True
-
-    left = API.FindLayer("LeftHand")
-    if left:
-        API.ClearLeftHand()
-        cleared = True
-
-    if cleared:
         API.Pause(0.25)
 
     API.EquipItem(int(axe.Serial))
     API.Pause(EQUIP_DELAY)
 
-    right = API.FindLayer("RightHand")
-    if right and right.Graphic == AXE_TYPE:
-        return right
+    two_handed = API.FindLayer("TwoHanded")
+    if two_handed and two_handed.Graphic == AXE_TYPE:
+        return two_handed
 
-    left = API.FindLayer("LeftHand")
-    if left and left.Graphic == AXE_TYPE:
-        return left
+    one_handed = API.FindLayer("OneHanded")
+    if one_handed and one_handed.Graphic == AXE_TYPE:
+        return one_handed
 
     return None
 
