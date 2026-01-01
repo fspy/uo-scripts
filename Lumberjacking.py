@@ -16,6 +16,184 @@ LOG_TYPE = 0x1BDD
 # Search radius for trees (in tiles)
 TREE_SCAN_RANGE = 12
 
+# Tree detection behavior
+INCLUDE_VEGETATION = True
+USE_NAME_FALLBACK = True
+FILTER_LINE_OF_SIGHT = False
+DEBUG_TREE_COUNTS = False
+
+# Prefer explicit graphics list (from ServUO tile tables) for conservative detection.
+# If your shard uses custom tree graphics, extend this list.
+USE_TREE_GRAPHIC_LIST = True
+TREE_TILE_GRAPHICS = set(
+    [
+        0x4CCA,
+        0x4CCB,
+        0x4CCC,
+        0x4CCD,
+        0x4CD0,
+        0x4CD3,
+        0x4CD6,
+        0x4CD8,
+        0x4CDA,
+        0x4CDD,
+        0x4CE0,
+        0x4CE3,
+        0x4CE6,
+        0x4CF8,
+        0x4CFB,
+        0x4CFE,
+        0x4D01,
+        0x4D41,
+        0x4D42,
+        0x4D43,
+        0x4D44,
+        0x4D57,
+        0x4D58,
+        0x4D59,
+        0x4D5A,
+        0x4D5B,
+        0x4D6E,
+        0x4D6F,
+        0x4D70,
+        0x4D71,
+        0x4D72,
+        0x4D84,
+        0x4D85,
+        0x4D86,
+        0x52B5,
+        0x52B6,
+        0x52B7,
+        0x52B8,
+        0x52B9,
+        0x52BA,
+        0x52BB,
+        0x52BC,
+        0x52BD,
+        0x4CCE,
+        0x4CCF,
+        0x4CD1,
+        0x4CD2,
+        0x4CD4,
+        0x4CD5,
+        0x4CD7,
+        0x4CD9,
+        0x4CDB,
+        0x4CDC,
+        0x4CDE,
+        0x4CDF,
+        0x4CE1,
+        0x4CE2,
+        0x4CE4,
+        0x4CE5,
+        0x4CE7,
+        0x4CE8,
+        0x4CF9,
+        0x4CFA,
+        0x4CFC,
+        0x4CFD,
+        0x4CFF,
+        0x4D00,
+        0x4D02,
+        0x4D03,
+        0x4D45,
+        0x4D46,
+        0x4D47,
+        0x4D48,
+        0x4D49,
+        0x4D4A,
+        0x4D4B,
+        0x4D4C,
+        0x4D4D,
+        0x4D4E,
+        0x4D4F,
+        0x4D50,
+        0x4D51,
+        0x4D52,
+        0x4D53,
+        0x4D5C,
+        0x4D5D,
+        0x4D5E,
+        0x4D5F,
+        0x4D60,
+        0x4D61,
+        0x4D62,
+        0x4D63,
+        0x4D64,
+        0x4D65,
+        0x4D66,
+        0x4D67,
+        0x4D68,
+        0x4D69,
+        0x4D73,
+        0x4D74,
+        0x4D75,
+        0x4D76,
+        0x4D77,
+        0x4D78,
+        0x4D79,
+        0x4D7A,
+        0x4D7B,
+        0x4D7C,
+        0x4D7D,
+        0x4D7E,
+        0x4D7F,
+        0x4D87,
+        0x4D88,
+        0x4D89,
+        0x4D8A,
+        0x4D8B,
+        0x4D8C,
+        0x4D8D,
+        0x4D8E,
+        0x4D8F,
+        0x4D90,
+        0x4D95,
+        0x4D96,
+        0x4D97,
+        0x4D99,
+        0x4D9A,
+        0x4D9B,
+        0x4D9D,
+        0x4D9E,
+        0x4D9F,
+        0x4DA1,
+        0x4DA2,
+        0x4DA3,
+        0x4DA5,
+        0x4DA6,
+        0x4DA7,
+        0x4DA9,
+        0x4DAA,
+        0x4DAB,
+        0x52BE,
+        0x52BF,
+        0x52C0,
+        0x52C1,
+        0x52C2,
+        0x52C3,
+        0x52C4,
+        0x52C5,
+        0x52C6,
+        0x52C7,
+    ]
+)
+
+# Fallback keywords for shards where tree statics aren't flagged as IsTree.
+# Kept conservative by also requiring impassible for non-IsTree matches.
+TREE_NAME_KEYWORDS = [
+    "tree",
+    "oak",
+    "pine",
+    "yew",
+    "willow",
+    "cedar",
+    "cypress",
+]
+
+# Prevent DEBUG_TREE_COUNTS from spamming every loop.
+TREE_DEBUG_COOLDOWN_SECONDS = 5.0
+
 # Pathfind to within this distance of the tree
 PATHFIND_DISTANCE = 1
 
@@ -132,7 +310,29 @@ def ensure_axe_equipped(axe):
     return None
 
 
+_last_tree_debug_time = 0.0
+
+
+def _name_matches_tree(static) -> bool:
+    name = str(getattr(static, "Name", "") or "").lower()
+    if not name:
+        return False
+    for kw in TREE_NAME_KEYWORDS:
+        if kw in name:
+            return True
+    return False
+
+
+def _graphic_matches_tree(static) -> bool:
+    if not USE_TREE_GRAPHIC_LIST:
+        return False
+    graphic = int(getattr(static, "Graphic", 0) or 0)
+    return graphic in TREE_TILE_GRAPHICS
+
+
 def find_trees(scan_range: int) -> list:
+    global _last_tree_debug_time
+
     px, py = int(API.Player.X), int(API.Player.Y)
     statics = API.GetStaticsInArea(
         px - scan_range, py - scan_range, px + scan_range, py + scan_range
@@ -141,17 +341,72 @@ def find_trees(scan_range: int) -> list:
     if not statics:
         return []
 
-    trees = []
+    # Summary counts (optional)
+    total = 0
+    included = 0
+    is_tree_count = 0
+    veg_count = 0
+    name_count = 0
+    los_excluded = 0
+
+    # De-dup by (x,y), keeping the highest Z for that tile.
+    by_xy = {}
+
     for s in statics:
-        if not getattr(s, "IsTree", False):
+        total += 1
+
+        if getattr(s, "IsDestroyed", False):
             continue
 
-        if hasattr(s, "HasLineOfSightFrom") and not s.HasLineOfSightFrom():
+        is_tree = bool(getattr(s, "IsTree", False))
+        is_veg = bool(getattr(s, "IsVegetation", False))
+        graphic_match = _graphic_matches_tree(s)
+        name_match = _name_matches_tree(s) if USE_NAME_FALLBACK else False
+
+        if is_tree or graphic_match:
+            is_tree_count += 1
+        if is_veg:
+            veg_count += 1
+        if name_match:
+            name_count += 1
+
+        # Conservative inclusion:
+        # - Always include IsTree or known tree graphics
+        # - Otherwise include vegetation/name matches ONLY when impassible
+        #   (reduces grabbing flowers/grass that can't be chopped).
+        is_impassible = bool(getattr(s, "IsImpassible", False))
+        include = False
+        if is_tree or graphic_match:
+            include = True
+        else:
+            if INCLUDE_VEGETATION and is_veg and is_impassible:
+                include = True
+            elif USE_NAME_FALLBACK and name_match and is_impassible:
+                include = True
+
+        if not include:
             continue
 
-        trees.append(s)
+        if FILTER_LINE_OF_SIGHT and hasattr(s, "HasLineOfSightFrom") and not s.HasLineOfSightFrom():
+            los_excluded += 1
+            continue
 
-    return trees
+        included += 1
+
+        key = (int(s.X), int(s.Y))
+        existing = by_xy.get(key)
+        if existing is None or int(getattr(s, "Z", 0)) > int(getattr(existing, "Z", 0)):
+            by_xy[key] = s
+
+    if DEBUG_TREE_COUNTS:
+        now = time.time()
+        if now - _last_tree_debug_time >= TREE_DEBUG_COOLDOWN_SECONDS:
+            _last_tree_debug_time = now
+            API.SysMsg(
+                f"TreeScan: total={total} included={len(by_xy)} treeish={is_tree_count} veg={veg_count} name={name_count} los_excl={los_excluded}"
+            )
+
+    return list(by_xy.values())
 
 
 def nearest_tree(scan_range: int, depleted_until: dict):
