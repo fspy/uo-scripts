@@ -211,6 +211,9 @@ pack_board_capacity = 1600
 warn_buffer = 10
 warn_cooldown_seconds = 10.0
 
+# If pack dump fails this many consecutive times, stop the script
+max_consecutive_pack_failures = 3
+
 # Mark trees as "depleted" for this long (seconds)
 depleted_ttl_seconds = 180.0
 
@@ -547,19 +550,20 @@ def _pack_warn(msg: str) -> None:
     API.SysMsg(msg, 32)
 
 
-def dump_boards_to_pack() -> None:
+def dump_boards_to_pack() -> bool:
+    """Dump boards to pack animal. Returns True if successful, False if pack is full."""
     dest = _resolve_pack_destination()
     if not dest:
         _pack_warn("Pack dump enabled, but no valid destination found")
-        return
+        return False
 
     boards_in_pack = board_amount_in_pack()
     if boards_in_pack <= 0:
-        return
+        return True  # Nothing to dump is considered success
 
     capacity = int(pack_board_capacity)
     if capacity <= 0:
-        return
+        return False
 
     # How many boards are already in the destination container?
     # NOTE: this depends on the container being in-range/visible.
@@ -567,18 +571,18 @@ def dump_boards_to_pack() -> None:
     remaining = max(0, capacity - existing_in_dest)
     if remaining <= 0:
         _pack_warn(f"Pack is full ({existing_in_dest}/{capacity} boards)")
-        return
+        return False
 
     boards = API.FindTypeAll(board_type, API.Backpack) or []
     if not boards:
-        return
+        return True  # No boards to move
 
     moved_any = False
 
     # Moves can fail if the follower is too far away (or pack not accessible).
     for b in boards:
         if API.StopRequested:
-            return
+            return False
         if remaining <= 0:
             break
 
@@ -596,10 +600,13 @@ def dump_boards_to_pack() -> None:
         _pack_warn(
             f"Pack dump didn't move boards (dest=0x{int(dest):X}). Is the pack animal nearby/open?"
         )
-        return
+        return False
 
     if remaining <= 0:
         _pack_warn(f"Pack is full ({capacity}/{capacity} boards)")
+        return False
+    
+    return True
 
 
 def board_amount_in_pack() -> int:
@@ -626,15 +633,16 @@ def log_amount_in_pack() -> int:
     return total
 
 
-def chop_all_logs_in_pack(axe) -> None:
+def chop_all_logs_in_pack(axe) -> bool:
+    """Chop all logs in pack. Returns True if successful, False if pack dump failed."""
     while not API.StopRequested:
         logs = API.FindTypeAll(log_type, API.Backpack) or []
         if not logs:
-            return
+            return True
 
         for log in logs:
             if API.StopRequested:
-                return
+                return False
 
             API.ClearJournal()
 
@@ -643,7 +651,7 @@ def chop_all_logs_in_pack(axe) -> None:
             if not axe:
                 API.SysMsg("Could not equip axe; stopping", 32)
                 API.Stop()
-                return
+                return False
 
             API.PreTarget(int(log.Serial))
             API.UseObject(int(axe.Serial))
@@ -660,7 +668,10 @@ def chop_all_logs_in_pack(axe) -> None:
 
         # After converting a batch of logs, dump boards if enabled.
         if USE_PACK_DUMP:
-            dump_boards_to_pack()
+            if not dump_boards_to_pack():
+                return False
+    
+    return True
 
 
 def warn_if_still_heavy(last_warn: float) -> float:
@@ -731,6 +742,7 @@ depleted_until = {}
 tree_attempts = {}
 
 last_warn_time = 0.0
+consecutive_pack_failures = 0
 
 
 while not API.StopRequested:
@@ -749,7 +761,18 @@ while not API.StopRequested:
         last_warn_time = warn_if_still_heavy(last_warn_time)
 
         # Try to recover by converting logs -> boards.
-        chop_all_logs_in_pack(axe)
+        if not chop_all_logs_in_pack(axe):
+            consecutive_pack_failures += 1
+            if consecutive_pack_failures >= max_consecutive_pack_failures:
+                API.SysMsg(
+                    f"Pack dump failed {consecutive_pack_failures} times. "
+                    "Empty pack animal or disable pack dump to continue.",
+                    32
+                )
+                break
+        else:
+            consecutive_pack_failures = 0
+        
         last_warn_time = warn_if_still_heavy(last_warn_time)
 
         API.Pause(loop_delay)
@@ -779,12 +802,26 @@ while not API.StopRequested:
 
     key = (int(tree.X), int(tree.Y))
 
+    # Clear journal before starting on this tree to avoid false positives from previous trees.
+    API.ClearJournal()
+
     # Harvest this tree until depleted.
     # We still keep the attempt safeguard in case journal detection fails.
     while not API.StopRequested:
         if is_near_max(weight_buffer):
             last_warn_time = warn_if_still_heavy(last_warn_time)
-            chop_all_logs_in_pack(axe)
+            if not chop_all_logs_in_pack(axe):
+                consecutive_pack_failures += 1
+                if consecutive_pack_failures >= max_consecutive_pack_failures:
+                    API.SysMsg(
+                        f"Pack dump failed {consecutive_pack_failures} times. "
+                        "Empty pack animal or disable pack dump to continue.",
+                        32
+                    )
+                    API.Stop()
+                    break
+            else:
+                consecutive_pack_failures = 0
             last_warn_time = warn_if_still_heavy(last_warn_time)
             break
 
