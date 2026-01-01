@@ -471,13 +471,13 @@ def chop_tree(axe, tree) -> bool:
         API.Stop()
         return False
 
-    # Don't rely on ClearJournal() here; journal entries can arrive late.
+    # Some servers/clients will re-use the last target after the first chop,
+    # meaning no target cursor appears on subsequent swings. Handle both cases.
     API.UseObject(int(axe.Serial))
 
-    if not API.WaitForTarget(timeout=5):
-        return False
+    if API.WaitForTarget(timeout=0.75):
+        API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
 
-    API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
     API.Pause(CHOP_DELAY)
     return True
 
@@ -625,23 +625,39 @@ while not API.StopRequested:
             API.Pause(LOOP_DELAY)
             continue
 
-    chop_tree(axe, tree)
-
-    # Wait for delayed server messages so we don't miss depletion.
-    wait_for_chop_result()
-
     key = (int(tree.X), int(tree.Y))
-    tree_attempts[key] = tree_attempts.get(key, 0) + 1
 
-    if _journal_has_any_recent(DEPLETED_MSGS, CHOP_RESULT_WINDOW):
-        depleted_until[key] = time.time() + DEPLETED_TTL_SECONDS
-        tree_attempts.pop(key, None)
-    elif _journal_has_any_recent(WAIT_MSGS, CHOP_RESULT_WINDOW):
-        API.Pause(0.5)
-    elif tree_attempts[key] >= MAX_ATTEMPTS_PER_TREE:
-        API.SysMsg("No progress on this tree; skipping temporarily")
-        depleted_until[key] = time.time() + DEPLETED_TTL_SECONDS
-        tree_attempts.pop(key, None)
+    # Harvest this tree until depleted.
+    # We still keep the attempt safeguard in case journal detection fails.
+    while not API.StopRequested:
+        if is_near_max(WEIGHT_BUFFER):
+            last_warn_time = warn_if_still_heavy(last_warn_time)
+            chop_all_logs_in_pack(axe)
+            last_warn_time = warn_if_still_heavy(last_warn_time)
+            break
+
+        chop_tree(axe, tree)
+
+        # Wait for delayed server messages so we don't miss depletion.
+        wait_for_chop_result()
+
+        tree_attempts[key] = tree_attempts.get(key, 0) + 1
+
+        if _journal_has_any_recent(DEPLETED_MSGS, CHOP_RESULT_WINDOW):
+            depleted_until[key] = time.time() + DEPLETED_TTL_SECONDS
+            tree_attempts.pop(key, None)
+            break
+
+        if _journal_has_any_recent(WAIT_MSGS, CHOP_RESULT_WINDOW):
+            API.Pause(0.5)
+
+        if tree_attempts[key] >= MAX_ATTEMPTS_PER_TREE:
+            API.SysMsg("No progress on this tree; skipping temporarily")
+            depleted_until[key] = time.time() + DEPLETED_TTL_SECONDS
+            tree_attempts.pop(key, None)
+            break
+
+        API.Pause(LOOP_DELAY)
 
     API.Pause(LOOP_DELAY)
 
