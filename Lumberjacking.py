@@ -19,10 +19,8 @@ board_type = 0x1BD7
 # Search radius for trees (in tiles)
 tree_scan_range = 16
 
-# Prefer explicit graphics list (from ServUO tile tables) for conservative detection.
+# Tree tile graphics from ServUO source for reliable detection.
 # If your shard uses custom tree graphics, extend this list.
-use_tree_graphic_list = True
-
 # NOTE: keep this as a plain list so it can be edited in-game.
 # We build a cached set() at runtime for fast membership tests.
 tree_tile_graphics = [
@@ -304,8 +302,6 @@ def _tree_graphics_set() -> set:
 
 
 def _graphic_matches_tree(static) -> bool:
-    if not use_tree_graphic_list:
-        return False
     graphic = int(getattr(static, "Graphic", 0) or 0)
     return graphic in _tree_graphics_set()
 
