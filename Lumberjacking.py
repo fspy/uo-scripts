@@ -210,6 +210,9 @@ PACK_DESTINATION_SERIAL = 0
 PACK_DUMP_DISTANCE = 2
 PACK_DUMP_PAUSE = 0.7
 
+# If USE_PACK_DUMP is enabled but no destination is set, prompt on start.
+PACK_PROMPT_TIMEOUT = 15.0
+
 # If still within this many stones after converting logs, warn
 WARN_BUFFER = 10
 WARN_COOLDOWN_SECONDS = 10.0
@@ -217,21 +220,23 @@ WARN_COOLDOWN_SECONDS = 10.0
 # Mark trees as "depleted" for this long (seconds)
 DEPLETED_TTL_SECONDS = 180.0
 
-# After targeting a tree, watch recent journal output for results.
-# Some shards send the "no wood" message late; using a short time window is
-# more reliable than clearing the journal and hoping we read it in time.
-CHOP_RESULT_WINDOW = 3.0
-CHOP_RESULT_TIMEOUT = 1.5
-CHOP_RESULT_POLL = 0.1
+# After targeting a tree, we *optionally* scan journal output for "depleted".
+# Prefer inventory-based detection for speed/reliability; journal is fallback.
+CHOP_RESULT_WINDOW = 1.0
+CHOP_RESULT_TIMEOUT = 0.35
+CHOP_RESULT_POLL = 0.05
 
 # If we attempt the same tree this many times without success/depletion,
 # mark it "depleted" temporarily to avoid getting stuck.
 MAX_ATTEMPTS_PER_TREE = 6
 
 # Delays
-CHOP_DELAY = 0.65
-EQUIP_DELAY = 0.6
-LOOP_DELAY = 0.25
+CHOP_DELAY = 0.45
+EQUIP_DELAY = 0.4
+LOOP_DELAY = 0.1
+
+# After each chop, give the backpack a moment to update.
+POST_CHOP_CHECK_DELAY = 0.1
 
 # Journal messages that indicate no wood / out of range / invalid target.
 # Keep these as *substrings* (we match case-insensitive against recent journal entries).
@@ -551,6 +556,22 @@ def dump_boards_to_pack() -> None:
         API.Pause(PACK_DUMP_PAUSE)
 
 
+def board_amount_in_pack() -> int:
+    items = API.FindTypeAll(BOARD_TYPE, API.Backpack) or []
+    total = 0
+    for it in items:
+        total += int(getattr(it, "Amount", 0) or 0)
+    return total
+
+
+def log_amount_in_pack() -> int:
+    items = API.FindTypeAll(LOG_TYPE, API.Backpack) or []
+    total = 0
+    for it in items:
+        total += int(getattr(it, "Amount", 0) or 0)
+    return total
+
+
 def chop_all_logs_in_pack(axe) -> None:
     while not API.StopRequested:
         logs = API.FindTypeAll(LOG_TYPE, API.Backpack) or []
@@ -584,7 +605,8 @@ def chop_all_logs_in_pack(axe) -> None:
                 API.Pause(0.5)
 
         # After converting a batch of logs, dump boards if enabled.
-        dump_boards_to_pack()
+        if USE_PACK_DUMP:
+            dump_boards_to_pack()
 
 
 def warn_if_still_heavy(last_warn: float) -> float:
@@ -624,11 +646,19 @@ API.SysMsg("Lumberjacking started (tree scan + pathfind)")
 
 if USE_PACK_DUMP and not PACK_DESTINATION_SERIAL:
     API.SysMsg("Target your pack animal (or its backpack) to dump boards", 32)
-    PACK_DESTINATION_SERIAL = int(API.RequestTarget(timeout=15) or 0)
+    PACK_DESTINATION_SERIAL = int(API.RequestTarget(timeout=PACK_PROMPT_TIMEOUT) or 0)
     if PACK_DESTINATION_SERIAL:
         API.SysMsg(f"Pack dump target set: 0x{PACK_DESTINATION_SERIAL:X}")
+        resolved = _resolve_pack_destination()
+        if resolved:
+            API.SysMsg(f"Pack dump container: 0x{resolved:X}")
+        else:
+            API.SysMsg("Pack dump target could not be resolved; pack dump disabled", 32)
+            PACK_DESTINATION_SERIAL = 0
+            USE_PACK_DUMP = False
     else:
         API.SysMsg("No pack dump target set; continuing without pack dump", 32)
+        USE_PACK_DUMP = False
 
 # Map of (x,y) -> time() until which we ignore it
 # Used for depleted/unreachable trees.
@@ -695,12 +725,24 @@ while not API.StopRequested:
             last_warn_time = warn_if_still_heavy(last_warn_time)
             break
 
+        before_logs = log_amount_in_pack()
+        before_boards = board_amount_in_pack()
+
         chop_tree(axe, tree)
+        API.Pause(POST_CHOP_CHECK_DELAY)
 
-        # Wait for delayed server messages so we don't miss depletion.
-        wait_for_chop_result()
+        after_logs = log_amount_in_pack()
+        after_boards = board_amount_in_pack()
 
-        tree_attempts[key] = tree_attempts.get(key, 0) + 1
+        # Inventory-based progress detection is fast and reliable.
+        progress = (after_logs > before_logs) or (after_boards > before_boards)
+
+        if progress:
+            tree_attempts[key] = 0
+        else:
+            # Only do a very short journal wait if we didn't detect progress.
+            wait_for_chop_result()
+            tree_attempts[key] = tree_attempts.get(key, 0) + 1
 
         if _journal_has_any_recent(DEPLETED_MSGS, CHOP_RESULT_WINDOW):
             depleted_until[key] = time.time() + DEPLETED_TTL_SECONDS
@@ -708,9 +750,9 @@ while not API.StopRequested:
             break
 
         if _journal_has_any_recent(WAIT_MSGS, CHOP_RESULT_WINDOW):
-            API.Pause(0.5)
+            API.Pause(0.25)
 
-        if tree_attempts[key] >= MAX_ATTEMPTS_PER_TREE:
+        if tree_attempts.get(key, 0) >= MAX_ATTEMPTS_PER_TREE:
             API.SysMsg("No progress on this tree; skipping temporarily")
             depleted_until[key] = time.time() + DEPLETED_TTL_SECONDS
             tree_attempts.pop(key, None)
