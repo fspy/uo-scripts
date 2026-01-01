@@ -294,7 +294,7 @@ _last_message_time = 0.0
 _tree_tile_graphics_cache = None
 
 
-def _tree_graphics_set() -> set:
+def _tree_graphics_set():
     global _tree_tile_graphics_cache
     if _tree_tile_graphics_cache is None:
         _tree_tile_graphics_cache = set([int(g) for g in (tree_tile_graphics or [])])
@@ -306,7 +306,7 @@ def _graphic_matches_tree(static) -> bool:
     return graphic in _tree_graphics_set()
 
 
-def find_trees(scan_range: int) -> list:
+def find_trees(scan_range: int):
     global _last_message_time
 
     px, py = int(API.Player.X), int(API.Player.Y)
