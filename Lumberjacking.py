@@ -204,16 +204,19 @@ message_cooldown = 5.0  # prevent message spam (debug/warnings)
 # Debug
 debug_tree_counts = True
 
-# Journal messages that indicate no wood / out of range / invalid target.
-# Keep these as *substrings* (we match case-insensitive against recent journal entries).
+# Journal messages that indicate chop succeeded or tree still has wood
+success_msgs = [
+    "and put them in your backpack",     # got wood
+    "fail to produce any useable wood",  # chopped but no wood this swing
+]
+
+# Journal messages that indicate tree depleted or unreachable - move to next tree
 depleted_msgs = [
-    "no wood",
-    "not enough wood",
+    "not enough wood here to harvest",
     "too far away",
     "cannot see that",
     "can't use an axe on that",
     "cannot use an axe on that",
-    "there is no wood",
 ]
 
 # Journal messages that indicate you should pause/retry.
@@ -436,7 +439,7 @@ def chop_tree(axe, tree) -> bool:
             API.Target(int(tree.X), int(tree.Y), int(tree.Z), int(tree.Graphic))
 
     # Wait for journal feedback - exit early when any message appears
-    wait_for_journal(["you put"] + depleted_msgs + wait_msgs, timeout=action_delay)
+    wait_for_journal(success_msgs + depleted_msgs + wait_msgs, timeout=action_delay)
     return True
 
 
@@ -777,7 +780,8 @@ while not API.StopRequested:
         # Inventory-based progress detection is fast and reliable.
         progress = (after_logs > before_logs) or (after_boards > before_boards)
 
-        if progress:
+        # Also reset attempts if we see success messages (handles lag where inventory hasn't updated yet)
+        if progress or _journal_has_any_recent(success_msgs, journal_window):
             tree_attempts[key] = 0
         else:
             # Only do a very short journal wait if we didn't detect progress.
