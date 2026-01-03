@@ -163,6 +163,9 @@ tree_graphics = set(
     ]
 )
 
+# Debug mode - set to True for verbose logging
+DEBUG = False
+
 # Journal messages
 success_msgs = [
     "and put them in your backpack",
@@ -338,6 +341,32 @@ def setup_item(var_name, prompt_msg, verify_type=None):
     API.SavePersistentVar(var_name, str(target), API.PersistentVar.Char)
     API.SysMsg(f"{var_name} saved: 0x{target:X}")
     return target
+
+
+def load_bad_graphics():
+    """Load persisted bad graphics from char-specific storage."""
+    saved = API.GetPersistentVar("LumberjackBadGraphics", "", API.PersistentVar.Char)
+    if not saved:
+        return set()
+
+    bad = set()
+    for part in saved.split(","):
+        part = part.strip()
+        if part:
+            try:
+                bad.add(int(part, 16))
+            except ValueError:
+                pass
+    return bad
+
+
+def save_bad_graphics(state):
+    """Save bad graphics to char-specific storage."""
+    if not state.bad_graphics:
+        return
+
+    hex_list = ",".join(f"0x{g:X}" for g in sorted(state.bad_graphics))
+    API.SavePersistentVar("LumberjackBadGraphics", hex_list, API.PersistentVar.Char)
 
 
 def setup_all_items(state):
@@ -736,17 +765,16 @@ def harvest_tree(state, tree):
             # Use regex pattern to handle apostrophe variations (straight ' vs curly ')
             if API.InJournalAny(["$[Cc]an.t use an axe", "cannot use an axe on that"]):
                 graphic = getattr(tree, "Graphic", None)
-                API.SysMsg(
-                    f"DEBUG: Detected 'can't use axe' message for graphic 0x{graphic if graphic else 0:X}",
-                    946,
-                )
                 if graphic:
                     if graphic in tree_graphics:
                         tree_graphics.remove(graphic)
                     state.bad_graphics.add(graphic)
-                    API.SysMsg(
-                        f"BAD TREE GRAPHIC: 0x{graphic:X} at ({tree.X}, {tree.Y})", 32
-                    )
+                    save_bad_graphics(state)
+                    if DEBUG:
+                        API.SysMsg(
+                            f"DEBUG: Bad tree graphic 0x{graphic:X} at ({tree.X}, {tree.Y}) - saved",
+                            946,
+                        )
             mark_depleted(state, tree)
             break
 
@@ -935,6 +963,11 @@ def main():
     API.SysMsg("Lumberjacking started")
 
     state = LumberjackState()
+
+    # Load persisted bad graphics
+    state.bad_graphics = load_bad_graphics()
+    if DEBUG and state.bad_graphics:
+        API.SysMsg(f"DEBUG: Loaded {len(state.bad_graphics)} bad graphics from storage", 946)
 
     # Setup all items
     if not setup_all_items(state):
