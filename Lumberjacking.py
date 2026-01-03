@@ -312,6 +312,36 @@ def wait_for_pack(state, timeout=30):
     return False
 
 
+def move_item_robust(serial, dest, amount, max_retries=3):
+    """
+    Move item with retry logic for 'you must wait' messages.
+    Returns True if move succeeded (or no error detected), False if failed after retries.
+    """
+    base_delay = 0.5  # Starting delay
+    
+    for attempt in range(max_retries):
+        API.ClearJournal()
+        API.MoveItem(serial, dest, amt=amount)
+        
+        # Wait for server response
+        API.Pause(base_delay)
+        
+        # Check for "you must wait"
+        if API.InJournalAny(["you must wait"]):
+            if attempt < max_retries - 1:
+                API.HeadMsg("Waiting...", API.Player.Serial, 946)
+                API.Pause(1.0)  # Extra wait before retry
+                continue
+            else:
+                # Final attempt failed
+                return False
+        
+        # Success or no "must wait" message - move on
+        return True
+    
+    return False
+
+
 def warn_weight(state):
     """Warn player about weight status (throttled)."""
     if not is_heavy():
@@ -810,10 +840,9 @@ def dump_boards_to_pack(state):
             continue
 
         move_amt = min(amount, remaining)
-        API.MoveItem(b.Serial, dest, amt=move_amt)
-        API.Pause(0.5)
-        remaining -= move_amt
-        moved_any = True
+        if move_item_robust(b.Serial, dest, move_amt):
+            remaining -= move_amt
+            moved_any = True
 
     return moved_any or remaining > 0
 
@@ -985,8 +1014,7 @@ def dump_to_chest(state):
             break
         amount = getattr(b, "Amount", 0) or 0
         if amount > 0:
-            API.MoveItem(b.Serial, chest_serial, amt=amount)
-            API.Pause(1.0)
+            move_item_robust(b.Serial, chest_serial, amount)
 
     # Dump boards from pack animal
     boards = API.FindTypeAll(0x1BD7, state.pack_serial) or []
@@ -995,8 +1023,7 @@ def dump_to_chest(state):
             break
         amount = getattr(b, "Amount", 0) or 0
         if amount > 0:
-            API.MoveItem(b.Serial, chest_serial, amt=amount)
-            API.Pause(1.0)
+            move_item_robust(b.Serial, chest_serial, amount)
 
     # Dump bonus lumberjack items from backpack
     for graphic in bonus_lumberjack_items:
@@ -1006,8 +1033,7 @@ def dump_to_chest(state):
                 break
             amount = getattr(item, "Amount", 0) or 0
             if amount > 0:
-                API.MoveItem(item.Serial, chest_serial, amt=amount)
-                API.Pause(1.0)
+                move_item_robust(item.Serial, chest_serial, amount)
 
     # Dump bonus lumberjack items from pack animal
     for graphic in bonus_lumberjack_items:
@@ -1017,8 +1043,7 @@ def dump_to_chest(state):
                 break
             amount = getattr(item, "Amount", 0) or 0
             if amount > 0:
-                API.MoveItem(item.Serial, chest_serial, amt=amount)
-                API.Pause(1.0)
+                move_item_robust(item.Serial, chest_serial, amount)
 
     # Message shown via overhead in deposit_routine()
 
