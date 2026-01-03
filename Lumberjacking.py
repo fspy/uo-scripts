@@ -302,6 +302,12 @@ def warn_weight(state):
 # =========================
 
 
+def is_first_run():
+    """Check if this is the first run (no persisted chest serial)."""
+    saved = API.GetPersistentVar("LumberjackDropChest", "0", API.PersistentVar.Char)
+    return not saved or saved == "0"
+
+
 def setup_item(var_name, prompt_msg, verify_type=None):
     """
     Generic setup: load persisted serial, verify it exists, or ask user to target.
@@ -369,9 +375,58 @@ def save_bad_graphics(state):
     API.SavePersistentVar("LumberjackBadGraphics", hex_list, API.PersistentVar.Char)
 
 
-def setup_all_items(state):
+def setup_drop_chest(state, first_run):
+    """
+    Setup drop chest with special handling for out-of-range scenarios.
+    
+    On first run: Must target chest (needs to be in range)
+    On subsequent runs: Trust persisted serial even if out of range
+    """
+    var_name = "LumberjackDropChest"
+    
+    # Try loading persisted serial
+    saved = API.GetPersistentVar(var_name, "0", API.PersistentVar.Char)
+    if saved and saved != "0":
+        serial = int(saved)
+        
+        # Try to verify item exists
+        item = API.FindItem(serial)
+        if item:
+            API.SysMsg(f"Using saved drop chest: 0x{serial:X}")
+            return serial
+        
+        # Item not found - could be out of range
+        if not first_run:
+            # Trust the persisted serial (assume out of range, not deleted)
+            API.SysMsg("Using saved drop chest (out of range - assuming valid)", 946)
+            return serial
+        
+        # First run but can't find chest - invalid serial
+        API.SysMsg(f"Saved chest not found - please re-target", 32)
+    
+    # No valid serial or first run - ask user to target
+    if first_run:
+        API.SysMsg("Target drop chest at home", 32)
+    else:
+        API.SysMsg("Target drop chest (previous chest not found)", 32)
+    
+    target = API.RequestTarget(timeout=30.0)
+    if not target:
+        API.SysMsg(f"No target selected for drop chest", 32)
+        return 0
+    
+    # Save and return
+    API.SavePersistentVar(var_name, str(target), API.PersistentVar.Char)
+    API.SysMsg(f"Drop chest saved: 0x{target:X}")
+    return target
+
+
+def setup_all_items(state, first_run):
     """Setup all required items at script start."""
     API.SysMsg("=== Lumberjacking Setup ===", 946)
+    
+    if first_run:
+        API.SysMsg("First run detected - please target all items at home", 946)
 
     # Axe
     state.axe_serial = setup_item("LumberjackAxe", "Target your axe")
@@ -409,10 +464,8 @@ def setup_all_items(state):
         stop_script("Runebook setup failed")
         return False
 
-    # Drop chest
-    state.drop_chest_serial = setup_item(
-        "LumberjackDropChest", "Target drop chest at home"
-    )
+    # Drop chest - special handling for out of range
+    state.drop_chest_serial = setup_drop_chest(state, first_run)
     if not state.drop_chest_serial:
         stop_script("Drop chest setup failed")
         return False
@@ -429,8 +482,22 @@ def setup_all_items(state):
     return True
 
 
-def wait_for_travel_to_lumber_spot():
-    """Wait for player to travel away from home before starting main loop."""
+def wait_for_travel_to_lumber_spot(state, first_run):
+    """
+    Wait for player to travel away from home before starting main loop.
+    
+    On first run: Always wait for player to travel 50+ tiles
+    On subsequent runs: Skip if chest is out of range (already in woods)
+    """
+    # If not first run, check if we're already away from home
+    if not first_run:
+        chest = API.FindItem(state.drop_chest_serial)
+        if not chest:
+            # Chest not in range - assume we're already in the woods
+            API.SysMsg("Already at lumber spot - starting main loop!", 946)
+            return True
+    
+    # First run or chest is in range - wait for travel
     home_pos = (API.Player.X, API.Player.Y)
     API.SysMsg("Travel to lumber spot (50+ tiles away) to begin.", 946)
 
@@ -971,12 +1038,15 @@ def main():
             f"DEBUG: Loaded {len(state.bad_graphics)} bad graphics from storage", 946
         )
 
+    # Check if this is first run
+    first_run = is_first_run()
+
     # Setup all items
-    if not setup_all_items(state):
+    if not setup_all_items(state, first_run):
         return
 
     # Wait for player to travel to lumber spot
-    if not wait_for_travel_to_lumber_spot():
+    if not wait_for_travel_to_lumber_spot(state, first_run):
         return
 
     # Re-open pack animal backpack after travel
