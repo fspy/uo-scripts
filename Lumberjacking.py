@@ -612,7 +612,7 @@ def chop_tree(state, tree):
     # If we're already holding a target cursor, just retarget
     if API.HasTarget("any"):
         API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
-        wait_for_journal(success_msgs + depleted_msgs + wait_msgs, 1.5)
+        wait_for_journal(success_msgs + depleted_msgs + wait_msgs, 1.0)
         return True
 
     # Clear journal before action to get fresh response
@@ -621,11 +621,11 @@ def chop_tree(state, tree):
     # Manual targeting
     API.UseObject(axe.Serial)
 
-    if API.WaitForTarget(timeout=1.0) or API.HasTarget("any"):
+    if API.WaitForTarget(timeout=0.5) or API.HasTarget("any"):
         API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
 
     # Wait for server response
-    wait_for_journal(success_msgs + depleted_msgs + wait_msgs, 1.5)
+    wait_for_journal(success_msgs + depleted_msgs + wait_msgs, 1.0)
     return True
 
 
@@ -744,7 +744,7 @@ def harvest_tree(state, tree):
         before_boards = count_items(0x1BD7, API.Backpack)
 
         chop_tree(state, tree)
-        API.Pause(0.25)
+        API.Pause(0.1)
 
         # Track inventory after chop
         after_logs = count_items(0x1BDD, API.Backpack)
@@ -967,7 +967,9 @@ def main():
     # Load persisted bad graphics
     state.bad_graphics = load_bad_graphics()
     if DEBUG and state.bad_graphics:
-        API.SysMsg(f"DEBUG: Loaded {len(state.bad_graphics)} bad graphics from storage", 946)
+        API.SysMsg(
+            f"DEBUG: Loaded {len(state.bad_graphics)} bad graphics from storage", 946
+        )
 
     # Setup all items
     if not setup_all_items(state):
