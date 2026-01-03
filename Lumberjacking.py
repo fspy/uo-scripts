@@ -299,16 +299,16 @@ def wait_for_pack(state, timeout=30):
     """Wait for pack animal to return. Returns True if pack is back in range."""
     if is_pack_in_range(state):
         return True
-    
+
     API.HeadMsg("Waiting for pack...", API.Player.Serial, 946)
-    
+
     deadline = time.time() + timeout
     while time.time() < deadline and not API.StopRequested:
         if is_pack_in_range(state):
             API.HeadMsg("Pack is back!", API.Player.Serial, 62)
             return True
         API.Pause(1.0)
-    
+
     return False
 
 
@@ -318,14 +318,14 @@ def move_item_robust(serial, dest, amount, max_retries=3):
     Returns True if move succeeded (or no error detected), False if failed after retries.
     """
     base_delay = 0.5  # Starting delay
-    
+
     for attempt in range(max_retries):
         API.ClearJournal()
         API.MoveItem(serial, dest, amt=amount)
-        
+
         # Wait for server response
         API.Pause(base_delay)
-        
+
         # Check for "you must wait"
         if API.InJournalAny(["you must wait"]):
             if attempt < max_retries - 1:
@@ -335,10 +335,10 @@ def move_item_robust(serial, dest, amount, max_retries=3):
             else:
                 # Final attempt failed
                 return False
-        
+
         # Success or no "must wait" message - move on
         return True
-    
+
     return False
 
 
@@ -378,7 +378,7 @@ def is_first_run():
     return not saved or saved == "0"
 
 
-def setup_item(var_name, prompt_msg, verify_type=None):
+def setup_item(var_name, prompt_msg):
     """
     Generic setup: load persisted serial, verify it exists, or ask user to target.
 
@@ -445,7 +445,7 @@ def save_bad_graphics(state):
     API.SavePersistentVar("LumberjackBadGraphics", hex_list, API.PersistentVar.Char)
 
 
-def setup_drop_chest(state, first_run):
+def setup_drop_chest(first_run):
     """
     Setup drop chest with special handling for out-of-range scenarios.
 
@@ -472,7 +472,7 @@ def setup_drop_chest(state, first_run):
             return serial
 
         # First run but can't find chest - invalid serial
-        API.SysMsg(f"Saved chest not found - please re-target", 32)
+        API.SysMsg("Saved chest not found - please re-target", 32)
 
     # No valid serial or first run - ask user to target
     if first_run:
@@ -482,7 +482,7 @@ def setup_drop_chest(state, first_run):
 
     target = API.RequestTarget(timeout=30.0)
     if not target:
-        API.SysMsg(f"No target selected for drop chest", 32)
+        API.SysMsg("No target selected for drop chest", 32)
         return 0
 
     # Save and return
@@ -1177,10 +1177,10 @@ def main():
                         API.HeadMsg("Pack still away...", API.Player.Serial, 32)
                         API.Pause(1.0)
                         continue
-                
+
                 # Pack is in range, try dumping again
                 dump_boards_to_pack(state)
-                
+
                 if is_heavy():
                     API.Pause(0.5)
                     continue
