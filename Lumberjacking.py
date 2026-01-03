@@ -166,6 +166,19 @@ tree_graphics = set(
 # Debug mode - set to True for verbose logging
 DEBUG = False
 
+# Bonus lumberjacking resources to deposit at home
+bonus_lumberjack_items = [
+    0x5738,  # Crystal Shards
+    0x3191,  # Luminescent Fungi
+    0x3190,  # Parasitic Plant
+    0x318F,  # Bark Fragment
+    0x318B,  # Diseased Bark
+    0x2F5F,  # Switch
+    0x3199,  # Brilliant Amber
+    0x3198,  # Blue Diamond
+    0x3197,  # Fire Ruby
+]
+
 # Journal messages
 success_msgs = [
     "and put them in your backpack",
@@ -931,10 +944,10 @@ def wait_for_travel(timeout):
 
 
 def dump_to_chest(state):
-    """Dump all boards from backpack and pack to chest."""
+    """Dump all boards and bonus items from backpack and pack to chest."""
     chest_serial = state.drop_chest_serial
 
-    # Dump from backpack
+    # Dump boards from backpack
     boards = API.FindTypeAll(0x1BD7, API.Backpack) or []
     for b in boards:
         if API.StopRequested:
@@ -942,9 +955,9 @@ def dump_to_chest(state):
         amount = getattr(b, "Amount", 0) or 0
         if amount > 0:
             API.MoveItem(b.Serial, chest_serial, amt=amount)
-            API.Pause(0.5)
+            API.Pause(1.0)
 
-    # Dump from pack animal
+    # Dump boards from pack animal
     boards = API.FindTypeAll(0x1BD7, state.pack_serial) or []
     for b in boards:
         if API.StopRequested:
@@ -952,9 +965,31 @@ def dump_to_chest(state):
         amount = getattr(b, "Amount", 0) or 0
         if amount > 0:
             API.MoveItem(b.Serial, chest_serial, amt=amount)
-            API.Pause(0.5)
+            API.Pause(1.0)
 
-    API.SysMsg("Boards deposited to chest", 946)
+    # Dump bonus lumberjack items from backpack
+    for graphic in bonus_lumberjack_items:
+        items = API.FindTypeAll(graphic, API.Backpack) or []
+        for item in items:
+            if API.StopRequested:
+                break
+            amount = getattr(item, "Amount", 0) or 0
+            if amount > 0:
+                API.MoveItem(item.Serial, chest_serial, amt=amount)
+                API.Pause(1.0)
+
+    # Dump bonus lumberjack items from pack animal
+    for graphic in bonus_lumberjack_items:
+        items = API.FindTypeAll(graphic, state.pack_serial) or []
+        for item in items:
+            if API.StopRequested:
+                break
+            amount = getattr(item, "Amount", 0) or 0
+            if amount > 0:
+                API.MoveItem(item.Serial, chest_serial, amt=amount)
+                API.Pause(1.0)
+
+    API.SysMsg("Boards and bonus items deposited to chest", 946)
 
 
 def deposit_routine(state):
