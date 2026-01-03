@@ -288,6 +288,30 @@ def wait_for_journal(msgs, timeout):
     return False
 
 
+def is_pack_in_range(state):
+    """Check if pack animal backpack is in range."""
+    if not state.pack_serial:
+        return False
+    return API.FindItem(state.pack_serial) is not None
+
+
+def wait_for_pack(state, timeout=30):
+    """Wait for pack animal to return. Returns True if pack is back in range."""
+    if is_pack_in_range(state):
+        return True
+    
+    API.HeadMsg("Waiting for pack...", API.Player.Serial, 946)
+    
+    deadline = time.time() + timeout
+    while time.time() < deadline and not API.StopRequested:
+        if is_pack_in_range(state):
+            API.HeadMsg("Pack is back!", API.Player.Serial, 62)
+            return True
+        API.Pause(1.0)
+    
+    return False
+
+
 def warn_weight(state):
     """Warn player about weight status (throttled)."""
     if not is_heavy():
@@ -300,13 +324,16 @@ def warn_weight(state):
     state.last_warn_time = now
 
     if is_overweight():
-        API.SysMsg(
-            f"OVERWEIGHT: Can't move ({API.Player.Weight}/{API.Player.WeightMax})", 32
+        API.HeadMsg(
+            f"OVERWEIGHT! {API.Player.Weight}/{API.Player.WeightMax}",
+            API.Player.Serial,
+            32,
         )
     else:
-        API.SysMsg(
-            f"WARNING: Near weight limit ({API.Player.Weight}/{API.Player.WeightMax})",
-            32,
+        API.HeadMsg(
+            f"Heavy! {API.Player.Weight}/{API.Player.WeightMax}",
+            API.Player.Serial,
+            946,
         )
 
 
@@ -391,43 +418,43 @@ def save_bad_graphics(state):
 def setup_drop_chest(state, first_run):
     """
     Setup drop chest with special handling for out-of-range scenarios.
-    
+
     On first run: Must target chest (needs to be in range)
     On subsequent runs: Trust persisted serial even if out of range
     """
     var_name = "LumberjackDropChest"
-    
+
     # Try loading persisted serial
     saved = API.GetPersistentVar(var_name, "0", API.PersistentVar.Char)
     if saved and saved != "0":
         serial = int(saved)
-        
+
         # Try to verify item exists
         item = API.FindItem(serial)
         if item:
             API.SysMsg(f"Using saved drop chest: 0x{serial:X}")
             return serial
-        
+
         # Item not found - could be out of range
         if not first_run:
             # Trust the persisted serial (assume out of range, not deleted)
             API.SysMsg("Using saved drop chest (out of range - assuming valid)", 946)
             return serial
-        
+
         # First run but can't find chest - invalid serial
         API.SysMsg(f"Saved chest not found - please re-target", 32)
-    
+
     # No valid serial or first run - ask user to target
     if first_run:
         API.SysMsg("Target drop chest at home", 32)
     else:
         API.SysMsg("Target drop chest (previous chest not found)", 32)
-    
+
     target = API.RequestTarget(timeout=30.0)
     if not target:
         API.SysMsg(f"No target selected for drop chest", 32)
         return 0
-    
+
     # Save and return
     API.SavePersistentVar(var_name, str(target), API.PersistentVar.Char)
     API.SysMsg(f"Drop chest saved: 0x{target:X}")
@@ -437,7 +464,7 @@ def setup_drop_chest(state, first_run):
 def setup_all_items(state, first_run):
     """Setup all required items at script start."""
     API.SysMsg("=== Lumberjacking Setup ===", 946)
-    
+
     if first_run:
         API.SysMsg("First run detected - please target all items at home", 946)
 
@@ -498,7 +525,7 @@ def setup_all_items(state, first_run):
 def wait_for_travel_to_lumber_spot(state, first_run):
     """
     Wait for player to travel away from home before starting main loop.
-    
+
     On first run: Always wait for player to travel 50+ tiles
     On subsequent runs: Skip if chest is out of range (already in woods)
     """
@@ -509,7 +536,7 @@ def wait_for_travel_to_lumber_spot(state, first_run):
             # Chest not in range - assume we're already in the woods
             API.SysMsg("Already at lumber spot - starting main loop!", 946)
             return True
-    
+
     # First run or chest is in range - wait for travel
     home_pos = (API.Player.X, API.Player.Y)
     API.SysMsg("Travel to lumber spot (50+ tiles away) to begin.", 946)
@@ -757,6 +784,10 @@ def dump_boards_to_pack(state):
     if not dest:
         return False
 
+    # Check if pack is in range first
+    if not is_pack_in_range(state):
+        return False
+
     boards_in_backpack = count_items(0x1BD7, API.Backpack)
     if boards_in_backpack <= 0:
         return True  # Nothing to dump
@@ -989,15 +1020,13 @@ def dump_to_chest(state):
                 API.MoveItem(item.Serial, chest_serial, amt=amount)
                 API.Pause(1.0)
 
-    API.SysMsg("Boards and bonus items deposited to chest", 946)
+    # Message shown via overhead in deposit_routine()
 
 
 def deposit_routine(state):
     """Full deposit routine: mark location, recall home, dump, recall back."""
-    API.SysMsg("=== Starting Deposit Routine ===", 946)
 
     # 1. Re-equip Main dress agent (for spellbook/reagents)
-    API.SysMsg("Re-equipping Main dress agent...", 946)
     API.Dress("Main")
     API.Pause(1.5)
 
@@ -1008,19 +1037,17 @@ def deposit_routine(state):
         return False
 
     # 3. Cast Mark on the rune (save current lumber spot)
-    API.SysMsg("Marking current location...", 946)
     if not cast_mark(state.rune_serial):
         stop_script("Failed to mark rune")
         return False
 
     # 4. Cast Recall to runebook (go home)
-    API.SysMsg("Recalling home...", 946)
+    API.HeadMsg("Recalling home...", API.Player.Serial, 946)
     if not cast_recall(state.runebook_serial):
         stop_script("Failed to recall home")
         return False
 
     # 5. Pathfind to drop chest
-    API.SysMsg("Moving to drop chest...", 946)
     chest = API.FindItem(state.drop_chest_serial)
     if not chest:
         stop_script("Cannot find drop chest")
@@ -1030,13 +1057,13 @@ def deposit_routine(state):
     API.Pause(0.5)
 
     # 6. Open chest and dump boards
-    API.SysMsg("Depositing boards...", 946)
+    API.HeadMsg("Depositing...", API.Player.Serial, 946)
     API.UseObject(state.drop_chest_serial)
     API.Pause(1.0)
     dump_to_chest(state)
 
     # 7. Cast Recall to marked rune (return to lumber spot)
-    API.SysMsg("Recalling back to lumber spot...", 946)
+    API.HeadMsg("Recalling back...", API.Player.Serial, 946)
     if not cast_recall(state.rune_serial):
         stop_script("Failed to recall back to lumber spot")
         return False
@@ -1045,7 +1072,7 @@ def deposit_routine(state):
     API.UseObject(state.pack_serial)
     API.Pause(1.0)
 
-    API.SysMsg("=== Deposit Complete - Resuming Lumberjacking ===", 946)
+    API.HeadMsg("Deposit complete!", API.Player.Serial, 62)
     return True
 
 
@@ -1118,9 +1145,20 @@ def main():
                     break
                 continue
 
+            # If still heavy, wait for pack and retry dump
             if is_heavy():
-                API.Pause(0.1)
-                continue
+                if not is_pack_in_range(state):
+                    if not wait_for_pack(state, timeout=30):
+                        API.HeadMsg("Pack still away...", API.Player.Serial, 32)
+                        API.Pause(1.0)
+                        continue
+                
+                # Pack is in range, try dumping again
+                dump_boards_to_pack(state)
+                
+                if is_heavy():
+                    API.Pause(0.5)
+                    continue
 
         # Cleanup expired depletion entries
         cleanup_depleted(state)
