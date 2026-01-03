@@ -8,7 +8,7 @@ import API
 # =========================
 
 # Gargish axe graphic
-AXE_GRAPHIC = 0x48B2
+AXE_GRAPHIC = 0x0F49 # 0x48B2
 
 # Logs and boards
 LOG_GRAPHIC = 0x1BDD
