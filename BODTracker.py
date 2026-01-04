@@ -161,7 +161,7 @@ def find_profession_npc(preferred_name=None):
     candidates = []  # List of (serial, profession, distance, name_match)
     player_pos = (API.Player.X, API.Player.Y)
 
-    for mob in API.GetAllMobiles(distance=5):
+    for mob in API.GetAllMobiles(distance=12):
         if not mob.Name:
             continue
 
