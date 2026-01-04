@@ -143,17 +143,17 @@ def smelt_all_ore(beetle_serial: int) -> int:
 
         API.ClearJournal()
 
-        # PreTarget must be set BEFORE the server requests a target.
-        # If pretarget works correctly, a target cursor may never appear.
-        API.PreTarget(beetle_serial)
+        # Use ore and wait for target cursor
         API.UseObject(ore.Serial)
 
-        # If we DO get a target cursor, pretarget didn't apply; cancel it so we don't hang.
-        if API.WaitForTarget(timeout=0.25):
-            API.CancelTarget()
+        if not API.WaitForTarget(timeout=2.0):
+            # No target cursor appeared - server might be lagging
+            API.Pause(SMELT_DELAY)
+            continue
 
+        # Target the beetle
+        API.Target(beetle_serial)  # type: ignore
         API.Pause(SMELT_DELAY)
-        API.CancelPreTarget()
 
         if API.InJournal("You must wait"):
             API.Pause(0.5)
