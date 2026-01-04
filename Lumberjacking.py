@@ -2,6 +2,7 @@
 
 import time
 import API
+from lib.items import move_item_robust, drop_items_to_container
 
 # =========================
 # CONFIG
@@ -312,34 +313,7 @@ def wait_for_pack(state, timeout=30):
     return False
 
 
-def move_item_robust(serial, dest, amount, max_retries=3):
-    """
-    Move item with retry logic for 'you must wait' messages.
-    Returns True if move succeeded (or no error detected), False if failed after retries.
-    """
-    base_delay = 0.5  # Starting delay
 
-    for attempt in range(max_retries):
-        API.ClearJournal()
-        API.MoveItem(serial, dest, amt=amount)
-
-        # Wait for server response
-        API.Pause(base_delay)
-
-        # Check for "you must wait"
-        if API.InJournalAny(["you must wait"]):
-            if attempt < max_retries - 1:
-                API.HeadMsg("Waiting...", API.Player.Serial, 946)
-                API.Pause(1.0)  # Extra wait before retry
-                continue
-            else:
-                # Final attempt failed
-                return False
-
-        # Success or no "must wait" message - move on
-        return True
-
-    return False
 
 
 def warn_weight(state):
@@ -1007,45 +981,15 @@ def dump_to_chest(state):
     """Dump all boards and bonus items from backpack and pack to chest."""
     chest_serial = state.drop_chest_serial
 
-    # Dump boards from backpack
-    boards = API.FindTypeAll(0x1BD7, API.Backpack) or []
-    for b in boards:
-        if API.StopRequested:
-            break
-        amount = getattr(b, "Amount", 0) or 0
-        if amount > 0:
-            move_item_robust(b.Serial, chest_serial, amount)
+    # All item types to drop (boards + bonus items)
+    all_items = [0x1BD7] + bonus_lumberjack_items
 
-    # Dump boards from pack animal
-    boards = API.FindTypeAll(0x1BD7, state.pack_serial) or []
-    for b in boards:
-        if API.StopRequested:
-            break
-        amount = getattr(b, "Amount", 0) or 0
-        if amount > 0:
-            move_item_robust(b.Serial, chest_serial, amount)
+    # Drop from backpack and pack animal
+    dropped = drop_items_to_container(chest_serial, all_items, API.Backpack)
+    dropped += drop_items_to_container(chest_serial, all_items, state.pack_serial)
 
-    # Dump bonus lumberjack items from backpack
-    for graphic in bonus_lumberjack_items:
-        items = API.FindTypeAll(graphic, API.Backpack) or []
-        for item in items:
-            if API.StopRequested:
-                break
-            amount = getattr(item, "Amount", 0) or 0
-            if amount > 0:
-                move_item_robust(item.Serial, chest_serial, amount)
-
-    # Dump bonus lumberjack items from pack animal
-    for graphic in bonus_lumberjack_items:
-        items = API.FindTypeAll(graphic, state.pack_serial) or []
-        for item in items:
-            if API.StopRequested:
-                break
-            amount = getattr(item, "Amount", 0) or 0
-            if amount > 0:
-                move_item_robust(item.Serial, chest_serial, amount)
-
-    # Message shown via overhead in deposit_routine()
+    if dropped > 0:
+        API.SysMsg(f"Dropped {dropped} item stacks", 946)
 
 
 def deposit_routine(state):
@@ -1086,6 +1030,7 @@ def deposit_routine(state):
     API.UseObject(state.drop_chest_serial)
     API.Pause(1.0)
     dump_to_chest(state)
+    API.Pause(1.5)  # Wait for server to update weight
 
     # 7. Cast Recall to marked rune (return to lumber spot)
     API.HeadMsg("Recalling back...", API.Player.Serial, 946)
