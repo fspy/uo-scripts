@@ -2,6 +2,9 @@ import API
 import time
 from Runebook import Runebook, wait_for_travel, recall_and_target
 from lib.items import drop_all_items_at_home
+from lib.persistence import load_int, save_int
+from lib.weight import is_heavy, is_at_max_weight
+from lib.utils import find_any_type
 
 # =========================
 # CONFIG
@@ -17,6 +20,7 @@ SMALL_ORE_TYPE = 0x19B7
 
 # When your weight is within this many stones of max,
 # stop mining and smelt on the beetle.
+# Note: is_heavy() function from lib.weight uses default buffer of 50 stones
 WEIGHT_BUFFER = 50
 
 MINING_DELAY = 0.5
@@ -68,30 +72,15 @@ USE_SACRED_JOURNEY = False  # True = Chivalry Sacred Journey, False = Magery Rec
 MAX_TRAVEL_RETRIES = 3
 TRAVEL_RETRY_DELAY = 2.0  # Seconds between retry attempts
 
-
-def is_heavy() -> bool:
-    if not API.Player or API.Player.WeightMax is None or API.Player.Weight is None:
-        return False
-    return API.Player.Weight >= (API.Player.WeightMax - WEIGHT_BUFFER)
-
-
-def is_at_max_weight() -> bool:
-    """True if at exactly max weight (cannot recall)."""
-    if not API.Player or API.Player.WeightMax is None or API.Player.Weight is None:
-        return False
-    return API.Player.Weight >= API.Player.WeightMax
-
+# Weight and item finding functions moved to lib modules (lib.weight, lib.utils)
 
 def find_shovel():
     return API.FindType(SHOVEL_TYPE, API.Backpack)
 
 
 def find_any_ore(min_amount: int = 0):
-    for ore_type in ORE_TYPES:
-        ore = API.FindType(ore_type, API.Backpack, minamount=min_amount)
-        if ore:
-            return ore
-    return None
+    """Find any ore type in backpack. Wrapper for lib.utils.find_any_type."""
+    return find_any_type(ORE_TYPES, API.Backpack, min_amount=min_amount)
 
 
 def find_smeltable_ore():
@@ -209,36 +198,17 @@ PERSIST_KEY_DROP_CONTAINER = "Mining.DropContainerSerial"
 PERSIST_KEY_CURRENT_SPOT = "Mining.CurrentSpotIndex"
 
 
-def load_persistent_int(key: str, default: int = 0) -> int:
-    """
-    Load a persistent integer variable.
-    Accepts either decimal or hex strings.
-    """
-    value_str = API.GetPersistentVar(key, str(default), API.PersistentVar.Char)
-    try:
-        value = int(str(value_str).strip(), 0)
-    except Exception:
-        return default
-
-    if value < 0:
-        return default
-
-    return value
-
-
-def save_persistent_int(key: str, value: int) -> None:
-    """Save a persistent integer variable."""
-    API.SavePersistentVar(key, str(int(value)), API.PersistentVar.Char)
+# Persistence helpers moved to lib/persistence.py
 
 
 def load_beetle_serial() -> int:
     """Load beetle serial from persistent storage."""
-    return load_persistent_int(PERSIST_KEY_BEETLE, 0)
+    return load_int(PERSIST_KEY_BEETLE, 0)
 
 
 def save_beetle_serial(serial: int) -> None:
     """Save beetle serial to persistent storage."""
-    save_persistent_int(PERSIST_KEY_BEETLE, serial)
+    save_int(PERSIST_KEY_BEETLE, serial)
 
 
 # =========================
@@ -320,12 +290,12 @@ def setup_travel_targets():
     Returns: (mining_runebook_serial, home_rune_serial, drop_container_serial, current_spot_index)
     """
     # Load mining runebook
-    mining_book = load_persistent_int(PERSIST_KEY_MINING_BOOK, 0)
+    mining_book = load_int(PERSIST_KEY_MINING_BOOK, 0)
     if not mining_book:
         API.SysMsg("Target your mining runebook (with all mining spots)")
         mining_book = API.RequestTarget()
         if mining_book:
-            save_persistent_int(PERSIST_KEY_MINING_BOOK, mining_book)
+            save_int(PERSIST_KEY_MINING_BOOK, mining_book)
             API.SysMsg(f"Saved mining runebook: {hex(mining_book)}")
         else:
             API.SysMsg("No mining runebook targeted")
@@ -333,12 +303,12 @@ def setup_travel_targets():
         API.SysMsg(f"Using saved mining runebook: {hex(mining_book)}")
 
     # Load home rune/book
-    home_rune = load_persistent_int(PERSIST_KEY_HOME_RUNE, 0)
+    home_rune = load_int(PERSIST_KEY_HOME_RUNE, 0)
     if not home_rune:
         API.SysMsg("Target your home rune or runebook (for banking)")
         home_rune = API.RequestTarget()
         if home_rune:
-            save_persistent_int(PERSIST_KEY_HOME_RUNE, home_rune)
+            save_int(PERSIST_KEY_HOME_RUNE, home_rune)
             API.SysMsg(f"Saved home rune: {hex(home_rune)}")
         else:
             API.SysMsg("No home rune targeted")
@@ -346,12 +316,12 @@ def setup_travel_targets():
         API.SysMsg(f"Using saved home rune: {hex(home_rune)}")
 
     # Load drop container
-    drop_container = load_persistent_int(PERSIST_KEY_DROP_CONTAINER, 0)
+    drop_container = load_int(PERSIST_KEY_DROP_CONTAINER, 0)
     if not drop_container:
         API.SysMsg("Target your storage container at home (for dropping ingots)")
         drop_container = API.RequestTarget()
         if drop_container:
-            save_persistent_int(PERSIST_KEY_DROP_CONTAINER, drop_container)
+            save_int(PERSIST_KEY_DROP_CONTAINER, drop_container)
             API.SysMsg(f"Saved drop container: {hex(drop_container)}")
         else:
             API.SysMsg("No drop container targeted")
@@ -359,7 +329,7 @@ def setup_travel_targets():
         API.SysMsg(f"Using saved drop container: {hex(drop_container)}")
 
     # Load current spot index
-    current_spot = load_persistent_int(PERSIST_KEY_CURRENT_SPOT, 0)
+    current_spot = load_int(PERSIST_KEY_CURRENT_SPOT, 0)
     API.SysMsg(f"Current mining spot index: {current_spot}")
 
     return mining_book, home_rune, drop_container, current_spot
@@ -402,7 +372,7 @@ def recall_to_next_spot(runebook: Runebook, current_idx: int, max_spots: int) ->
     API.SysMsg(f"All tiles depleted, moving to next spot: {current_idx} -> {next_idx}")
 
     # Save the new index before traveling
-    save_persistent_int(PERSIST_KEY_CURRENT_SPOT, next_idx)
+    save_int(PERSIST_KEY_CURRENT_SPOT, next_idx)
 
     success = recall_to_mining_spot(runebook, next_idx)
     return success, next_idx

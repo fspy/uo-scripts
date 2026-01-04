@@ -1,0 +1,102 @@
+"""Shared utility functions for Legion scripts.
+
+Provides common helpers used across multiple scripts including distance
+calculations, item counting, script control, and more.
+
+Note: API module is injected by Legion engine at runtime as a global.
+Import is wrapped in try/except for type hints in editors.
+"""
+
+# pyright: basic
+# Try to import API for type hints, but don't fail if unavailable
+try:
+    import API
+except (ImportError, NameError):
+    pass  # API is injected at runtime by Legion engine
+
+
+def chebyshev_distance(x1: int, y1: int, x2: int, y2: int) -> int:
+    """
+    Calculate Chebyshev distance (max of x/y deltas).
+    
+    Also known as "chessboard distance" or "maximum metric".
+    This is how UO calculates distance for most purposes.
+    
+    Args:
+        x1, y1: First point coordinates
+        x2, y2: Second point coordinates
+    
+    Returns:
+        Maximum absolute difference between x coordinates and y coordinates
+    """
+    return max(abs(x1 - x2), abs(y1 - y2))
+
+
+def count_items(graphic: int, container) -> int:
+    """
+    Count total amount of items with graphic in container.
+    
+    Sums the Amount property of all matching items. For stackable items,
+    this gives the total stack count. For non-stackable items, it counts
+    the number of items.
+    
+    Args:
+        graphic: Item graphic ID (type)
+        container: Container object or serial to search in
+    
+    Returns:
+        Total count of items (sum of Amount properties)
+    """
+    items = API.FindTypeAll(graphic, container) or []
+    return sum(getattr(it, "Amount", 0) or 0 for it in items)
+
+
+def find_any_type(types: list, container, min_amount: int = 0):
+    """
+    Find first item matching any type in the list.
+    
+    Searches for items in order and returns the first match found.
+    
+    Args:
+        types: List of graphic IDs to search for
+        container: Container object or serial to search in
+        min_amount: Minimum stack amount required (default 0)
+    
+    Returns:
+        First matching item object, or None if no match found
+    """
+    for item_type in types:
+        item = API.FindType(item_type, container, minamount=min_amount)
+        if item:
+            return item
+    return None
+
+
+def stop_script(msg: str, hue: int = 32) -> None:
+    """
+    Stop script with a system message.
+    
+    Displays message and stops script execution. Useful for error handling
+    and graceful script termination.
+    
+    Args:
+        msg: Message to display to player
+        hue: Message color (default 32 = red for errors)
+    """
+    API.SysMsg(msg, hue)
+    API.Stop()
+
+
+def dismount_if_mounted(delay: float = 0.5) -> None:
+    """
+    Dismount if player is currently mounted.
+    
+    Some actions (like mining) require being on foot. This helper checks
+    if mounted and dismounts if necessary.
+    
+    Args:
+        delay: Seconds to pause after dismounting (default 0.5)
+    """
+    if API.Player and API.Player.Mount:
+        API.Dismount()
+        API.Pause(delay)

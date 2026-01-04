@@ -3,6 +3,10 @@
 import time
 import API
 from lib.items import move_item_robust, drop_items_to_container
+from lib.persistence import setup_target
+from lib.weight import is_heavy, is_overweight
+from lib.utils import count_items, stop_script, chebyshev_distance
+from lib.journal import wait_for_any
 
 # =========================
 # CONFIG
@@ -246,48 +250,11 @@ class LumberjackState:
 # =========================
 
 
-def count_items(graphic, container):
-    """Count total amount of items with graphic in container."""
-    items = API.FindTypeAll(graphic, container) or []
-    return sum(getattr(it, "Amount", 0) or 0 for it in items)
 
+# Utility functions moved to lib modules (lib.utils, lib.weight, lib.journal)
 
-def is_heavy():
-    """True if near max weight (within 60 stones)."""
-    p = API.Player
-    if not p or p.WeightMax is None or p.Weight is None:
-        return False
-    return p.Weight >= p.WeightMax - 60
-
-
-def is_overweight():
-    """True if over max weight."""
-    p = API.Player
-    if not p or p.WeightMax is None or p.Weight is None:
-        return False
-    return p.Weight > p.WeightMax
-
-
-def stop_script(msg):
-    """Stop script with error message."""
-    API.SysMsg(msg, 32)
-    API.Stop()
-
-
-def chebyshev(x1, y1, x2, y2):
-    """Chebyshev distance (max of x/y deltas)."""
-    return max(abs(x1 - x2), abs(y1 - y2))
-
-
-def wait_for_journal(msgs, timeout):
-    """Wait for any message to appear in journal. Returns True if found."""
-    deadline = time.time() + timeout
-    while time.time() < deadline and not API.StopRequested:
-        if API.InJournalAny(msgs):
-            return True
-        API.Pause(0.05)
-    return False
-
+# is_heavy() function moved to lib.weight (uses 50 stone buffer by default)
+# Lumberjacking uses 60 stones - calls pass buffer=60 explicitly
 
 def is_pack_in_range(state):
     """Check if pack animal backpack is in range."""
@@ -318,7 +285,7 @@ def wait_for_pack(state, timeout=30):
 
 def warn_weight(state):
     """Warn player about weight status (throttled)."""
-    if not is_heavy():
+    if not is_heavy(buffer=60):
         return
 
     now = time.time()
@@ -342,7 +309,7 @@ def warn_weight(state):
 
 
 # =========================
-# SETUP FUNCTIONS
+# SETUP FUNCTIONS (using lib/persistence)
 # =========================
 
 
@@ -350,47 +317,6 @@ def is_first_run():
     """Check if this is the first run (no persisted chest serial)."""
     saved = API.GetPersistentVar("LumberjackDropChest", "0", API.PersistentVar.Char)
     return not saved or saved == "0"
-
-
-def setup_item(var_name, prompt_msg):
-    """
-    Generic setup: load persisted serial, verify it exists, or ask user to target.
-
-    Args:
-        var_name: Persistent variable name
-        prompt_msg: Message to display when targeting
-        verify_type: Optional graphic to verify (for items)
-
-    Returns:
-        Serial number or 0 if setup failed
-    """
-    # Try loading persisted serial
-    saved = API.GetPersistentVar(var_name, "0", API.PersistentVar.Char)
-    if saved and saved != "0":
-        serial = int(saved)
-
-        # Verify item still exists
-        item = API.FindItem(serial)
-        if not item:
-            mob = API.FindMobile(serial)
-            if mob:
-                API.SysMsg(f"Using saved {var_name}: 0x{serial:X}")
-                return serial
-        elif item:
-            API.SysMsg(f"Using saved {var_name}: 0x{serial:X}")
-            return serial
-
-    # Ask user to target
-    API.SysMsg(prompt_msg, 32)
-    target = API.RequestTarget(timeout=30.0)
-    if not target:
-        API.SysMsg(f"No target selected for {var_name}", 32)
-        return 0
-
-    # Save and return
-    API.SavePersistentVar(var_name, str(target), API.PersistentVar.Char)
-    API.SysMsg(f"{var_name} saved: 0x{target:X}")
-    return target
 
 
 def load_bad_graphics():
@@ -423,46 +349,15 @@ def setup_drop_chest(first_run):
     """
     Setup drop chest with special handling for out-of-range scenarios.
 
-    On first run: Must target chest (needs to be in range)
+    On first run: Must verify chest exists (needs to be in range)
     On subsequent runs: Trust persisted serial even if out of range
     """
-    var_name = "LumberjackDropChest"
-
-    # Try loading persisted serial
-    saved = API.GetPersistentVar(var_name, "0", API.PersistentVar.Char)
-    if saved and saved != "0":
-        serial = int(saved)
-
-        # Try to verify item exists
-        item = API.FindItem(serial)
-        if item:
-            API.SysMsg(f"Using saved drop chest: 0x{serial:X}")
-            return serial
-
-        # Item not found - could be out of range
-        if not first_run:
-            # Trust the persisted serial (assume out of range, not deleted)
-            API.SysMsg("Using saved drop chest (out of range - assuming valid)", 946)
-            return serial
-
-        # First run but can't find chest - invalid serial
-        API.SysMsg("Saved chest not found - please re-target", 32)
-
-    # No valid serial or first run - ask user to target
-    if first_run:
-        API.SysMsg("Target drop chest at home", 32)
-    else:
-        API.SysMsg("Target drop chest (previous chest not found)", 32)
-
-    target = API.RequestTarget(timeout=30.0)
-    if not target:
-        API.SysMsg("No target selected for drop chest", 32)
-        return 0
-
-    # Save and return
-    API.SavePersistentVar(var_name, str(target), API.PersistentVar.Char)
-    API.SysMsg(f"Drop chest saved: 0x{target:X}")
-    return target
+    # On first run, verify the chest is in range. On subsequent runs, trust saved serial.
+    return setup_target(
+        "LumberjackDropChest",
+        "Target drop chest at home",
+        verify_in_range=first_run  # Only verify on first run
+    )
 
 
 def setup_all_items(state, first_run):
@@ -473,13 +368,13 @@ def setup_all_items(state, first_run):
         API.SysMsg("First run detected - please target all items at home", 946)
 
     # Axe
-    state.axe_serial = setup_item("LumberjackAxe", "Target your axe")
+    state.axe_serial = setup_target("LumberjackAxe", "Target your axe")
     if not state.axe_serial:
         stop_script("Axe setup failed")
         return False
 
     # Pack animal
-    state.pack_serial = setup_item(
+    state.pack_serial = setup_target(
         "LumberjackPack", "Target your pack animal or its backpack"
     )
     if not state.pack_serial:
@@ -501,7 +396,7 @@ def setup_all_items(state, first_run):
     API.SysMsg("Opened pack animal backpack")
 
     # Runebook
-    state.runebook_serial = setup_item(
+    state.runebook_serial = setup_target(
         "LumberjackRunebook", "Target runebook (default rune = recall home)"
     )
     if not state.runebook_serial:
@@ -515,7 +410,7 @@ def setup_all_items(state, first_run):
         return False
 
     # Rune for marking lumber location
-    state.rune_serial = setup_item(
+    state.rune_serial = setup_target(
         "LumberjackRune", "Target a blank or recall rune (will be reused for marking)"
     )
     if not state.rune_serial:
@@ -548,7 +443,7 @@ def wait_for_travel_to_lumber_spot(state, first_run):
     last_msg_time = time.time()
 
     while not API.StopRequested:
-        dist = chebyshev(API.Player.X, API.Player.Y, home_pos[0], home_pos[1])
+        dist = chebyshev_distance(API.Player.X, API.Player.Y, home_pos[0], home_pos[1])
 
         # Update message every 5 seconds
         now = time.time()
@@ -683,7 +578,7 @@ def find_nearest_tree(state):
         return None
 
     # Sort by distance, return nearest
-    return min(trees.values(), key=lambda t: chebyshev(px, py, t.X, t.Y))
+    return min(trees.values(), key=lambda t: chebyshev_distance(px, py, t.X, t.Y))
 
 
 def pathfind_to_tree(tree):
@@ -723,7 +618,7 @@ def chop_tree(state, tree):
     # If we're already holding a target cursor, just retarget
     if API.HasTarget("any"):
         API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
-        wait_for_journal(success_msgs + depleted_msgs + wait_msgs, 1.0)
+        wait_for_any(success_msgs + depleted_msgs + wait_msgs, 1.0)
         return True
 
     # Clear journal before action to get fresh response
@@ -736,7 +631,7 @@ def chop_tree(state, tree):
         API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
 
     # Wait for server response
-    wait_for_journal(success_msgs + depleted_msgs + wait_msgs, 1.0)
+    wait_for_any(success_msgs + depleted_msgs + wait_msgs, 1.0)
     return True
 
 
@@ -824,7 +719,7 @@ def dump_boards_to_pack(state):
 def harvest_tree(state, tree):
     """Harvest a single tree until depleted or stuck."""
     px, py = API.Player.X, API.Player.Y
-    dist = chebyshev(px, py, tree.X, tree.Y)
+    dist = chebyshev_distance(px, py, tree.X, tree.Y)
 
     # Pathfind if needed
     if dist > 1:
@@ -838,7 +733,7 @@ def harvest_tree(state, tree):
     # Harvest loop
     while not API.StopRequested:
         # Weight check - trigger deposit if pack full
-        if is_heavy():
+        if is_heavy(buffer=60):
             warn_weight(state)
             if not chop_all_logs(state):
                 # Deposit routine needed
@@ -850,7 +745,7 @@ def harvest_tree(state, tree):
             if boards_in_pack >= 1600:
                 return  # Caller will trigger deposit
 
-            if is_heavy():
+            if is_heavy(buffer=60):
                 break
 
         # Track inventory before chop
@@ -1102,7 +997,7 @@ def main():
             continue
 
         # Weight management
-        if is_heavy():
+        if is_heavy(buffer=60):
             warn_weight(state)
             if not chop_all_logs(state):
                 break
@@ -1116,7 +1011,7 @@ def main():
                 continue
 
             # If still heavy, wait for pack and retry dump
-            if is_heavy():
+            if is_heavy(buffer=60):
                 if not is_pack_in_range(state):
                     if not wait_for_pack(state, timeout=30):
                         API.HeadMsg("Pack still away...", API.Player.Serial, 32)
@@ -1126,7 +1021,7 @@ def main():
                 # Pack is in range, try dumping again
                 dump_boards_to_pack(state)
 
-                if is_heavy():
+                if is_heavy(buffer=60):
                     API.Pause(0.5)
                     continue
 

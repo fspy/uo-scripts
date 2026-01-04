@@ -12,6 +12,34 @@ bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
 
+## Code Guidelines
+
+### Script Execution
+- Scripts run inside the TazUO client, never from command line
+- Always call `main()` directly at the end of scripts - **never use `if __name__ == "__main__":`**
+- Command line may be used to verify syntax/parsing: `python -m py_compile script.py`
+
+### Targeting
+- **Never use `API.PreTarget()`** - always use the standard sequence:
+  ```python
+  API.UseObject(item_serial)
+  if API.WaitForTarget(timeout=0.5):
+      API.Target(target_serial)
+  ```
+
+### Code Search
+- Use **ast-grep** for AST-aware code searches (understands Python structure)
+  ```bash
+  ast-grep --pattern 'def $FUNC($$$)' --lang python .
+  ast-grep --pattern 'API.PreTarget($$$)' --lang python .
+  ```
+- Use **ripgrep** (`rg`) for fast text searches, not `grep`
+
+### Shared Libraries
+- Common utilities go in `lib/` folder
+- Scripts should import from lib rather than duplicating code
+- Existing libs: `lib/items.py`, `Runebook.py`
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.

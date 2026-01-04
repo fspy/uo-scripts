@@ -1,0 +1,4 @@
+{"id":"int-c93e905f","kind":"llm_call","created_at":"2026-01-04T02:18:40.036203462Z","actor":"fspy","model":"claude-3-5-haiku","prompt":"test prompt","response":"test response"}
+{"id":"int-539b6c60","kind":"label","created_at":"2026-01-04T02:18:48.304483243Z","actor":"fspy","parent_id":"int-c93e905f","label":"good","reason":"Test label"}
+{"id":"int-45400d8b","kind":"tool_call","created_at":"2026-01-04T02:18:57.691447755Z","actor":"fspy","issue_id":"beads-42","error":"test failed","tool_name":"go test","exit_code":1}
+{"id":"int-bcc82183","kind":"llm_call","created_at":"2026-01-04T02:18:58.573109432Z","actor":"fspy","model":"gpt-4","prompt":"stdin test","response":"stdin response"}
