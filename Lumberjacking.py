@@ -653,16 +653,12 @@ def chop_all_logs(state):
                 stop_script("Could not equip axe")
                 return False
 
-            # PreTarget to avoid targeting ground/tile
-            API.PreTarget(log.Serial)
+            # Use standard targeting sequence (never use PreTarget)
             API.UseObject(axe.Serial)
-
-            # Cancel if target cursor appears (pretarget didn't apply)
-            if API.WaitForTarget(timeout=0.25):
-                API.CancelTarget()
+            if API.WaitForTarget(timeout=0.5):
+                API.Target(log.Serial)
 
             API.Pause(0.5)
-            API.CancelPreTarget()
 
             if API.InJournalAny(wait_msgs):
                 API.Pause(0.5)
