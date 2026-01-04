@@ -369,6 +369,10 @@ class BODStatusGump:
         saved_pos = load_gump_position()
         self.gump_x = saved_pos.get("x", 100)
         self.gump_y = saved_pos.get("y", 100)
+        
+        # Pending NPC interaction from click handler
+        self.pending_npc_serial = None
+        self.pending_profession = None
 
     def create(self):
         """Create and display the gump."""
@@ -567,6 +571,10 @@ class BODStatusGump:
             API.SysMsg(f"No {profession} NPC nearby!", HUE_ALERT)
             return
         
+        # Store pending NPC info for main loop to use
+        self.pending_npc_serial = npc_serial
+        self.pending_profession = profession
+        
         # Request BOD via context menu
         API.ContextMenu(npc_serial, CONTEXT_MENU_BOD_INFO)
         API.SysMsg(f"Requesting {profession} BOD...", HUE_INFO)
@@ -679,8 +687,16 @@ def main():
         # A) Check for BOD gump
         gump_id = detect_bod_gump()
         if gump_id:
-            # Find profession NPC if we don't have one
-            if not current_profession:
+            # Check if we have pending NPC info from click handler
+            if status_gump.pending_npc_serial and status_gump.pending_profession:
+                current_npc_serial = status_gump.pending_npc_serial
+                current_profession = status_gump.pending_profession
+                # Clear pending state
+                status_gump.pending_npc_serial = None
+                status_gump.pending_profession = None
+                API.SysMsg(f"Using clicked {current_profession} NPC", HUE_INFO)
+            # Otherwise, find profession NPC if we don't have one
+            elif not current_profession:
                 current_npc_serial, current_profession = find_profession_npc()
                 if current_profession:
                     API.SysMsg(f"Detected {current_profession} NPC", HUE_INFO)
