@@ -31,26 +31,11 @@ def is_heavy(buffer: int = 50) -> bool:
     return API.Player.Weight >= (API.Player.WeightMax - buffer)
 
 
-def is_at_max_weight() -> bool:
-    """
-    Check if player is at exactly maximum weight.
-    
-    At max weight, the player cannot recall or use gates.
-    
-    Returns:
-        True if player weight >= max_weight
-    """
-    if not API.Player or API.Player.WeightMax is None or API.Player.Weight is None:
-        return False
-    return API.Player.Weight >= API.Player.WeightMax
-
-
 def is_overweight() -> bool:
     """
     Check if player is over maximum weight.
     
-    This is the same as is_at_max_weight() for practical purposes,
-    as the game prevents going over max weight in most cases.
+    When overweight, the player cannot recall or use gates.
     
     Returns:
         True if player weight > max_weight

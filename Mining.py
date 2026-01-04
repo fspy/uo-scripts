@@ -3,7 +3,7 @@ import time
 from lib.runebook import Runebook, wait_for_travel, recall_and_target
 from lib.items import drop_all_items_at_home
 from lib.persistence import load_int, save_int
-from lib.weight import is_heavy, is_at_max_weight
+from lib.weight import is_heavy, is_overweight
 from lib.utils import find_any_type
 
 # =========================
@@ -266,8 +266,8 @@ def smelt_before_travel(beetle_serial: int) -> int:
         beetle_serial = smelt_all_ore(beetle_serial)
 
     # Check if at max weight after smelting
-    if is_at_max_weight():
-        API.SysMsg("WARNING: At max weight after smelting - recall may fail!", 32)
+    if is_overweight():
+        API.SysMsg("WARNING: Overweight after smelting - recall may fail!", 32)
 
     return beetle_serial
 
@@ -485,8 +485,8 @@ if mining_runebook:
     # Smelt any ore before traveling
     beetle = smelt_before_travel(beetle)
 
-    if is_at_max_weight():
-        API.SysMsg("Cannot recall - at max weight; stopping", 32)
+    if is_overweight():
+        API.SysMsg("Cannot recall - overweight; stopping", 32)
         API.Stop()
 
     API.SysMsg(f"Recalling to mining spot {current_spot_index}...")
@@ -566,9 +566,9 @@ while not API.StopRequested:
             # Smelt ore before traveling (while beetle is still here)
             beetle = smelt_before_travel(beetle)
 
-            # Check if at max weight after smelting
-            if is_at_max_weight():
-                API.SysMsg("At max weight - need to bank before traveling")
+            # Check if overweight after smelting
+            if is_overweight():
+                API.SysMsg("Overweight - need to bank before traveling")
                 if home_rune_serial and drop_container_serial:
                     # Travel home
                     if not recall_home(home_rune_serial):
