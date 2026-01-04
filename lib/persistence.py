@@ -1,13 +1,15 @@
 """Shared persistent variable utilities for Legion scripts.
 
-Provides helpers for loading/saving persistent integers and setting up
-items that need to persist across script runs.
+Provides helpers for loading/saving persistent integers, JSON data, and
+setting up items that need to persist across script runs.
 
 Note: API module is injected by Legion engine at runtime as a global.
 Import is wrapped in try/except for type hints in editors.
 """
 
 # pyright: basic
+import json
+
 # Try to import API for type hints, but don't fail if unavailable
 try:
     import API
@@ -116,3 +118,53 @@ def setup_target(key: str, prompt: str, verify_in_range: bool = True, scope=None
     API.SavePersistentVar(key, str(target), scope)
     API.SysMsg(f"{key} saved: 0x{target:X}", 946)
     return target
+
+
+def load_json(key: str, default=None, scope=None):
+    """
+    Load JSON data from persistent storage.
+    
+    Args:
+        key: Persistent variable name
+        default: Default value if not found or invalid (default: None)
+        scope: PersistentVar scope (defaults to Char)
+    
+    Returns:
+        Parsed JSON data (dict, list, etc.), or default if not found/invalid
+    
+    Example:
+        pos = load_json("GumpPosition", default={"x": 100, "y": 100})
+        timers = load_json("Timers", default={}, scope=API.PersistentVar.Server)
+    """
+    if scope is None:
+        scope = API.PersistentVar.Char
+    
+    raw = API.GetPersistentVar(key, "", scope)
+    
+    if not raw:
+        return default
+    
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return default
+
+
+def save_json(key: str, data, scope=None) -> None:
+    """
+    Save JSON-serializable data to persistent storage.
+    
+    Args:
+        key: Persistent variable name
+        data: Data to serialize (dict, list, etc.)
+        scope: PersistentVar scope (defaults to Char)
+    
+    Example:
+        save_json("GumpPosition", {"x": 150, "y": 200})
+        save_json("Timers", timer_dict, scope=API.PersistentVar.Server)
+    """
+    if scope is None:
+        scope = API.PersistentVar.Char
+    
+    raw = json.dumps(data)
+    API.SavePersistentVar(key, raw, scope)

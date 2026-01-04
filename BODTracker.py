@@ -25,6 +25,7 @@ import re
 import json
 from lib.journal import find_entry
 from lib.utils import format_time_remaining
+from lib.persistence import load_json, save_json
 
 # ============================================================================
 # CONFIGURATION
@@ -129,15 +130,7 @@ def load_gump_position():
     Returns:
         dict: {"x": int, "y": int} or empty dict if not saved
     """
-    raw = API.GetPersistentVar("BODGumpPosition", "", API.PersistentVar.Char)
-    
-    if not raw:
-        return {}
-    
-    try:
-        return json.loads(raw)
-    except (ValueError, TypeError):
-        return {}
+    return load_json("BODGumpPosition", default={}, scope=API.PersistentVar.Char)
 
 
 def save_gump_position(x, y):
@@ -148,9 +141,7 @@ def save_gump_position(x, y):
         x (int): X position
         y (int): Y position
     """
-    position = {"x": x, "y": y}
-    raw = json.dumps(position)
-    API.SavePersistentVar("BODGumpPosition", raw, API.PersistentVar.Char)
+    save_json("BODGumpPosition", {"x": x, "y": y}, scope=API.PersistentVar.Char)
 
 
 # ============================================================================
