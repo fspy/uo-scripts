@@ -1,5 +1,4 @@
-"""
-Runebook.py - Reusable runebook interaction module for Legion Scripts
+"""Shared runebook interaction and travel utilities for Legion scripts.
 
 Provides:
 - Runebook class for gump-based recall to specific rune indices
@@ -7,18 +6,27 @@ Provides:
 
 Based on button formula from PlayTazUO/PublicLegionScripts RunebookRecaller.py
 
-Note: API module is injected by Legion engine at runtime, no import needed
+Note: API module is injected by Legion engine at runtime as a global.
+Import is wrapped in try/except for type hints in editors.
 """
+
+# pyright: basic
 import time
+
+# Try to import API for type hints, but don't fail if unavailable
+try:
+    import API
+except (ImportError, NameError):
+    pass  # API is injected at runtime by Legion engine
 
 # Runebook constants
 RUNEBOOK_GRAPHIC = 0x22C5
 RUNEBOOK_GUMP_ID = 0x59
 
 # Button formula: recall_button = base + (rune_index * stride)
-# From PublicLegionScripts: recall button for rune N = 5 + (N * 6)
-RECALL_BUTTON_BASE = 5
-RECALL_BUTTON_STRIDE = 6
+# Tested on this shard: recall button for rune N = 50 + N
+RECALL_BUTTON_BASE = 50
+RECALL_BUTTON_STRIDE = 1
 
 # Sacred Journey assumed to be offset by 1 (needs verification)
 SJ_BUTTON_BASE = 6

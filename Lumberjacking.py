@@ -7,6 +7,7 @@ from lib.persistence import setup_target
 from lib.weight import is_heavy, is_overweight
 from lib.utils import count_items, stop_script, chebyshev_distance
 from lib.journal import wait_for_any
+from lib.runebook import recall_and_target, TRAVEL_FAIL_MSGS
 
 # =========================
 # CONFIG
@@ -202,23 +203,7 @@ wait_msgs = [
     "you must wait",
 ]
 
-travel_success_msgs = [
-    "You recall",
-    "You have been teleported",
-]
-
-travel_fail_msgs = [
-    "You have not yet recovered",
-    "Spell fizzles",
-    "Target is blocked",
-    "You are not powerful enough",
-]
-
-mark_success_msgs = [
-    "You have marked this rune",
-    "recall rune",
-]
-
+# Travel constants moved to lib.runebook
 
 # =========================
 # STATE
@@ -815,7 +800,7 @@ def cast_mark(rune_serial):
     API.Pause(3.5)
 
     # Only fail if we see an explicit failure message
-    if API.InJournalAny(travel_fail_msgs):
+    if API.InJournalAny(TRAVEL_FAIL_MSGS):
         API.SysMsg("Mark spell failed", 32)
         return False
 
@@ -823,45 +808,7 @@ def cast_mark(rune_serial):
     return True
 
 
-def cast_recall(target_serial):
-    """Cast Recall spell and target an item. Returns True if travel succeeded."""
-    API.ClearJournal()
-    API.CastSpell("Recall")
-
-    if not API.WaitForTarget(timeout=5):
-        API.SysMsg("Recall spell failed - no target cursor", 32)
-        return False
-
-    API.Target(target_serial)
-
-    # Wait for travel completion
-    return wait_for_travel(5.0)
-
-
-def wait_for_travel(timeout):
-    """Wait for recall/travel to complete. Returns True if successful."""
-    start_pos = (API.Player.X, API.Player.Y)
-    deadline = time.time() + timeout
-
-    while time.time() < deadline and not API.StopRequested:
-        # Check for success messages
-        if API.InJournalAny(travel_success_msgs):
-            API.Pause(0.5)  # Brief pause to let position update
-            return True
-
-        # Check for failure messages
-        if API.InJournalAny(travel_fail_msgs):
-            return False
-
-        # Check if position changed significantly (fallback detection)
-        if abs(API.Player.X - start_pos[0]) > 5 or abs(API.Player.Y - start_pos[1]) > 5:
-            return True
-
-        API.Pause(0.1)
-
-    # Timeout
-    return False
-
+# cast_recall() and wait_for_travel() moved to lib.runebook (use recall_and_target)
 
 # =========================
 # DEPOSIT ROUTINE
@@ -903,7 +850,7 @@ def deposit_routine(state):
 
     # 4. Cast Recall to runebook (go home)
     API.HeadMsg("Recalling home...", API.Player.Serial, 946)
-    if not cast_recall(state.runebook_serial):
+    if not recall_and_target(state.runebook_serial):
         stop_script("Failed to recall home")
         return False
 
@@ -925,7 +872,7 @@ def deposit_routine(state):
 
     # 7. Cast Recall to marked rune (return to lumber spot)
     API.HeadMsg("Recalling back...", API.Player.Serial, 946)
-    if not cast_recall(state.rune_serial):
+    if not recall_and_target(state.rune_serial):
         stop_script("Failed to recall back to lumber spot")
         return False
 
@@ -1035,7 +982,7 @@ def main():
                 )
                 API.Dress("Main")
                 API.Pause(1.5)
-                cast_recall(state.runebook_serial)
+                recall_and_target(state.runebook_serial)
                 break
             API.Pause(1.0)
             continue

@@ -1,6 +1,6 @@
 import API
 import time
-from Runebook import Runebook, wait_for_travel, recall_and_target
+from lib.runebook import Runebook, wait_for_travel, recall_and_target
 from lib.items import drop_all_items_at_home
 from lib.persistence import load_int, save_int
 from lib.weight import is_heavy, is_at_max_weight
