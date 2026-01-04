@@ -332,13 +332,14 @@ def notify_bod_ready(char_name, profession):
 
 class BODStatusGump:
     """Interactive gump showing BOD timers for all characters."""
-
+    
     def __init__(self):
         """Initialize the gump in expanded state."""
-        self.gump = None
+        self.gump = None  # Will be PyBaseGump at runtime
+        self.toggle_btn = None  # Will be PyButton at runtime
         self.expanded = True
         self.last_update = 0
-        self.width = 350
+        self.width = 300
         self.collapsed_height = 40
         self.header_height = 30
 
@@ -346,7 +347,7 @@ class BODStatusGump:
         """Create and display the gump."""
         if self.gump:
             API.CloseGumps()  # Close all script-created gumps
-        
+
         self.gump = API.CreateGump(acceptMouseInput=True, canMove=True)
         self.gump.SetX(100)
         self.gump.SetY(100)
@@ -356,13 +357,13 @@ class BODStatusGump:
         else:
             self._create_collapsed()
 
-        API.AddGump(self.gump)
+        API.Gumps.AddGump(self.gump)
 
     def _create_collapsed(self):
         """Create collapsed bar view showing earliest BOD."""
         self.gump.SetWidth(self.width)
         self.gump.SetHeight(self.collapsed_height)
-
+        
         # Background
         bg = API.CreateGumpColorBox(0.8, "#1a1a1a")
         bg.SetWidth(self.width)
@@ -370,21 +371,21 @@ class BODStatusGump:
         bg.SetX(0)
         bg.SetY(0)
         self.gump.Add(bg)
-
+        
         # Get status text
         status_text = self._get_collapsed_status()
-
+        
         # Status label
-        label = API.CreateGumpTTFLabel(status_text, 16, "#FFFFFF", "alagard")
+        label = API.CreateGumpTTFLabel(status_text, 14, "#FFFFFF", "IBMPlexSans-Text")
         label.SetX(10)
         label.SetY(12)
         self.gump.Add(label)
-
+        
         # Expand button (▼)
-        expand_btn = API.CreateGumpButton("▼", 996)
-        expand_btn.SetX(self.width - 30)
-        expand_btn.SetY(8)
-        self.gump.Add(expand_btn)
+        self.toggle_btn = API.CreateGumpButton("▼", 996)
+        self.toggle_btn.SetX(self.width - 30)
+        self.toggle_btn.SetY(8)
+        self.gump.Add(self.toggle_btn)
 
     def _create_expanded(self):
         """Create expanded view showing all characters and BODs."""
@@ -416,16 +417,16 @@ class BODStatusGump:
         header_bg.SetY(0)
         self.gump.Add(header_bg)
 
-        title = API.CreateGumpTTFLabel("BOD Tracker", 18, "#FFFFFF", "alagard")
+        title = API.CreateGumpTTFLabel("BOD Tracker", 16, "#FFFFFF", "IBMPlexSans-Text")
         title.SetX(10)
-        title.SetY(6)
+        title.SetY(8)
         self.gump.Add(title)
-
+        
         # Collapse button (▲)
-        collapse_btn = API.CreateGumpButton("▲", 996)
-        collapse_btn.SetX(self.width - 30)
-        collapse_btn.SetY(3)
-        self.gump.Add(collapse_btn)
+        self.toggle_btn = API.CreateGumpButton("▲", 996)
+        self.toggle_btn.SetX(self.width - 30)
+        self.toggle_btn.SetY(5)
+        self.gump.Add(self.toggle_btn)
 
         # Content area with scrolling if needed
         if content_height > 500:
@@ -442,7 +443,7 @@ class BODStatusGump:
         # Render character entries
         if not timers:
             no_data = API.CreateGumpTTFLabel(
-                "No BODs tracked yet", 16, "#808080", "alagard"
+                "No BODs tracked yet", 14, "#808080", "IBMPlexSans-Text"
             )
             no_data.SetX(10)
             no_data.SetY(y_offset)
@@ -464,35 +465,35 @@ class BODStatusGump:
             # Character header (divider line)
             divider_color = "#4a9eff" if char_name == current_char else "#606060"
             char_label = API.CreateGumpTTFLabel(
-                f"{char_name} " + "─" * 30, 14, divider_color, "alagard"
+                f"{char_name} " + "─" * 25, 13, divider_color, "IBMPlexSans-Text"
             )
             char_label.SetX(10)
             char_label.SetY(y_offset)
             container.Add(char_label)
-            y_offset += 25
-
+            y_offset += 23
+            
             # Sort BODs: ready first, then by time (soonest first)
             sorted_profs = sorted(profs.items(), key=lambda x: (x[1] > now, x[1]))
-
+            
             for profession, ready_at in sorted_profs:
                 remaining = ready_at - now
                 status = format_time_remaining(remaining)
-
+                
                 # Color code: green/gold for ready, white for waiting
                 if remaining <= 0:
                     color = "#00ff00"  # Bright green for ready
-                    text = f"  {profession:<20} {status}"
                 else:
                     color = "#cccccc"  # Light gray for waiting
-                    text = f"  {profession:<20} {status}"
-
-                bod_label = API.CreateGumpTTFLabel(text, 14, color, "alagard")
+                
+                # Use monospace font for proper alignment
+                text = f"  {profession:<18} {status:>8}"
+                bod_label = API.CreateGumpTTFLabel(text, 13, color, "IBMPlexMono-Text")
                 bod_label.SetX(10)
                 bod_label.SetY(y_offset)
                 container.Add(bod_label)
-                y_offset += 22
-
-            y_offset += 5  # Extra space between characters
+                y_offset += 20
+            
+            y_offset += 3  # Extra space between characters
 
         return y_offset
 
@@ -527,10 +528,15 @@ class BODStatusGump:
         now = time.time()
         if now - self.last_update < 60:  # Update once per minute
             return
-
+        
         self.last_update = now
         self.create()  # Recreate gump with updated content
-
+    
+    def check_buttons(self):
+        """Check if toggle button was clicked."""
+        if self.toggle_btn and self.toggle_btn.HasBeenClicked():
+            self.toggle()
+    
     def toggle(self):
         """Toggle between expanded and collapsed states."""
         self.expanded = not self.expanded
@@ -564,6 +570,9 @@ def main():
 
     while not API.StopRequested:
         now = time.time()
+
+        # Check for button clicks
+        status_gump.check_buttons()
 
         # Update gump periodically
         status_gump.update()
