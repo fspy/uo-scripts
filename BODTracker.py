@@ -534,11 +534,51 @@ class BODStatusGump:
                 bod_label.SetX(10)
                 bod_label.SetY(y_offset)
                 container.Add(bod_label)
+                
+                # Add click handler for ready BODs only
+                if remaining <= 0:
+                    # Capture profession in closure
+                    def make_handler(prof):
+                        return lambda: self._on_profession_click(prof)
+                    API.Gumps.AddControlOnClick(bod_label, make_handler(profession))
+                
                 y_offset += 26
 
             y_offset += 6  # Extra space between characters
 
         return y_offset
+
+    def _find_npc_for_profession(self, profession):
+        """Find nearby NPC matching the given profession."""
+        # Reverse lookup: get all suffixes that map to this profession
+        valid_suffixes = [s for s, p in NPC_SUFFIXES.items() if p == profession]
+        
+        for mob in API.GetAllMobiles(distance=12):
+            if not mob.Name:
+                continue
+            try:
+                props = mob.NameAndProps(wait=False, timeout=2)
+                if not props:
+                    continue
+                props_lower = props.lower()
+                for suffix in valid_suffixes:
+                    if suffix in props_lower:
+                        return mob.Serial
+            except:
+                continue
+        return None
+
+    def _on_profession_click(self, profession):
+        """Handle click on a ready BOD profession - request BOD from nearby NPC."""
+        # Find NPC for this profession
+        npc_serial = self._find_npc_for_profession(profession)
+        if not npc_serial:
+            API.SysMsg(f"No {profession} NPC nearby!", HUE_ALERT)
+            return
+        
+        # Request BOD via context menu
+        API.ContextMenu(npc_serial, CONTEXT_MENU_BOD_INFO)
+        API.SysMsg(f"Requesting {profession} BOD...", HUE_INFO)
 
     def _get_collapsed_status(self):
         """Get status text for collapsed bar."""
@@ -635,6 +675,9 @@ def main():
 
         # Check for button clicks
         status_gump.check_buttons()
+
+        # Process click callbacks
+        API.ProcessCallbacks()
 
         # Check if gump was closed externally and recreate
         status_gump.check_disposed()
