@@ -1,6 +1,7 @@
-"""Shared item moving utilities for Legion scripts."""
+"""Shared item moving utilities for Legion scripts.
 
-import API
+Note: API module is injected by Legion engine at runtime as a global.
+"""
 
 
 def move_item_robust(serial, dest, amount, max_retries=3):
