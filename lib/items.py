@@ -1,7 +1,15 @@
 """Shared item moving utilities for Legion scripts.
 
 Note: API module is injected by Legion engine at runtime as a global.
+Import is wrapped in try/except for type hints in editors.
 """
+
+# pyright: basic
+# Try to import API for type hints, but don't fail if unavailable
+try:
+    import API
+except (ImportError, NameError):
+    pass  # API is injected at runtime by Legion engine
 
 
 def move_item_robust(serial, dest, amount, max_retries=3):
