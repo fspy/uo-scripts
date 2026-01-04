@@ -124,12 +124,12 @@ def save_timer(char_name, profession, ready_at):
 
 def load_gump_position():
     """
-    Load saved gump position from persistent storage.
+    Load saved gump position from persistent storage (per-character).
 
     Returns:
         dict: {"x": int, "y": int} or empty dict if not saved
     """
-    raw = API.GetPersistentVar("BODGumpPosition", "", API.PersistentVar.Server)
+    raw = API.GetPersistentVar("BODGumpPosition", "", API.PersistentVar.Char)
     
     if not raw:
         return {}
@@ -142,7 +142,7 @@ def load_gump_position():
 
 def save_gump_position(x, y):
     """
-    Save gump position to persistent storage.
+    Save gump position to persistent storage (per-character).
 
     Args:
         x (int): X position
@@ -150,7 +150,7 @@ def save_gump_position(x, y):
     """
     position = {"x": x, "y": y}
     raw = json.dumps(position)
-    API.SavePersistentVar("BODGumpPosition", raw, API.PersistentVar.Server)
+    API.SavePersistentVar("BODGumpPosition", raw, API.PersistentVar.Char)
 
 
 # ============================================================================
