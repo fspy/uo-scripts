@@ -32,12 +32,8 @@ RECALL_BUTTON_STRIDE = 1
 SJ_BUTTON_BASE = 6
 SJ_BUTTON_STRIDE = 6
 
-# Travel detection messages
-TRAVEL_SUCCESS_MSGS = [
-    "You recall",
-    "You have been teleported",
-]
-
+# Travel failure detection messages
+# Note: There are no reliable success messages - only check for failures and position change
 TRAVEL_FAIL_MSGS = [
     "You have not yet recovered",
     "Spell fizzles",
@@ -137,35 +133,33 @@ class Runebook:
 def wait_for_travel(timeout: float = 5.0) -> bool:
     """
     Wait for recall/SJ travel to complete.
-    Monitors journal for success/failure messages and position changes.
+    Monitors journal for failure messages and position changes.
+    
+    Note: There are no reliable success messages for travel spells.
+    Success is detected by position change. Failure is detected by
+    journal messages (fizzle, encumbered, blocked, etc.).
     
     Args:
         timeout: Maximum time to wait for travel
         
     Returns:
-        True if travel succeeded, False if failed or timeout
+        True if position changed (travel succeeded), False if failed or timeout
     """
-    API.ClearJournal()
     start_pos = (API.Player.X, API.Player.Y)
     deadline = time.time() + timeout
     
     while time.time() < deadline and not API.StopRequested:
-        # Check for success messages
-        if API.InJournalAny(TRAVEL_SUCCESS_MSGS):
-            API.Pause(0.5)  # Brief pause to let position update
-            return True
-        
-        # Check for failure messages
+        # Check for failure messages (fizzle, encumbered, blocked, etc.)
         if API.InJournalAny(TRAVEL_FAIL_MSGS):
             return False
         
-        # Check if position changed significantly (fallback detection)
+        # Check if position changed significantly
         if abs(API.Player.X - start_pos[0]) > 5 or abs(API.Player.Y - start_pos[1]) > 5:
             return True
         
         API.Pause(0.1)
     
-    # Timeout
+    # Timeout - position didn't change
     return False
 
 
