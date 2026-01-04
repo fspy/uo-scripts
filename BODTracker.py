@@ -33,6 +33,8 @@ from lib.utils import format_time_remaining
 NPC_SUFFIXES = {
     "alchemist": "Alchemy",
     "blacksmith": "Blacksmithing",
+    "weaponsmith": "Blacksmithing",
+    "armourer": "Blacksmithing",
     "carpenter": "Carpentry",
     "cook": "Cooking",
     "bowyer": "Fletching",
