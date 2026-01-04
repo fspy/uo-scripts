@@ -22,6 +22,9 @@ Features:
 import API
 import time
 import re
+import json
+from lib.journal import find_entry
+from lib.utils import format_time_remaining
 
 # ============================================================================
 # CONFIGURATION
@@ -38,7 +41,8 @@ NPC_SUFFIXES = {
     "tinker": "Tinkering",
 }
 
-BOD_GUMP_ID = 0x9BADE6EA
+BOD_GUMP_ID = 0x9BADE6EA  # Small BOD gump
+LARGE_BOD_GUMP_ID = 0xBE0DAD1E  # Large BOD gump
 CONTEXT_MENU_BOD_INFO = 1  # "Bulk Order Info" context menu entry
 ACCEPT_BUTTON = 1  # OK button on BOD gump
 RETRIGGER_DELAY = 2.0  # Wait 2s between accept and re-trigger (for saves)
@@ -69,28 +73,20 @@ def load_all_timers():
         dict: {char_name: {profession: timestamp}}
     """
     raw = API.GetPersistentVar(STORAGE_KEY, "", API.PersistentVar.Server)
-    timers = {}
-
+    
     if not raw:
+        return {}
+
+    try:
+        timers = json.loads(raw)
+        # Ensure all values are floats (defensive coding)
+        for char_name in timers:
+            for prof in timers[char_name]:
+                timers[char_name][prof] = float(timers[char_name][prof])
         return timers
-
-    # Format: "CharName:prof=timestamp,prof=timestamp;CharName2:prof=timestamp"
-    for char_block in raw.split(";"):
-        if ":" not in char_block:
-            continue
-
-        char_name, profs = char_block.split(":", 1)
-        timers[char_name] = {}
-
-        for entry in profs.split(","):
-            if "=" in entry:
-                prof, ts = entry.split("=", 1)
-                try:
-                    timers[char_name][prof] = float(ts)
-                except ValueError:
-                    pass  # Skip invalid entries
-
-    return timers
+    except (ValueError, TypeError, KeyError):
+        # If JSON parsing fails, return empty dict (fresh start)
+        return {}
 
 
 def save_all_timers(timers):
@@ -100,14 +96,9 @@ def save_all_timers(timers):
     Args:
         timers (dict): {char_name: {profession: timestamp}}
     """
-    parts = []
-    for char_name, profs in timers.items():
-        if not profs:
-            continue  # Skip chars with no timers
-        prof_parts = [f"{p}={t}" for p, t in profs.items()]
-        parts.append(f"{char_name}:{','.join(prof_parts)}")
-
-    raw = ";".join(parts)
+    # Remove characters with no timers before saving
+    cleaned = {char: profs for char, profs in timers.items() if profs}
+    raw = json.dumps(cleaned)
     API.SavePersistentVar(STORAGE_KEY, raw, API.PersistentVar.Server)
 
 
@@ -127,32 +118,6 @@ def save_timer(char_name, profession, ready_at):
 
     timers[char_name][profession] = ready_at
     save_all_timers(timers)
-
-
-# ============================================================================
-# TIME FORMATTING
-# ============================================================================
-
-
-def format_time_remaining(seconds):
-    """
-    Format seconds as human-readable time.
-
-    Args:
-        seconds (float): Seconds remaining
-
-    Returns:
-        str: Formatted time like "5h 59m", "45m", or "READY!"
-    """
-    if seconds <= 0:
-        return "READY!"
-
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-
-    if hours > 0:
-        return f"{hours}h {minutes}m"
-    return f"{minutes}m"
 
 
 # ============================================================================
@@ -184,7 +149,7 @@ def detect_profession_from_props(props):
 def find_profession_npc(preferred_name=None):
     """
     Find nearby profession NPC using NameAndProps().
-    
+
     Args:
         preferred_name (str): If provided, prefer NPC with this name (from journal speaker)
 
@@ -193,7 +158,7 @@ def find_profession_npc(preferred_name=None):
     """
     candidates = []  # List of (serial, profession, distance, name_match)
     player_pos = (API.Player.X, API.Player.Y)
-    
+
     for mob in API.GetAllMobiles(distance=5):
         if not mob.Name:
             continue
@@ -205,17 +170,17 @@ def find_profession_npc(preferred_name=None):
                 # Calculate distance to player
                 dist = abs(mob.X - player_pos[0]) + abs(mob.Y - player_pos[1])
                 # Check if name matches preferred (journal speaker)
-                name_match = (preferred_name and mob.Name == preferred_name)
+                name_match = preferred_name and mob.Name == preferred_name
                 candidates.append((mob.Serial, profession, dist, name_match))
         except:
             continue
-    
+
     if not candidates:
         return None, None
-    
+
     # Sort: prioritize name match first, then closest distance
     candidates.sort(key=lambda x: (not x[3], x[2]))
-    
+
     return candidates[0][0], candidates[0][1]
 
 
@@ -226,14 +191,15 @@ def find_profession_npc(preferred_name=None):
 
 def detect_bod_gump():
     """
-    Check if BOD gump is open.
+    Check if BOD gump is open (small or large).
 
     Returns:
         int: Gump ID if BOD gump is open, None otherwise
     """
-    gump_id = API.HasGump(BOD_GUMP_ID)
-    if gump_id:
-        return gump_id
+    # Check for both small and large BOD gumps
+    for gump_id in (BOD_GUMP_ID, LARGE_BOD_GUMP_ID):
+        if API.HasGump(gump_id):
+            return gump_id
     return None
 
 
@@ -269,16 +235,15 @@ def check_for_timer_message():
     Returns:
         tuple: (minutes, speaker_name) or (None, None) if not found
     """
-    entries = API.GetJournalEntries(3, "offer may be available")
-    if not entries:
+    entry = find_entry("offer may be available", timeout=0.1, seconds_back=3)
+    if not entry:
         return None, None
 
-    for entry in entries:
-        match = re.search(TIMER_MSG_PATTERN, entry.Text)
-        if match:
-            minutes = int(match.group(1))
-            speaker_name = entry.Name if entry.Name else None
-            return minutes, speaker_name
+    match = re.search(TIMER_MSG_PATTERN, entry.Text)
+    if match:
+        minutes = int(match.group(1))
+        speaker_name = entry.Name if entry.Name else None
+        return minutes, speaker_name
 
     return None, None
 
@@ -359,14 +324,227 @@ def notify_bod_ready(char_name, profession):
 
 
 # ============================================================================
+# BOD STATUS GUMP UI
+# ============================================================================
+
+
+class BODStatusGump:
+    """Interactive gump showing BOD timers for all characters."""
+    
+    def __init__(self):
+        """Initialize the gump in expanded state."""
+        self.gump = None
+        self.expanded = True
+        self.last_update = 0
+        self.width = 350
+        self.collapsed_height = 40
+        self.header_height = 30
+        
+    def create(self):
+        """Create and display the gump."""
+        if self.gump:
+            API.CloseGump(self.gump)
+        
+        self.gump = API.CreateGump(acceptMouseInput=True, canMove=True)
+        self.gump.SetX(100)
+        self.gump.SetY(100)
+        
+        if self.expanded:
+            self._create_expanded()
+        else:
+            self._create_collapsed()
+        
+        API.AddGump(self.gump)
+    
+    def _create_collapsed(self):
+        """Create collapsed bar view showing earliest BOD."""
+        self.gump.SetWidth(self.width)
+        self.gump.SetHeight(self.collapsed_height)
+        
+        # Background
+        bg = API.CreateGumpColorBox(0.8, "#1a1a1a")
+        bg.SetWidth(self.width)
+        bg.SetHeight(self.collapsed_height)
+        bg.SetX(0)
+        bg.SetY(0)
+        self.gump.Add(bg)
+        
+        # Get status text
+        status_text = self._get_collapsed_status()
+        
+        # Status label
+        label = API.CreateGumpTTFLabel(status_text, 16, "#FFFFFF", "alagard")
+        label.SetX(10)
+        label.SetY(12)
+        self.gump.Add(label)
+        
+        # Expand button (▼)
+        expand_btn = API.CreateGumpButton("▼", 996)
+        expand_btn.SetX(self.width - 30)
+        expand_btn.SetY(8)
+        self.gump.Add(expand_btn)
+    
+    def _create_expanded(self):
+        """Create expanded view showing all characters and BODs."""
+        timers = load_all_timers()
+        now = time.time()
+        
+        # Calculate height based on content
+        char_count = len(timers)
+        bod_count = sum(len(profs) for profs in timers.values())
+        content_height = self.header_height + (char_count * 25) + (bod_count * 22) + 20
+        total_height = min(content_height, 500)  # Cap at 500px
+        
+        self.gump.SetWidth(self.width)
+        self.gump.SetHeight(total_height)
+        
+        # Background
+        bg = API.CreateGumpColorBox(0.9, "#1a1a1a")
+        bg.SetWidth(self.width)
+        bg.SetHeight(total_height)
+        bg.SetX(0)
+        bg.SetY(0)
+        self.gump.Add(bg)
+        
+        # Header
+        header_bg = API.CreateGumpColorBox(1.0, "#2d2d2d")
+        header_bg.SetWidth(self.width)
+        header_bg.SetHeight(self.header_height)
+        header_bg.SetX(0)
+        header_bg.SetY(0)
+        self.gump.Add(header_bg)
+        
+        title = API.CreateGumpTTFLabel("BOD Tracker", 18, "#FFFFFF", "alagard")
+        title.SetX(10)
+        title.SetY(6)
+        self.gump.Add(title)
+        
+        # Collapse button (▲)
+        collapse_btn = API.CreateGumpButton("▲", 996)
+        collapse_btn.SetX(self.width - 30)
+        collapse_btn.SetY(3)
+        self.gump.Add(collapse_btn)
+        
+        # Content area with scrolling if needed
+        if content_height > 500:
+            scroll = API.CreateGumpScrollArea(0, self.header_height, self.width, total_height - self.header_height)
+            self.gump.Add(scroll)
+            container = scroll
+            y_offset = 10
+        else:
+            container = self.gump
+            y_offset = self.header_height + 10
+        
+        # Render character entries
+        if not timers:
+            no_data = API.CreateGumpTTFLabel("No BODs tracked yet", 16, "#808080", "alagard")
+            no_data.SetX(10)
+            no_data.SetY(y_offset)
+            container.Add(no_data)
+        else:
+            y_offset = self._render_character_entries(container, timers, now, y_offset)
+    
+    def _render_character_entries(self, container, timers, now, y_offset):
+        """Render character sections with their BODs."""
+        # Sort: current char first, then alphabetically
+        current_char = API.Player.Name
+        sorted_chars = sorted(timers.keys(), key=lambda c: (c != current_char, c))
+        
+        for char_name in sorted_chars:
+            profs = timers[char_name]
+            if not profs:
+                continue
+            
+            # Character header (divider line)
+            divider_color = "#4a9eff" if char_name == current_char else "#606060"
+            char_label = API.CreateGumpTTFLabel(f"{char_name} " + "─" * 30, 14, divider_color, "alagard")
+            char_label.SetX(10)
+            char_label.SetY(y_offset)
+            container.Add(char_label)
+            y_offset += 25
+            
+            # Sort BODs: ready first, then by time (soonest first)
+            sorted_profs = sorted(profs.items(), key=lambda x: (x[1] > now, x[1]))
+            
+            for profession, ready_at in sorted_profs:
+                remaining = ready_at - now
+                status = format_time_remaining(remaining)
+                
+                # Color code: green/gold for ready, white for waiting
+                if remaining <= 0:
+                    color = "#00ff00"  # Bright green for ready
+                    text = f"  {profession:<20} {status}"
+                else:
+                    color = "#cccccc"  # Light gray for waiting
+                    text = f"  {profession:<20} {status}"
+                
+                bod_label = API.CreateGumpTTFLabel(text, 14, color, "alagard")
+                bod_label.SetX(10)
+                bod_label.SetY(y_offset)
+                container.Add(bod_label)
+                y_offset += 22
+            
+            y_offset += 5  # Extra space between characters
+        
+        return y_offset
+    
+    def _get_collapsed_status(self):
+        """Get status text for collapsed bar."""
+        timers = load_all_timers()
+        current_char = API.Player.Name
+        now = time.time()
+        
+        if not timers or current_char not in timers:
+            return "No BODs tracked"
+        
+        char_timers = timers[current_char]
+        if not char_timers:
+            return "No BODs tracked"
+        
+        # Check for ready BODs
+        ready_bods = [(prof, ts) for prof, ts in char_timers.items() if ts <= now]
+        
+        if ready_bods:
+            count = len(ready_bods)
+            return f"{current_char}: {count} READY!"
+        
+        # Show earliest timer
+        earliest_prof, earliest_time = min(char_timers.items(), key=lambda x: x[1])
+        remaining = earliest_time - now
+        status = format_time_remaining(remaining)
+        return f"{current_char} - {earliest_prof}: {status}"
+    
+    def update(self):
+        """Refresh the gump content if enough time has passed."""
+        now = time.time()
+        if now - self.last_update < 60:  # Update once per minute
+            return
+        
+        self.last_update = now
+        self.create()  # Recreate gump with updated content
+    
+    def toggle(self):
+        """Toggle between expanded and collapsed states."""
+        self.expanded = not self.expanded
+        self.create()
+    
+    def close(self):
+        """Close the gump."""
+        if self.gump:
+            API.CloseGump(self.gump)
+            self.gump = None
+
+
+# ============================================================================
 # MAIN LOOP
 # ============================================================================
 
 
 def main():
     """Main script loop."""
-    # Show startup status
-    show_startup_status()
+    # Create and show status gump
+    status_gump = BODStatusGump()
+    status_gump.create()
 
     # State tracking
     current_npc_serial = None
@@ -378,6 +556,9 @@ def main():
 
     while not API.StopRequested:
         now = time.time()
+
+        # Update gump periodically
+        status_gump.update()
 
         # A) Check for BOD gump
         gump_id = detect_bod_gump()
@@ -412,6 +593,8 @@ def main():
                 ready_at = now + (minutes * 60)
                 save_timer(API.Player.Name, profession, ready_at)
                 notify_timer_saved(profession, minutes)
+                # Refresh gump immediately to show new timer
+                status_gump.create()
                 # Clear timer message from journal
                 API.ClearJournal("offer may be available")
             else:
@@ -438,6 +621,9 @@ def main():
                             last_notifications[key] = now
 
         API.Pause(0.5)
+    
+    # Clean up on exit
+    status_gump.close()
 
 
 # ============================================================================

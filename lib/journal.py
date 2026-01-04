@@ -41,3 +41,34 @@ def wait_for_any(messages: list, timeout: float) -> bool:
             return True
         API.Pause(0.05)
     return False
+
+
+def find_entry(pattern, timeout=5.0, seconds_back=5):
+    """
+    Wait for and return a journal entry matching a pattern.
+    
+    Polls the journal every 50ms until a matching entry is found or timeout expires.
+    
+    Args:
+        pattern: String or regex pattern to search for (prefix with $ for regex)
+        timeout: Maximum seconds to wait for the entry
+        seconds_back: How many seconds back to search in journal history
+    
+    Returns:
+        Journal entry object with .Text, .Name, .Hue attributes, or None if timeout
+    
+    Example:
+        entry = find_entry("offer may be available", timeout=2.0)
+        if entry:
+            print(f"{entry.Name} said: {entry.Text}")
+        else:
+            print("No matching entry found")
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline and not API.StopRequested:
+        entries = API.GetJournalEntries(seconds_back, pattern)
+        if entries:
+            # Return the most recent matching entry
+            return entries[-1]
+        API.Pause(0.05)
+    return None

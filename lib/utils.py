@@ -100,3 +100,32 @@ def dismount_if_mounted(delay: float = 0.5) -> None:
     if API.Player and API.Player.Mount:
         API.Dismount()
         API.Pause(delay)
+
+
+def format_time_remaining(seconds):
+    """
+    Format seconds as human-readable time.
+    
+    Converts a time duration in seconds to a compact, readable format.
+    Useful for displaying cooldowns, timers, and ETA information.
+    
+    Args:
+        seconds: Seconds remaining (can be float or int)
+    
+    Returns:
+        Formatted time string like "5h 59m", "45m", or "READY!"
+    
+    Example:
+        format_time_remaining(3661)   # Returns "1h 1m"
+        format_time_remaining(120)     # Returns "2m"
+        format_time_remaining(-5)      # Returns "READY!"
+    """
+    if seconds <= 0:
+        return "READY!"
+
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
