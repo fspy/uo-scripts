@@ -57,13 +57,17 @@ FIRE_BEETLE_HUE = 1161
 # Items to drop at home storage
 INGOT_TYPE = 0x1BF2
 BONUS_MINING_ITEMS = [
+    0xDF8,  # Large Jade Stone
+    0xF28,  # A Small Piece of Blackrock
     0x1726,  # Small Jade Stone
     0x3192,  # Dark Sapphire
     0x3193,  # Turquoise
+    0x3194,  # Perfect Emerald
     0x3195,  # Ecru Citrine
     0x3197,  # Fire Ruby
     0x3198,  # Blue Diamond
     0x4B4B,  # Cracked Lava Rock
+    0x5732,  # Crystalline Blackrock
 ]
 DROP_ITEM_TYPES = [INGOT_TYPE] + BONUS_MINING_ITEMS
 
@@ -73,6 +77,7 @@ MAX_TRAVEL_RETRIES = 3
 TRAVEL_RETRY_DELAY = 2.0  # Seconds between retry attempts
 
 # Weight and item finding functions moved to lib modules (lib.weight, lib.utils)
+
 
 def find_shovel():
     return API.FindType(SHOVEL_TYPE, API.Backpack)
