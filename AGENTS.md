@@ -40,6 +40,12 @@ bd sync               # Sync with git
 - Scripts should import from lib rather than duplicating code
 - Existing libs: `lib/items.py`, `Runebook.py`
 
+### Debugging
+- Script errors and system messages are logged to journal files
+- Location: `/mnt/games/uo/TazUO/TazUO/Data/Client/JournalLogs/`
+- Files named like `2026_01_04_13_14_59_CharName_journal.txt`
+- Search for errors: `rg "traceback|error|exception" <journal_file>`
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.

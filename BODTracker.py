@@ -73,7 +73,7 @@ def load_all_timers():
         dict: {char_name: {profession: timestamp}}
     """
     raw = API.GetPersistentVar(STORAGE_KEY, "", API.PersistentVar.Server)
-    
+
     if not raw:
         return {}
 
@@ -330,7 +330,7 @@ def notify_bod_ready(char_name, profession):
 
 class BODStatusGump:
     """Interactive gump showing BOD timers for all characters."""
-    
+
     def __init__(self):
         """Initialize the gump in expanded state."""
         self.gump = None
@@ -339,28 +339,28 @@ class BODStatusGump:
         self.width = 350
         self.collapsed_height = 40
         self.header_height = 30
-        
+
     def create(self):
         """Create and display the gump."""
         if self.gump:
-            API.CloseGump(self.gump)
+            API.CloseGumps()  # Close all script-created gumps
         
         self.gump = API.CreateGump(acceptMouseInput=True, canMove=True)
         self.gump.SetX(100)
         self.gump.SetY(100)
-        
+
         if self.expanded:
             self._create_expanded()
         else:
             self._create_collapsed()
-        
+
         API.AddGump(self.gump)
-    
+
     def _create_collapsed(self):
         """Create collapsed bar view showing earliest BOD."""
         self.gump.SetWidth(self.width)
         self.gump.SetHeight(self.collapsed_height)
-        
+
         # Background
         bg = API.CreateGumpColorBox(0.8, "#1a1a1a")
         bg.SetWidth(self.width)
@@ -368,36 +368,36 @@ class BODStatusGump:
         bg.SetX(0)
         bg.SetY(0)
         self.gump.Add(bg)
-        
+
         # Get status text
         status_text = self._get_collapsed_status()
-        
+
         # Status label
         label = API.CreateGumpTTFLabel(status_text, 16, "#FFFFFF", "alagard")
         label.SetX(10)
         label.SetY(12)
         self.gump.Add(label)
-        
+
         # Expand button (▼)
         expand_btn = API.CreateGumpButton("▼", 996)
         expand_btn.SetX(self.width - 30)
         expand_btn.SetY(8)
         self.gump.Add(expand_btn)
-    
+
     def _create_expanded(self):
         """Create expanded view showing all characters and BODs."""
         timers = load_all_timers()
         now = time.time()
-        
+
         # Calculate height based on content
         char_count = len(timers)
         bod_count = sum(len(profs) for profs in timers.values())
         content_height = self.header_height + (char_count * 25) + (bod_count * 22) + 20
         total_height = min(content_height, 500)  # Cap at 500px
-        
+
         self.gump.SetWidth(self.width)
         self.gump.SetHeight(total_height)
-        
+
         # Background
         bg = API.CreateGumpColorBox(0.9, "#1a1a1a")
         bg.SetWidth(self.width)
@@ -405,7 +405,7 @@ class BODStatusGump:
         bg.SetX(0)
         bg.SetY(0)
         self.gump.Add(bg)
-        
+
         # Header
         header_bg = API.CreateGumpColorBox(1.0, "#2d2d2d")
         header_bg.SetWidth(self.width)
@@ -413,63 +413,69 @@ class BODStatusGump:
         header_bg.SetX(0)
         header_bg.SetY(0)
         self.gump.Add(header_bg)
-        
+
         title = API.CreateGumpTTFLabel("BOD Tracker", 18, "#FFFFFF", "alagard")
         title.SetX(10)
         title.SetY(6)
         self.gump.Add(title)
-        
+
         # Collapse button (▲)
         collapse_btn = API.CreateGumpButton("▲", 996)
         collapse_btn.SetX(self.width - 30)
         collapse_btn.SetY(3)
         self.gump.Add(collapse_btn)
-        
+
         # Content area with scrolling if needed
         if content_height > 500:
-            scroll = API.CreateGumpScrollArea(0, self.header_height, self.width, total_height - self.header_height)
+            scroll = API.CreateGumpScrollArea(
+                0, self.header_height, self.width, total_height - self.header_height
+            )
             self.gump.Add(scroll)
             container = scroll
             y_offset = 10
         else:
             container = self.gump
             y_offset = self.header_height + 10
-        
+
         # Render character entries
         if not timers:
-            no_data = API.CreateGumpTTFLabel("No BODs tracked yet", 16, "#808080", "alagard")
+            no_data = API.CreateGumpTTFLabel(
+                "No BODs tracked yet", 16, "#808080", "alagard"
+            )
             no_data.SetX(10)
             no_data.SetY(y_offset)
             container.Add(no_data)
         else:
             y_offset = self._render_character_entries(container, timers, now, y_offset)
-    
+
     def _render_character_entries(self, container, timers, now, y_offset):
         """Render character sections with their BODs."""
         # Sort: current char first, then alphabetically
         current_char = API.Player.Name
         sorted_chars = sorted(timers.keys(), key=lambda c: (c != current_char, c))
-        
+
         for char_name in sorted_chars:
             profs = timers[char_name]
             if not profs:
                 continue
-            
+
             # Character header (divider line)
             divider_color = "#4a9eff" if char_name == current_char else "#606060"
-            char_label = API.CreateGumpTTFLabel(f"{char_name} " + "─" * 30, 14, divider_color, "alagard")
+            char_label = API.CreateGumpTTFLabel(
+                f"{char_name} " + "─" * 30, 14, divider_color, "alagard"
+            )
             char_label.SetX(10)
             char_label.SetY(y_offset)
             container.Add(char_label)
             y_offset += 25
-            
+
             # Sort BODs: ready first, then by time (soonest first)
             sorted_profs = sorted(profs.items(), key=lambda x: (x[1] > now, x[1]))
-            
+
             for profession, ready_at in sorted_profs:
                 remaining = ready_at - now
                 status = format_time_remaining(remaining)
-                
+
                 # Color code: green/gold for ready, white for waiting
                 if remaining <= 0:
                     color = "#00ff00"  # Bright green for ready
@@ -477,61 +483,61 @@ class BODStatusGump:
                 else:
                     color = "#cccccc"  # Light gray for waiting
                     text = f"  {profession:<20} {status}"
-                
+
                 bod_label = API.CreateGumpTTFLabel(text, 14, color, "alagard")
                 bod_label.SetX(10)
                 bod_label.SetY(y_offset)
                 container.Add(bod_label)
                 y_offset += 22
-            
+
             y_offset += 5  # Extra space between characters
-        
+
         return y_offset
-    
+
     def _get_collapsed_status(self):
         """Get status text for collapsed bar."""
         timers = load_all_timers()
         current_char = API.Player.Name
         now = time.time()
-        
+
         if not timers or current_char not in timers:
             return "No BODs tracked"
-        
+
         char_timers = timers[current_char]
         if not char_timers:
             return "No BODs tracked"
-        
+
         # Check for ready BODs
         ready_bods = [(prof, ts) for prof, ts in char_timers.items() if ts <= now]
-        
+
         if ready_bods:
             count = len(ready_bods)
             return f"{current_char}: {count} READY!"
-        
+
         # Show earliest timer
         earliest_prof, earliest_time = min(char_timers.items(), key=lambda x: x[1])
         remaining = earliest_time - now
         status = format_time_remaining(remaining)
         return f"{current_char} - {earliest_prof}: {status}"
-    
+
     def update(self):
         """Refresh the gump content if enough time has passed."""
         now = time.time()
         if now - self.last_update < 60:  # Update once per minute
             return
-        
+
         self.last_update = now
         self.create()  # Recreate gump with updated content
-    
+
     def toggle(self):
         """Toggle between expanded and collapsed states."""
         self.expanded = not self.expanded
         self.create()
-    
+
     def close(self):
         """Close the gump."""
         if self.gump:
-            API.CloseGump(self.gump)
+            API.CloseGumps()  # Close all script-created gumps
             self.gump = None
 
 
@@ -621,7 +627,7 @@ def main():
                             last_notifications[key] = now
 
         API.Pause(0.5)
-    
+
     # Clean up on exit
     status_gump.close()
 
