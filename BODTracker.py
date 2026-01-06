@@ -40,7 +40,8 @@ NPC_SUFFIXES = {
     "cook": "Cooking",
     "bowyer": "Fletching",
     "scribe": "Inscription",
-    "tailor": "Tailoring",
+    #"tailor": "Tailoring",
+    "weaver": "Tailoring",
     "tinker": "Tinkering",
 }
 
@@ -48,7 +49,7 @@ BOD_GUMP_ID = 0x9BADE6EA  # Small BOD gump
 LARGE_BOD_GUMP_ID = 0xBE0DAD1E  # Large BOD gump
 CONTEXT_MENU_BOD_INFO = 1  # "Bulk Order Info" context menu entry
 ACCEPT_BUTTON = 1  # OK button on BOD gump
-RETRIGGER_DELAY = 2.0  # Wait 2s between accept and re-trigger (for saves)
+RETRIGGER_DELAY = 0.5  # Wait 0.5s between accept and re-trigger (for saves)
 READY_CHECK_INTERVAL = 60  # Check for ready BODs every 60s
 READY_REMINDER_INTERVAL = 300  # Re-notify every 5 min
 STORAGE_KEY = "BODTimers"
@@ -481,7 +482,7 @@ class BODStatusGump:
         # Render character entries
         if not timers:
             no_data = API.CreateGumpTTFLabel(
-                "No BODs tracked yet", 20, "#808080", "IBMPlexSans-Text"
+                "No BODs tracked yet", 20, "#808080", "IBMPlexSans-Medium"
             )
             no_data.SetX(10)
             no_data.SetY(y_offset)
@@ -503,7 +504,7 @@ class BODStatusGump:
             # Character header (divider line)
             divider_color = "#4a9eff" if char_name == current_char else "#606060"
             char_label = API.CreateGumpTTFLabel(
-                f"{char_name} " + "─" * 25, 20, divider_color, "IBMPlexSans-Text"
+                f"{char_name} " + "─" * 25, 20, divider_color, "IBMPlexSans-Medium"
             )
             char_label.SetX(10)
             char_label.SetY(y_offset)
@@ -525,7 +526,7 @@ class BODStatusGump:
 
                 # Use monospace font for proper alignment
                 text = f"  {profession:<18} {status:>8}"
-                bod_label = API.CreateGumpTTFLabel(text, 18, color, "IBMPlexMono-Text")
+                bod_label = API.CreateGumpTTFLabel(text, 18, color, "IBMPlexMono-Medium")
                 bod_label.SetX(10)
                 bod_label.SetY(y_offset)
                 container.Add(bod_label)
@@ -752,7 +753,7 @@ def main():
                             notify_bod_ready(char_name, profession)
                             last_notifications[key] = now
 
-        API.Pause(0.5)
+        API.Pause(0.05)
 
     # Clean up on exit
     status_gump.close()
