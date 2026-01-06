@@ -5,6 +5,9 @@ line-length = 88
 # Python version
 target-version = "py38"
 
+# Exclude auto-generated files
+extend-exclude = ["API.py"]
+
 [tool.ruff.lint]
 # Enable pycodestyle (E), Pyflakes (F), and isort (I)
 select = ["E", "F", "I"]
