@@ -11,21 +11,23 @@ from lib.crafting import (
 )
 
 # === CONFIGURATION ===
-SKILL_NAME = "Tailoring"
-TARGET_SKILL = 96.0  # Stop here. Set to None to train to skill cap.
+SKILL_NAME = "Tinkering"
+TARGET_SKILL = 70.0  # Stop here. Set to None to train to skill cap.
 CRAFTING_GUMP = 0x38920ABD
-TOOL_TYPE = 0xF9D  # sewing kit
-TOOL_CONTAINER = 0x4101CA29  # tools stored here, also salvage container
+TOOL_TYPE = 0x1EB8  # sewing kit
+TOOL_CONTAINER = API.Player.Backpack  # tools stored here, also salvage container
 SALVAGE_ITEM_THRESHOLD = 100  # salvage when backpack has this many items
 SALVAGE_WEIGHT_BUFFER = 50  # salvage when within this many stones of max weight
 
 # Skill brackets: (max_skill, page, button, description)
 SKILL_BRACKETS = [
-    (29.0, None, None, "too low - train manually to 29.0 first"),
-    (41.4, 15, 135, "short pants"),
-    (50.0, 15, 51, "cloak"),
-    (74.6, 29, 9, "fur boots"),
-    (120.0, 22, 86, "oil cloth"),
+    (40.0, None, None, "too low - train to 40 in new haven"),
+    (45.0, 15, 2, "scissors"),
+    (60.0, 15, 86, "tongs"),
+    (75.0, 15, 121, "lockpick"),
+    (85.0, 1, 9, "bracelet"),
+    (90.0, 36, 37, "spyglass"),
+    (100.0, 1, 2, "ring"),
 ]
 
 # === SCRIPT STATE ===
@@ -83,7 +85,8 @@ def main():
         page, button = bracket
         craft_item(CRAFTING_GUMP, page_tracker.get_page(page), button)
         wait_for_gump_or_replace_tool(CRAFTING_GUMP, TOOL_TYPE, TOOL_CONTAINER)
-        salvage_if_needed()
+        if SKILL_NAME in ["Blacksmithing", "Tailoring"]:
+            salvage_if_needed()
 
     # Training complete
     final_skill = API.GetSkill(SKILL_NAME).Value

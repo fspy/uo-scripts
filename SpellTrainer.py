@@ -10,13 +10,14 @@ USAGE: Just change SKILL_NAME below to switch between skills.
 import API
 import time
 from enum import Enum
+from lib.spells import calculate_recovery_time, calculate_full_spell_delay
 
 
 # =============================================================================
 # CONFIGURATION - Just change SKILL_NAME to switch presets
 # =============================================================================
 
-SKILL_NAME = "Magery"  # Options: "Spellweaving", "Magery", "Necromancy"
+SKILL_NAME = "Chivalry"  # Options: "Spellweaving", "Magery", "Necromancy", "Chivalry"
 
 # Healing config (set HEAL_SPELL to None to disable)
 HEAL_SPELL = (
@@ -28,10 +29,9 @@ HEAL_SPELL = (
 HEAL_THRESHOLD = 0.5
 
 # Timing settings
-MIN_DELAY = 0.5
 BASE_RECOVERY = 1.5
-SERVER_LATENCY = 0.2
 MEDITATION_COOLDOWN = 10.0  # Meditation skill internal cooldown (seconds)
+FCR_CAP = 6
 
 # Other
 FOLLOWER_DISMISS_DISTANCE = 2
@@ -74,6 +74,16 @@ PRESETS = {
             (100, "Lich Form", 2.0, 23, False, "NONE"),
         ],
     },
+    "Chivalry": {
+        "fc_cap": 4,
+        "phases": [
+            (45, "Consecrate Weapon", 0.5, 10, False, "NONE"),
+            (60, "Divine Fury", 1.5, 15, False, "NONE"),
+            (70, "Enemy of One", 2, 20, False, "NONE"),
+            (90, "Holy Light", 2, 10, False, "NONE"),
+            (120, "Noble Sacrifice", 3, 20, False, "NONE"),
+        ],
+    },
 }
 
 # Auto-select preset
@@ -102,25 +112,7 @@ def get_skill():
     return skill.Value if skill else 0.0
 
 
-def calculate_spell_delay(base_cast_time):
-    """Calculate the actual spell cast + recovery time based on player's FC/FCR"""
-    # Get player's FC and FCR
-    fc = min(API.Player.FasterCasting, FC_CAP)
-    fcr = min(API.Player.FasterCastRecovery, 6)  # FCR caps at 6
 
-    # Calculate actual cast time (FC reduces by 0.25s per level)
-    actual_cast_time = max(0.5, base_cast_time - (fc * 0.25))
-
-    # Calculate recovery time (FCR reduces by 0.25s per level)
-    actual_recovery = max(0.0, BASE_RECOVERY - (fcr * 0.25))
-
-    # Add server latency buffer before applying minimum delay floor
-    total_delay = actual_cast_time + actual_recovery + SERVER_LATENCY
-
-    # Apply minimum delay floor
-    final_delay = max(MIN_DELAY, total_delay)
-
-    return final_delay
 
 
 def wait_for_mana(min_mana):
@@ -153,13 +145,23 @@ def cast_spell(spell_name, base_cast_time, mana_cost, target_self=False):
         return False
 
     API.CastSpell(spell_name)
-    delay = calculate_spell_delay(base_cast_time)
-    API.Pause(delay)
 
     if target_self:
+        # Wait for target cursor (cast time consumed here)
         if API.WaitForTarget("any", 5):
             API.TargetSelf()
-            API.Pause(0.5)  # Short delay after targeting
+            # Only wait for recovery after targeting
+            recovery = calculate_recovery_time(base_recovery=BASE_RECOVERY, fcr_cap=FCR_CAP)
+            API.Pause(recovery)
+    else:
+        # Non-targeted spell - need full delay (cast + recovery)
+        delay = calculate_full_spell_delay(
+            base_cast_time, 
+            fc_cap=FC_CAP, 
+            base_recovery=BASE_RECOVERY, 
+            fcr_cap=FCR_CAP
+        )
+        API.Pause(delay)
 
     return True
 
@@ -189,8 +191,9 @@ def heal_if_needed():
 def train_phase(end_skill, spell_name, base_cast_time, mana_cost, target_self, handler):
     """Train a specific skill range with optional special handling"""
     skill = get_skill()
+    skill_cap = API.GetSkill(SKILL_NAME).Cap
 
-    while skill < end_skill and not API.StopRequested:
+    while skill < end_skill and skill < skill_cap and not API.StopRequested:
         if handler == "DISMISS_FOLLOWERS":
             dismiss_followers()
         elif handler == "HEAL_CHECK":
@@ -201,12 +204,19 @@ def train_phase(end_skill, spell_name, base_cast_time, mana_cost, target_self, h
 
 
 def main():
+    skill_cap = API.GetSkill(SKILL_NAME).Cap
+    
     for phase in TRAINING_PHASES:
         if API.StopRequested:
             break
 
         end_skill, spell_name, base_cast_time, mana_cost, target_self, handler = phase
         current_skill = get_skill()
+
+        # Stop if we've reached skill cap
+        if current_skill >= skill_cap:
+            API.SysMsg(f"{SKILL_NAME} at cap ({skill_cap})", 68)
+            break
 
         if current_skill < end_skill:
             train_phase(
