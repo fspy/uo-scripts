@@ -35,6 +35,12 @@ bd sync               # Sync with git
   ```
 - Use **ripgrep** (`rg`) for fast text searches, not `grep`
 
+### Code Formatting
+- Use **ruff** for Python formatting: `/home/fspy/.local/share/nvim/mason/bin/ruff format .`
+- Configuration is in `pyproject.toml` (88 char line length, double quotes)
+- Run ruff format before committing code changes
+- `API.py` is excluded (auto-generated, don't format)
+
 ### Shared Libraries
 - Common utilities go in `lib/` folder
 - Scripts should import from lib rather than duplicating code
