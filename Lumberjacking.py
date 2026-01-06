@@ -7,7 +7,7 @@ from lib.persistence import setup_target
 from lib.weight import is_heavy, is_overweight
 from lib.utils import count_items, stop_script, chebyshev_distance
 from lib.journal import wait_for_any
-from lib.runebook import recall_and_target, TRAVEL_FAIL_MSGS
+from lib.runebook import recall_and_target, recall_with_retry, TRAVEL_FAIL_MSGS
 
 # =========================
 # CONFIG
@@ -850,8 +850,8 @@ def deposit_routine(state):
 
     # 4. Cast Recall to runebook (go home)
     API.HeadMsg("Recalling home...", API.Player.Serial, 946)
-    if not recall_and_target(state.runebook_serial):
-        stop_script("Failed to recall home")
+    if not recall_with_retry(state.runebook_serial, max_retries=3, retry_delay=2.0):
+        stop_script("Failed to recall home after 3 attempts")
         return False
 
     # 5. Pathfind to drop chest
@@ -872,8 +872,8 @@ def deposit_routine(state):
 
     # 7. Cast Recall to marked rune (return to lumber spot)
     API.HeadMsg("Recalling back...", API.Player.Serial, 946)
-    if not recall_and_target(state.rune_serial):
-        stop_script("Failed to recall back to lumber spot")
+    if not recall_with_retry(state.rune_serial, max_retries=3, retry_delay=2.0):
+        stop_script("Failed to recall back to lumber spot after 3 attempts")
         return False
 
     # Re-open pack animal backpack after teleport
@@ -982,7 +982,7 @@ def main():
                 )
                 API.Dress("Main")
                 API.Pause(1.5)
-                recall_and_target(state.runebook_serial)
+                recall_with_retry(state.runebook_serial, max_retries=5, retry_delay=2.0)
                 break
             API.Pause(1.0)
             continue

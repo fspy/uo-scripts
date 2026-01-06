@@ -14,15 +14,18 @@ try:
 except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
-# Import move_item_robust for moving tools between containers
-try:
-    from lib.items import move_item_robust
-except ImportError:
-    pass
+# Import move_item_robust and find_salvage_bag for salvage operations
+from lib.items import move_item_robust, find_salvage_bag
 
 # Tool type constants
 SCISSORS_TYPE = 0xF9F
 TONGS_TYPE = 0x0FBB
+
+# Crafting constants
+CRAFTING_GUMP = 0x38920ABD
+SALVAGE_ITEM_THRESHOLD = 100
+SALVAGE_WEIGHT_THRESHOLD = 450
+SALVAGE_CONTEXT_MENU_INDEX = 2  # "Salvage All"
 
 
 class PageTracker:
@@ -152,18 +155,168 @@ def validate_salvage_setup(salvage_bag_serial, crafting_tool_type, salvage_tool_
     return (True, None)
 
 
+def get_target_skill(skill_name, target_override=None):
+    """
+    Get target skill level (uses cap if override is None).
+    
+    Args:
+        skill_name: Name of the skill (e.g., 'Blacksmithy')
+        target_override: Optional target skill value, None to use skill cap
+    
+    Returns:
+        Target skill value (float)
+    """
+    if target_override is None:
+        return API.GetSkill(skill_name).Cap
+    return target_override
+
+
+def should_continue_training(skill_name, target_skill):
+    """
+    Check if training should continue.
+    
+    Args:
+        skill_name: Name of the skill being trained
+        target_skill: Target skill value to reach
+    
+    Returns:
+        True if should continue training, False if done or stop requested
+    """
+    return not API.StopRequested and API.GetSkill(skill_name).Value < target_skill
+
+
+def salvage_if_needed(item_threshold=SALVAGE_ITEM_THRESHOLD, weight_threshold=SALVAGE_WEIGHT_THRESHOLD):
+    """
+    Salvage crafted items when over threshold.
+    
+    Checks backpack item count and player weight. If either exceeds threshold,
+    finds salvage bag and triggers salvage via context menu.
+    
+    Args:
+        item_threshold: Max items in backpack before salvaging (default 100)
+        weight_threshold: Max weight before salvaging (default 450)
+    
+    Returns:
+        True if salvage not needed or succeeded, False if salvage needed but failed
+    """
+    over_items = API.Contents(API.Backpack) > item_threshold
+    over_weight = API.Player.Weight > weight_threshold
+    
+    if over_items or over_weight:
+        salvage_bag = find_salvage_bag()
+        if salvage_bag:
+            API.ContextMenu(salvage_bag, SALVAGE_CONTEXT_MENU_INDEX)
+            API.Pause(0.65)
+            return True
+        else:
+            API.SysMsg("No salvage bag found!", 32)
+            return False
+    return True
+
+
+def run_craft_trainer(config):
+    """
+    Generic craft training loop.
+    
+    Trains a crafting skill using a configuration dict. Handles tool management,
+    salvage bag setup, skill brackets, and the main crafting loop.
+    
+    Args:
+        config: Configuration dict with keys:
+            - skill_name (str): Name of skill (e.g., 'Blacksmithy')
+            - tool_type (int): Tool graphic ID (e.g., 0x0FBB for tongs)
+            - salvage_tool_type (int or None): Tool for salvage, None to skip salvage
+            - brackets (list): List of bracket dicts with max_skill, page, button, desc
+            - target_skill (float or None): Target skill value, None for skill cap
+    
+    Example config:
+        {
+            'skill_name': 'Blacksmithy',
+            'tool_type': 0x0FBB,
+            'salvage_tool_type': TONGS_TYPE,
+            'target_skill': 90.0,
+            'brackets': [
+                {'max_skill': 45.0, 'page': 43, 'button': 9, 'desc': 'mace'},
+                # ... more brackets
+            ],
+        }
+    """
+    skill_name = config['skill_name']
+    tool_type = config['tool_type']
+    salvage_tool_type = config.get('salvage_tool_type')
+    brackets = config['brackets']
+    target_skill = config.get('target_skill')
+    
+    # Setup based on whether salvage is used
+    if salvage_tool_type:
+        # Salvage-enabled crafting (smith, tailor)
+        salvage_bag = find_salvage_bag()
+        if not salvage_bag:
+            API.SysMsg("No salvage bag found in backpack!", 32)
+            API.Stop()
+            return
+        
+        tool_container = salvage_bag
+        success, error = validate_salvage_setup(salvage_bag, tool_type, salvage_tool_type)
+        if not success:
+            API.SysMsg(error or "Salvage setup validation failed", 32)
+            API.Stop()
+            return
+        strict = True
+    else:
+        # No salvage (tinkering, carpentry, etc.) - use salvage bag for organization if available
+        tool_container = find_salvage_bag() or API.Player.Backpack
+        strict = False
+    
+    # Open crafting gump
+    if not open_craft_gump(tool_type, tool_container, CRAFTING_GUMP, strict=strict):
+        API.SysMsg("Failed to open crafting gump!", 32)
+        API.Stop()
+        return
+    
+    target = get_target_skill(skill_name, target_skill)
+    API.SysMsg(f"Training {skill_name} to {target}", 68)
+    
+    page_tracker = PageTracker()
+    
+    # Main training loop
+    while should_continue_training(skill_name, target):
+        skill = API.GetSkill(skill_name).Value
+        bracket = get_craft_bracket(skill, brackets)
+        
+        if not bracket:
+            API.Stop()
+            break
+        
+        page, button = bracket
+        craft_item(CRAFTING_GUMP, page_tracker.get_page(page), button)
+        wait_for_gump_or_replace_tool(CRAFTING_GUMP, tool_type, tool_container, strict=strict)
+        
+        # Salvage if enabled
+        if salvage_tool_type:
+            if not salvage_if_needed():
+                API.Stop()
+                break
+    
+    # Training complete
+    final_skill = API.GetSkill(skill_name).Value
+    API.SysMsg(f"Training complete! {skill_name}: {final_skill:.1f}", 68)
+
+
 def get_craft_bracket(skill_value, brackets):
     """
     Find the appropriate craft bracket for current skill level.
     
     Brackets define what item to craft at each skill range. Each bracket
-    specifies the maximum skill for that item and the gump page/button.
+    is a dict specifying the maximum skill for that item and the gump page/button.
     
     Args:
         skill_value: Current skill value (e.g., 45.5)
-        brackets: List of (max_skill, page, button, description) tuples
-                  Example: [(40.0, None, None, "too low"), 
-                           (50.0, 15, 2, "scissors")]
+        brackets: List of bracket dicts with keys: max_skill, page, button, desc
+                  Example: [
+                      {'max_skill': 40.0, 'page': None, 'button': None, 'desc': 'too low'},
+                      {'max_skill': 50.0, 'page': 15, 'button': 2, 'desc': 'scissors'}
+                  ]
     
     Returns:
         (page, button) tuple if valid bracket found
@@ -177,13 +330,13 @@ def get_craft_bracket(skill_value, brackets):
         else:
             API.Stop()  # Skill too low or training complete
     """
-    for max_skill, page, button, desc in brackets:
-        if skill_value < max_skill:
-            if page is None:
+    for bracket in brackets:
+        if skill_value < bracket['max_skill']:
+            if bracket['page'] is None:
                 # Special bracket indicating skill too low for automated training
-                API.SysMsg(f"Skill too low: {desc}", 32)
+                API.SysMsg(f"Skill too low: {bracket['desc']}", 32)
                 return None
-            return (page, button)
+            return (bracket['page'], bracket['button'])
     
     # Skill above all brackets - training complete
     return None

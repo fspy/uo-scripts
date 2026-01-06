@@ -102,6 +102,34 @@ def dismount_if_mounted(delay: float = 0.5) -> None:
         API.Pause(delay)
 
 
+def use_item_on_target(item_serial, target_serial, timeout=2.0, delay=0.5):
+    """
+    Standard use-object-then-target sequence.
+    
+    Common pattern for tools that need a target (axes on trees, pickaxes on ore, etc.)
+    Handles the use-wait-target-pause flow that appears throughout the codebase.
+    
+    Args:
+        item_serial: Serial of item to use
+        target_serial: Serial of target
+        timeout: Seconds to wait for target cursor
+        delay: Pause after targeting
+    
+    Returns:
+        True if targeting succeeded, False if no target cursor appeared
+    
+    Example:
+        if use_item_on_target(pickaxe.Serial, ore_vein.Serial):
+            API.SysMsg("Mining...")
+    """
+    API.UseObject(item_serial)
+    if API.WaitForTarget(timeout=timeout):
+        API.Target(target_serial)  # type: ignore
+        API.Pause(delay)
+        return True
+    return False
+
+
 def format_time_remaining(seconds):
     """
     Format seconds as human-readable time.

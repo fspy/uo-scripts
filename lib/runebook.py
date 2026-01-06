@@ -184,8 +184,39 @@ def recall_and_target(target_serial: int, use_sacred_journey: bool = False) -> b
         API.SysMsg(f"{spell} failed - no target cursor", 32)
         return False
     
-    API.Target(target_serial)
+    API.Target(target_serial)  # type: ignore
     return wait_for_travel()
+
+
+def recall_with_retry(target_serial: int, max_retries: int = 3, retry_delay: float = 2.0, use_sacred_journey: bool = False) -> bool:
+    """
+    Recall with automatic retry on failure.
+    
+    Attempts recall/sacred journey multiple times, waiting between attempts
+    for cooldowns to expire or recover from fizzles/interrupts.
+    
+    Args:
+        target_serial: Serial of rune/runebook to target
+        max_retries: Maximum number of attempts (default 3)
+        retry_delay: Seconds to wait between retries (default 2.0)
+        use_sacred_journey: Use Sacred Journey instead of Recall (default False)
+    
+    Returns:
+        True if travel succeeded, False if all attempts failed
+    
+    Example:
+        if recall_with_retry(home_rune.Serial, max_retries=5, retry_delay=3.0):
+            API.SysMsg("Made it home!")
+        else:
+            API.SysMsg("Failed to recall home", 32)
+    """
+    for attempt in range(1, max_retries + 1):
+        API.ClearJournal()
+        if recall_and_target(target_serial, use_sacred_journey):
+            return True
+        if attempt < max_retries:
+            API.Pause(retry_delay)
+    return False
 
 
 def find_runebook_in_backpack() -> int:

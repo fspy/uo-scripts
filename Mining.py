@@ -1,6 +1,6 @@
 import API
 import time
-from lib.runebook import Runebook, wait_for_travel, recall_and_target
+from lib.runebook import Runebook, wait_for_travel, recall_and_target, recall_with_retry
 from lib.items import drop_all_items_at_home
 from lib.persistence import load_int, save_int
 from lib.weight import is_heavy, is_overweight
@@ -388,20 +388,13 @@ def recall_home(home_serial: int) -> bool:
     Cast Recall or Sacred Journey and target the home rune/book.
     Returns True if successful, False otherwise.
     """
-    for attempt in range(1, MAX_TRAVEL_RETRIES + 1):
-        API.SysMsg(f"Recalling home (attempt {attempt}/{MAX_TRAVEL_RETRIES})")
-
-        success = recall_and_target(home_serial, USE_SACRED_JOURNEY)
-
-        if success:
-            API.SysMsg("Successfully recalled home")
-            return True
-
-        if attempt < MAX_TRAVEL_RETRIES:
-            API.SysMsg(f"Travel home failed, retrying in {TRAVEL_RETRY_DELAY}s...")
-            API.Pause(TRAVEL_RETRY_DELAY)
-
-    API.SysMsg(f"Failed to recall home after {MAX_TRAVEL_RETRIES} attempts")
+    API.SysMsg("Recalling home...")
+    
+    if recall_with_retry(home_serial, MAX_TRAVEL_RETRIES, TRAVEL_RETRY_DELAY, USE_SACRED_JOURNEY):
+        API.SysMsg("Successfully recalled home")
+        return True
+    
+    API.SysMsg(f"Failed to recall home after {MAX_TRAVEL_RETRIES} attempts", 32)
     return False
 
 
