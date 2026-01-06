@@ -15,7 +15,7 @@ except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
 # Import move_item_robust and find_salvage_bag for salvage operations
-from lib.items import move_item_robust, find_salvage_bag
+from lib.items import move_item_robust, find_salvage_bag, drop_items_to_container
 from lib.persistence import load_int, save_int
 
 # Tool type constants
@@ -323,8 +323,12 @@ def restock_if_needed(config, storage_serial):
     Flow:
     1. Check if materials below threshold
     2. If low: force salvage to recover materials
-    3. If still low: grab from storage container
+    3. If still low: grab from storage container (fills by weight)
     4. If still low after grab: storage is empty, return False
+
+    Uses hysteresis: triggers restock at threshold (default 50), but fills
+    by available weight (typically 150-200+ materials), preventing frequent
+    restock checks.
 
     Args:
         config: Craft trainer config dict with material_types and material_threshold
@@ -341,26 +345,28 @@ def restock_if_needed(config, storage_serial):
     salvage_tool_type = config.get("salvage_tool_type")
 
     # Check if we need to restock
-    if count_materials(material_types) >= threshold:
+    current = count_materials(material_types)
+    if current >= threshold:
         return True  # Have enough materials
 
     # Low on materials - salvage first to recover
+    API.SysMsg(f"Low materials ({current}) - salvaging & restocking...", 68)
+
     if salvage_tool_type:
-        API.SysMsg("Low materials - salvaging", 68)
         salvage_if_needed(item_threshold=0, weight_threshold=0)  # Force salvage
         API.Pause(1.0)
+        current = count_materials(material_types)
 
     # Check again after salvage
-    if count_materials(material_types) >= threshold:
+    if current >= threshold:
+        API.SysMsg(f"Salvage recovered enough - continuing ({current} materials)", 68)
         return True  # Salvage gave us enough
 
-    # Still low - pull from storage
+    # Still low - pull from storage (fills by weight)
     if not storage_serial:
         API.SysMsg("No storage container configured - stopping", 32)
         return False
 
-    before = count_materials(material_types)
-    API.SysMsg("Restocking from storage...", 68)
     grabbed = grab_materials_by_weight(storage_serial, material_types)
 
     if grabbed == 0:
@@ -368,8 +374,48 @@ def restock_if_needed(config, storage_serial):
         return False
 
     after = count_materials(material_types)
-    API.SysMsg(f"Restocked: {before} -> {after} materials", 68)
+    API.SysMsg(f"Restocked: {current} -> {after} materials", 68)
     return True
+
+
+def cleanup_craft_trainer(config, storage_serial):
+    """
+    Clean up after crafting session ends.
+
+    Salvages remaining crafted items and returns raw materials to storage.
+
+    Args:
+        config: Craft trainer config dict with salvage_tool_type and material_types
+        storage_serial: Storage container serial to return materials to
+    """
+    salvage_tool_type = config.get("salvage_tool_type")
+    material_types = config.get("material_types")
+
+    if not storage_serial or not material_types:
+        return  # Nothing to clean up
+
+    API.SysMsg("Cleaning up - salvaging remaining items...", 68)
+
+    # Force salvage everything in backpack
+    if salvage_tool_type:
+        salvage_if_needed(item_threshold=0, weight_threshold=0)
+        API.Pause(1.0)
+
+    # Count materials before returning
+    before = count_materials(material_types)
+    if before == 0:
+        API.SysMsg("No materials to return", 68)
+        return
+
+    # Return materials to storage
+    API.SysMsg(f"Returning {before} materials to storage...", 68)
+    API.UseObject(storage_serial)  # Open container
+    API.Pause(0.5)
+
+    dropped = drop_items_to_container(storage_serial, material_types)
+
+    if dropped > 0:
+        API.SysMsg(f"Returned {dropped} stack(s) to storage", 68)
 
 
 def run_craft_trainer(config):
@@ -491,6 +537,10 @@ def run_craft_trainer(config):
     # Training complete
     final_skill = API.GetSkill(skill_name).Value
     API.SysMsg(f"Training complete! {skill_name}: {final_skill:.1f}", 68)
+
+    # Cleanup: salvage and return materials
+    if config.get("material_types") and storage_serial:
+        cleanup_craft_trainer(config, storage_serial)
 
 
 def get_craft_bracket(skill_value, brackets):
