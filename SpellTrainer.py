@@ -208,7 +208,7 @@ def main():
     
     for phase in TRAINING_PHASES:
         if API.StopRequested:
-            break
+            return False
 
         end_skill, spell_name, base_cast_time, mana_cost, target_self, handler = phase
         current_skill = get_skill()
@@ -216,14 +216,17 @@ def main():
         # Stop if we've reached skill cap
         if current_skill >= skill_cap:
             API.SysMsg(f"{SKILL_NAME} at cap ({skill_cap})", 68)
-            break
+            return False  # Signal to stop the outer loop
 
         if current_skill < end_skill:
             train_phase(
                 end_skill, spell_name, base_cast_time, mana_cost, target_self, handler
             )
+    
+    return True  # Continue training (looping through phases)
 
 
 while not API.StopRequested:
-    main()
+    if not main():
+        break  # Stop if main() returns False (cap reached or stop requested)
 
