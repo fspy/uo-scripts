@@ -1,4 +1,4 @@
-# ezTailor - Automated Tailoring Skill Training
+# ezSmith - Automated Blacksmithing Skill Training
 
 import API
 from lib.crafting import (
@@ -8,27 +8,33 @@ from lib.crafting import (
     wait_for_gump_or_replace_tool,
     craft_item,
     validate_salvage_setup,
-    SCISSORS_TYPE,
+    TONGS_TYPE,
 )
 from lib.items import find_salvage_bag
 
 # === CONFIGURATION ===
-SKILL_NAME = "Tailoring"
-TARGET_SKILL = 96.0  # Stop here. Set to None to train to skill cap.
+SKILL_NAME = "Blacksmithy"
+TARGET_SKILL = 90.0  # Stop here. Set to None to train to skill cap.
 CRAFTING_GUMP = 0x38920ABD
-TOOL_TYPE = 0xF9D  # sewing kit
-USES_SALVAGE_BAG = True  # Tailoring uses salvage bags
-SALVAGE_TOOL_TYPE = SCISSORS_TYPE  # scissors for salvage
+TOOL_TYPE = 0x0FBB  # tongs
+USES_SALVAGE_BAG = True  # Blacksmithing uses salvage bags
+SALVAGE_TOOL_TYPE = TONGS_TYPE  # tongs are both craft and salvage tool
 SALVAGE_ITEM_THRESHOLD = 100  # salvage when backpack has this many items
 SALVAGE_WEIGHT_BUFFER = 50  # salvage when within this many stones of max weight
 
 # Skill brackets: (max_skill, page, button, description)
 SKILL_BRACKETS = [
-    (29.0, None, None, "too low - train manually to 29.0 first"),
-    (41.4, 15, 135, "short pants"),
-    (50.0, 15, 51, "cloak"),
-    (74.6, 29, 9, "fur boots"),
-    (120.0, 22, 86, "oil cloth"),
+    (40.0, None, None, "too low - train to 40 in new haven"),
+    (45.0, 43, 9, "mace"),
+    (50.0, 43, 16, "maul"),
+    (55.0, 22, 23, "cutlass"),
+    (59.5, 22, 37, "katana"),
+    (70.5, 22, 58, "scimitar"),
+    (106.4, 1, 65, "platemail gorget"),
+    (108.9, 1, 58, "platemail gloves"),
+    (116.3, 1, 51, "platemail arms"),
+    (118.8, 1, 72, "platemail legs"),
+    (120.0, 1, 79, "platemail tunics"),
 ]
 
 # === SCRIPT STATE ===
@@ -48,14 +54,11 @@ def salvage_if_needed():
         # Find salvage bag dynamically
         salvage_bag = find_salvage_bag()
         if salvage_bag:
-            API.ContextMenu(salvage_bag, 1)
+            API.ContextMenu(salvage_bag, 2)
             API.Pause(0.65)
         else:
             API.SysMsg("No salvage bag found! Please add a salvage bag to your backpack.", 32)
             API.Stop()
-
-
-
 
 
 def get_target():

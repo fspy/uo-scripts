@@ -71,6 +71,23 @@ def drop_items_to_container(container_serial, item_types, source=None):
     return dropped_count
 
 
+def find_salvage_bag():
+    """
+    Find a salvage bag in the player's backpack.
+    
+    Salvage bags have graphic 0x0E76 and contain "salvage bag" in their name.
+    
+    Returns:
+        Salvage bag item serial, or None if not found
+    """
+    bags = API.FindTypeAll(0x0E76, API.Player.Backpack) or []
+    for bag in bags:
+        # Check if the item has "salvage bag" in its name
+        if bag.Name and "salvage bag" in bag.Name.lower():
+            return bag.Serial
+    return None
+
+
 def drop_all_items_at_home(container_serial, item_types, extra_sources=None):
     """
     Pathfind to container, open it, and drop items from backpack and optional extra sources.

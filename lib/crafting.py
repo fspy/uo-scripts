@@ -14,6 +14,16 @@ try:
 except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
+# Import move_item_robust for moving tools between containers
+try:
+    from lib.items import move_item_robust
+except ImportError:
+    pass
+
+# Tool type constants
+SCISSORS_TYPE = 0xF9F
+TONGS_TYPE = 0x0FBB
+
 
 class PageTracker:
     """
@@ -51,6 +61,95 @@ class PageTracker:
     def reset(self):
         """Reset page tracking (call when gump closes/reopens)."""
         self._current_page = None
+
+
+def find_tool_strict(tool_type, container_serial):
+    """
+    Find a crafting tool ONLY in the specified container, no fallback.
+    Opens the container first to ensure contents are loaded.
+    
+    Args:
+        tool_type: Tool graphic ID (e.g., 0xF9D for sewing kit)
+        container_serial: Container serial to search
+    
+    Returns:
+        Tool item object, or None if not found
+    """
+    # Open container to ensure contents are loaded
+    API.UseObject(container_serial)
+    API.Pause(0.3)
+    
+    # Search only in specified container
+    tool = API.FindType(tool_type, container_serial)
+    return tool
+
+
+def ensure_salvage_tool_outside(salvage_bag_serial, salvage_tool_type):
+    """
+    Ensure there's a salvage tool in backpack (outside the salvage bag).
+    If all tools are inside the bag, move one outside.
+    
+    Args:
+        salvage_bag_serial: The salvage bag serial
+        salvage_tool_type: Tool graphic (scissors or tongs)
+    
+    Returns:
+        True if tool is available outside, False if none available anywhere
+    """
+    # Check if there's already a tool outside the salvage bag (in backpack root)
+    tools_in_backpack = API.FindTypeAll(salvage_tool_type, API.Player.Backpack) or []
+    for tool in tools_in_backpack:
+        # Make sure it's not inside the salvage bag
+        if tool.Container != salvage_bag_serial:
+            return True  # Found a tool outside
+    
+    # No tools outside, check inside salvage bag
+    API.UseObject(salvage_bag_serial)
+    API.Pause(0.3)
+    
+    tools_in_bag = API.FindTypeAll(salvage_tool_type, salvage_bag_serial) or []
+    if not tools_in_bag:
+        return False  # No tools anywhere
+    
+    # Move one tool from bag to backpack
+    tool_to_move = tools_in_bag[0]
+    if move_item_robust(tool_to_move.Serial, API.Player.Backpack, 1):
+        API.SysMsg(f"Moved salvage tool outside bag", 68)
+        return True
+    
+    return False
+
+
+def validate_salvage_setup(salvage_bag_serial, crafting_tool_type, salvage_tool_type):
+    """
+    Validate and fix salvage bag setup for crafting.
+    
+    Checks/fixes:
+    1. Crafting tools exist inside salvage bag
+    2. Salvage tool exists outside (moves one out if needed)
+    
+    Args:
+        salvage_bag_serial: The salvage bag serial
+        crafting_tool_type: Tool used for crafting (sewing kit, tongs, etc.)
+        salvage_tool_type: Tool needed outside for salvage (scissors, tongs)
+    
+    Returns:
+        (success: bool, error_message: str or None)
+    """
+    # Open salvage bag
+    API.UseObject(salvage_bag_serial)
+    API.Pause(0.3)
+    
+    # Check for crafting tools inside salvage bag
+    crafting_tools_inside = API.FindTypeAll(crafting_tool_type, salvage_bag_serial) or []
+    if not crafting_tools_inside:
+        return (False, "No crafting tools found inside salvage bag!")
+    
+    # Ensure salvage tool is outside
+    if not ensure_salvage_tool_outside(salvage_bag_serial, salvage_tool_type):
+        return (False, "No salvage tools found! Add scissors/tongs to backpack or salvage bag.")
+    
+    return (True, None)
 
 
 def get_craft_bracket(skill_value, brackets):
@@ -94,6 +193,9 @@ def find_tool(tool_type, tool_container):
     """
     Find a crafting tool in container with fallback to backpack.
     
+    NOTE: For salvage bag workflows, use find_tool_strict() instead to ensure
+    tools come from inside the salvage bag (so crafted items go inside).
+    
     Searches tool_container first, then falls back to player's backpack
     if not found. This allows flexible tool storage.
     
@@ -118,7 +220,7 @@ def find_tool(tool_type, tool_container):
     return None
 
 
-def open_craft_gump(tool_type, tool_container, gump_id, timeout=2.0):
+def open_craft_gump(tool_type, tool_container, gump_id, timeout=2.0, strict=False):
     """
     Open crafting gump by using a tool.
     
@@ -130,11 +232,16 @@ def open_craft_gump(tool_type, tool_container, gump_id, timeout=2.0):
         tool_container: Container serial to search for tools
         gump_id: Expected gump ID
         timeout: Seconds to wait for gump to appear
+        strict: If True, use find_tool_strict (no backpack fallback)
     
     Returns:
         True if gump opened successfully, False otherwise
     """
-    tool = find_tool(tool_type, tool_container)
+    if strict:
+        tool = find_tool_strict(tool_type, tool_container)
+    else:
+        tool = find_tool(tool_type, tool_container)
+    
     if not tool:
         API.SysMsg("No tools found!", 32)
         return False
@@ -143,7 +250,7 @@ def open_craft_gump(tool_type, tool_container, gump_id, timeout=2.0):
     return API.WaitForGump(gump_id, timeout)
 
 
-def wait_for_gump_or_replace_tool(gump_id, tool_type, tool_container):
+def wait_for_gump_or_replace_tool(gump_id, tool_type, tool_container, strict=False):
     """
     Wait for crafting gump to reappear, replacing worn tools automatically.
     
@@ -155,6 +262,7 @@ def wait_for_gump_or_replace_tool(gump_id, tool_type, tool_container):
         gump_id: Crafting gump ID to wait for
         tool_type: Tool graphic ID (for replacement)
         tool_container: Container serial to search for tools
+        strict: If True, use find_tool_strict (no backpack fallback)
     
     Returns:
         None (stops script if no tools available)
@@ -162,7 +270,11 @@ def wait_for_gump_or_replace_tool(gump_id, tool_type, tool_container):
     while not API.HasGump(gump_id):
         # Check if tool broke
         if API.InJournal("worn out your tool", True):
-            tool = find_tool(tool_type, tool_container)
+            if strict:
+                tool = find_tool_strict(tool_type, tool_container)
+            else:
+                tool = find_tool(tool_type, tool_container)
+            
             if not tool:
                 API.SysMsg("No tools left!", 32)
                 API.Stop()

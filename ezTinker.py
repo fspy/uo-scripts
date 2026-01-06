@@ -1,5 +1,4 @@
-# ezTailor - Automated Tailoring Skill Training
-# Copy this script to make ezBlacksmith, ezCarpentry, etc.
+# ezTinker - Automated Tinkering Skill Training
 
 import API
 from lib.crafting import (
@@ -9,13 +8,14 @@ from lib.crafting import (
     wait_for_gump_or_replace_tool,
     craft_item
 )
+from lib.items import find_salvage_bag
 
 # === CONFIGURATION ===
 SKILL_NAME = "Tinkering"
-TARGET_SKILL = 70.0  # Stop here. Set to None to train to skill cap.
+TARGET_SKILL = 70.1  # Stop here. Set to None to train to skill cap.
 CRAFTING_GUMP = 0x38920ABD
-TOOL_TYPE = 0x1EB8  # sewing kit
-TOOL_CONTAINER = API.Player.Backpack  # tools stored here, also salvage container
+TOOL_TYPE = 0x1EB8  # tinker tools
+USES_SALVAGE_BAG = False  # Tinkering doesn't use salvage (can't salvage tinker items)
 SALVAGE_ITEM_THRESHOLD = 100  # salvage when backpack has this many items
 SALVAGE_WEIGHT_BUFFER = 50  # salvage when within this many stones of max weight
 
@@ -44,8 +44,14 @@ def salvage_if_needed():
         API.Player.Weight > 450
     )  # API.Player.WeightMax - SALVAGE_WEIGHT_BUFFER
     if over_items or over_weight:
-        API.ContextMenu(TOOL_CONTAINER, 1)
-        API.Pause(0.65)
+        # Find salvage bag dynamically
+        salvage_bag = find_salvage_bag()
+        if salvage_bag:
+            API.ContextMenu(salvage_bag, 1)
+            API.Pause(0.65)
+        else:
+            API.SysMsg("No salvage bag found! Please add a salvage bag to your backpack.", 32)
+            API.Stop()
 
 
 
@@ -65,8 +71,11 @@ def should_continue():
 
 # === MAIN LOOP ===
 def main():
+    # Use salvage bag for tool organization if available, otherwise use backpack
+    tool_container = find_salvage_bag() or API.Player.Backpack
+    
     # Open gump at startup to prevent DC from responding to non-existent gump
-    if not open_craft_gump(TOOL_TYPE, TOOL_CONTAINER, CRAFTING_GUMP):
+    if not open_craft_gump(TOOL_TYPE, tool_container, CRAFTING_GUMP):
         API.SysMsg("Failed to open crafting gump!", 32)
         API.Stop()
         return
@@ -84,7 +93,7 @@ def main():
 
         page, button = bracket
         craft_item(CRAFTING_GUMP, page_tracker.get_page(page), button)
-        wait_for_gump_or_replace_tool(CRAFTING_GUMP, TOOL_TYPE, TOOL_CONTAINER)
+        wait_for_gump_or_replace_tool(CRAFTING_GUMP, TOOL_TYPE, tool_container)
         if SKILL_NAME in ["Blacksmithing", "Tailoring"]:
             salvage_if_needed()
 
