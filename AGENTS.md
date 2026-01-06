@@ -38,8 +38,9 @@ bd sync               # Sync with git
 ### Code Formatting
 - Use **ruff** for Python formatting: `/home/fspy/.local/share/nvim/mason/bin/ruff format .`
 - Configuration is in `pyproject.toml` (88 char line length, double quotes)
-- Run ruff format before committing code changes
+- **Pre-commit hook automatically formats Python files** - no manual action needed
 - `API.py` is excluded (auto-generated, don't format)
+- Hook location: `.git/hooks/pre-commit` (extended bd shim)
 
 ### Shared Libraries
 - Common utilities go in `lib/` folder
