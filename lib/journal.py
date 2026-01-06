@@ -19,16 +19,16 @@ except (ImportError, NameError):
 def wait_for_any(messages: list, timeout: float) -> bool:
     """
     Wait for any message from a list to appear in the journal.
-    
+
     Polls the journal every 50ms until a message is found or timeout expires.
-    
+
     Args:
         messages: List of strings to search for in journal
         timeout: Maximum seconds to wait
-    
+
     Returns:
         True if any message found, False if timeout expired
-    
+
     Example:
         if wait_for_any(["You chop", "That is too far"], timeout=2.0):
             # Message appeared
@@ -46,17 +46,17 @@ def wait_for_any(messages: list, timeout: float) -> bool:
 def find_entry(pattern, timeout=5.0, seconds_back=5):
     """
     Wait for and return a journal entry matching a pattern.
-    
+
     Polls the journal every 50ms until a matching entry is found or timeout expires.
-    
+
     Args:
         pattern: String or regex pattern to search for (prefix with $ for regex)
         timeout: Maximum seconds to wait for the entry
         seconds_back: How many seconds back to search in journal history
-    
+
     Returns:
         Journal entry object with .Text, .Name, .Hue attributes, or None if timeout
-    
+
     Example:
         entry = find_entry("offer may be available", timeout=2.0)
         if entry:

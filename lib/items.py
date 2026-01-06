@@ -45,12 +45,12 @@ def move_item_robust(serial, dest, amount, max_retries=3):
 def drop_items_to_container(container_serial, item_types, source=None):
     """
     Move all items of specified types to a container.
-    
+
     Args:
         container_serial: Destination container serial
         item_types: List of item graphic IDs to move
         source: Source container (defaults to API.Backpack)
-    
+
     Returns: count of item stacks dropped
     """
     if source is None:
@@ -74,9 +74,9 @@ def drop_items_to_container(container_serial, item_types, source=None):
 def find_salvage_bag():
     """
     Find a salvage bag in the player's backpack.
-    
+
     Salvage bags have graphic 0x0E76 and contain "salvage bag" in their name.
-    
+
     Returns:
         Salvage bag item serial, or None if not found
     """
@@ -92,12 +92,12 @@ def drop_all_items_at_home(container_serial, item_types, extra_sources=None):
     """
     Pathfind to container, open it, and drop items from backpack and optional extra sources.
     Adds delay at end for server to update weight.
-    
+
     Args:
         container_serial: Destination container serial
         item_types: List of item graphic IDs to move
         extra_sources: Optional list of additional source container serials (e.g., pack animal)
-    
+
     Returns: total count of item stacks dropped
     """
     # Pathfind to container
@@ -118,7 +118,9 @@ def drop_all_items_at_home(container_serial, item_types, extra_sources=None):
     # Drop from extra sources (e.g., pack animal)
     if extra_sources:
         for source_serial in extra_sources:
-            total_dropped += drop_items_to_container(container_serial, item_types, source_serial)
+            total_dropped += drop_items_to_container(
+                container_serial, item_types, source_serial
+            )
 
     if total_dropped > 0:
         API.SysMsg(f"Dropped {total_dropped} item stacks in storage")

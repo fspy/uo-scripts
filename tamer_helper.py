@@ -138,14 +138,14 @@ def calculate_gift_of_life_duration(focus_level, spellweaving_skill):
 def calculate_gift_of_renewal_recast_time(focus_level):
     """
     Calculate Gift of Renewal total recast time (duration + cooldown).
-    
+
     Duration: 30 + (focus_level * 10) seconds
     Cooldown: 60 seconds (fixed)
     Total: duration + 60
-    
+
     Args:
         focus_level: Arcane focus strength (0-6)
-    
+
     Returns:
         Total time in seconds before recast is allowed
     """
@@ -205,9 +205,6 @@ def validate_arcane_focus():
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
-
-
-
 
 
 def get_hp_percent(mobile):
@@ -342,7 +339,9 @@ def needs_gift_of_life(pet):
         # Pet was resurrected! GoL was consumed, needs reapplication
         pet_was_dead[pet.Serial] = False
         gift_of_life_timers[pet.Serial] = 0  # Clear GoL timer
-        gift_of_renewal_timers[pet.Serial] = 0  # Clear GoR timer (death resets cooldown)
+        gift_of_renewal_timers[pet.Serial] = (
+            0  # Clear GoR timer (death resets cooldown)
+        )
         return True
 
     # Update death tracking
@@ -421,7 +420,9 @@ def cast_gift_of_renewal(pet):
 
     if success and not check_spell_fizzled():
         # Mark timer using cached recast time (guaranteed set by validate_arcane_focus)
-        recast_time = cached_gor_recast_time if cached_gor_recast_time else 90  # Fallback 90 sec
+        recast_time = (
+            cached_gor_recast_time if cached_gor_recast_time else 90
+        )  # Fallback 90 sec
         gift_of_renewal_timers[pet.Serial] = time.time() + recast_time
         # Show cooldown bar (light yellow)
         API.CreateCooldownBar(recast_time, "Gift of Renewal", 53)

@@ -235,11 +235,11 @@ class LumberjackState:
 # =========================
 
 
-
 # Utility functions moved to lib modules (lib.utils, lib.weight, lib.journal)
 
 # is_heavy() function moved to lib.weight (uses 50 stone buffer by default)
 # Lumberjacking uses 60 stones - calls pass buffer=60 explicitly
+
 
 def is_pack_in_range(state):
     """Check if pack animal backpack is in range."""
@@ -263,9 +263,6 @@ def wait_for_pack(state, timeout=30):
         API.Pause(1.0)
 
     return False
-
-
-
 
 
 def warn_weight(state):
@@ -341,7 +338,7 @@ def setup_drop_chest(first_run):
     return setup_target(
         "LumberjackDropChest",
         "Target drop chest at home",
-        verify_in_range=first_run  # Only verify on first run
+        verify_in_range=first_run,  # Only verify on first run
     )
 
 

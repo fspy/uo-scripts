@@ -18,14 +18,14 @@ except (ImportError, NameError):
 def chebyshev_distance(x1: int, y1: int, x2: int, y2: int) -> int:
     """
     Calculate Chebyshev distance (max of x/y deltas).
-    
+
     Also known as "chessboard distance" or "maximum metric".
     This is how UO calculates distance for most purposes.
-    
+
     Args:
         x1, y1: First point coordinates
         x2, y2: Second point coordinates
-    
+
     Returns:
         Maximum absolute difference between x coordinates and y coordinates
     """
@@ -35,15 +35,15 @@ def chebyshev_distance(x1: int, y1: int, x2: int, y2: int) -> int:
 def count_items(graphic: int, container) -> int:
     """
     Count total amount of items with graphic in container.
-    
+
     Sums the Amount property of all matching items. For stackable items,
     this gives the total stack count. For non-stackable items, it counts
     the number of items.
-    
+
     Args:
         graphic: Item graphic ID (type)
         container: Container object or serial to search in
-    
+
     Returns:
         Total count of items (sum of Amount properties)
     """
@@ -54,14 +54,14 @@ def count_items(graphic: int, container) -> int:
 def find_any_type(types: list, container, min_amount: int = 0):
     """
     Find first item matching any type in the list.
-    
+
     Searches for items in order and returns the first match found.
-    
+
     Args:
         types: List of graphic IDs to search for
         container: Container object or serial to search in
         min_amount: Minimum stack amount required (default 0)
-    
+
     Returns:
         First matching item object, or None if no match found
     """
@@ -75,10 +75,10 @@ def find_any_type(types: list, container, min_amount: int = 0):
 def stop_script(msg: str, hue: int = 32) -> None:
     """
     Stop script with a system message.
-    
+
     Displays message and stops script execution. Useful for error handling
     and graceful script termination.
-    
+
     Args:
         msg: Message to display to player
         hue: Message color (default 32 = red for errors)
@@ -90,10 +90,10 @@ def stop_script(msg: str, hue: int = 32) -> None:
 def dismount_if_mounted(delay: float = 0.5) -> None:
     """
     Dismount if player is currently mounted.
-    
+
     Some actions (like mining) require being on foot. This helper checks
     if mounted and dismounts if necessary.
-    
+
     Args:
         delay: Seconds to pause after dismounting (default 0.5)
     """
@@ -105,19 +105,19 @@ def dismount_if_mounted(delay: float = 0.5) -> None:
 def use_item_on_target(item_serial, target_serial, timeout=2.0, delay=0.5):
     """
     Standard use-object-then-target sequence.
-    
+
     Common pattern for tools that need a target (axes on trees, pickaxes on ore, etc.)
     Handles the use-wait-target-pause flow that appears throughout the codebase.
-    
+
     Args:
         item_serial: Serial of item to use
         target_serial: Serial of target
         timeout: Seconds to wait for target cursor
         delay: Pause after targeting
-    
+
     Returns:
         True if targeting succeeded, False if no target cursor appeared
-    
+
     Example:
         if use_item_on_target(pickaxe.Serial, ore_vein.Serial):
             API.SysMsg("Mining...")
@@ -133,16 +133,16 @@ def use_item_on_target(item_serial, target_serial, timeout=2.0, delay=0.5):
 def format_time_remaining(seconds):
     """
     Format seconds as human-readable time.
-    
+
     Converts a time duration in seconds to a compact, readable format.
     Useful for displaying cooldowns, timers, and ETA information.
-    
+
     Args:
         seconds: Seconds remaining (can be float or int)
-    
+
     Returns:
         Formatted time string like "5h 59m", "45m", or "READY!"
-    
+
     Example:
         format_time_remaining(3661)   # Returns "1h 1m"
         format_time_remaining(120)     # Returns "2m"

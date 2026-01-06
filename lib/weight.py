@@ -18,11 +18,11 @@ except (ImportError, NameError):
 def is_heavy(buffer: int = 50) -> bool:
     """
     Check if player is near maximum weight.
-    
+
     Args:
         buffer: Weight buffer in stones (default 50)
                 Player is considered heavy when within this many stones of max
-    
+
     Returns:
         True if player weight >= (max_weight - buffer)
     """
@@ -34,9 +34,9 @@ def is_heavy(buffer: int = 50) -> bool:
 def is_overweight() -> bool:
     """
     Check if player is over maximum weight.
-    
+
     When overweight, the player cannot recall or use gates.
-    
+
     Returns:
         True if player weight > max_weight
     """

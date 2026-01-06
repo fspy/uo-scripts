@@ -1,0 +1,28 @@
+[tool.ruff]
+# Same line length as Black's default
+line-length = 88
+
+# Python version
+target-version = "py38"
+
+[tool.ruff.lint]
+# Enable pycodestyle (E), Pyflakes (F), and isort (I)
+select = ["E", "F", "I"]
+
+# Ignore some overly strict rules
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+]
+
+[tool.ruff.format]
+# Use double quotes
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"
+
+# Remove trailing whitespace
+skip-magic-trailing-comma = false
+
+# Format docstrings
+docstring-code-format = true

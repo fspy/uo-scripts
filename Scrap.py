@@ -7,6 +7,7 @@ def getMobByGraphic():
     mob = API.NearestMobile([API.Notoriety.Criminal], 12)
     return mob or None
 
+
 def forensic():
     API.UseSkill("forensic")
     API.WaitForTarget()
@@ -27,5 +28,5 @@ def herding():
 
 
 while not API.StopRequested:
-    #herding()
+    # herding()
     forensic()

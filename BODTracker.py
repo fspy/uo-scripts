@@ -40,7 +40,7 @@ NPC_SUFFIXES = {
     "cook": "Cooking",
     "bowyer": "Fletching",
     "scribe": "Inscription",
-    #"tailor": "Tailoring",
+    # "tailor": "Tailoring",
     "weaver": "Tailoring",
     "tinker": "Tinkering",
 }
@@ -365,12 +365,12 @@ class BODStatusGump:
         self.width = 300
         self.collapsed_height = 40
         self.header_height = 38
-        
+
         # Load saved position, or use defaults
         saved_pos = load_gump_position()
         self.gump_x = saved_pos.get("x", 100)
         self.gump_y = saved_pos.get("y", 100)
-        
+
         # Pending NPC interaction from click handler
         self.pending_npc_serial = None
         self.pending_profession = None
@@ -526,18 +526,21 @@ class BODStatusGump:
 
                 # Use monospace font for proper alignment
                 text = f"  {profession:<18} {status:>8}"
-                bod_label = API.CreateGumpTTFLabel(text, 18, color, "IBMPlexMono-Medium")
+                bod_label = API.CreateGumpTTFLabel(
+                    text, 18, color, "IBMPlexMono-Medium"
+                )
                 bod_label.SetX(10)
                 bod_label.SetY(y_offset)
                 container.Add(bod_label)
-                
+
                 # Add click handler for ready BODs only
                 if remaining <= 0:
                     # Capture profession in closure
                     def make_handler(prof):
                         return lambda: self._on_profession_click(prof)
+
                     API.Gumps.AddControlOnClick(bod_label, make_handler(profession))
-                
+
                 y_offset += 26
 
             y_offset += 6  # Extra space between characters
@@ -548,7 +551,7 @@ class BODStatusGump:
         """Find nearby NPC matching the given profession."""
         # Reverse lookup: get all suffixes that map to this profession
         valid_suffixes = [s for s, p in NPC_SUFFIXES.items() if p == profession]
-        
+
         for mob in API.GetAllMobiles(distance=12):
             if not mob.Name:
                 continue
@@ -571,11 +574,11 @@ class BODStatusGump:
         if not npc_serial:
             API.SysMsg(f"No {profession} NPC nearby!", HUE_ALERT)
             return
-        
+
         # Store pending NPC info for main loop to use
         self.pending_npc_serial = npc_serial
         self.pending_profession = profession
-        
+
         # Request BOD via context menu
         API.ContextMenu(npc_serial, CONTEXT_MENU_BOD_INFO)
         API.SysMsg(f"Requesting {profession} BOD...", HUE_INFO)

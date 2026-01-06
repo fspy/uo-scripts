@@ -1,8 +1,8 @@
-﻿import API
+import API
 
-if API.HasTarget('beneficial'):
+if API.HasTarget("beneficial"):
     API.Stop()
-elif API.HasTarget('any'):
+elif API.HasTarget("any"):
     API.CancelTarget()
 
 player = API.Player
@@ -26,7 +26,7 @@ if useChivalry:
 if useMagery:
     if player.IsPoisoned:
         magerySpell = "Cure"
-    elif dmg >5 and dmg <= 15:
+    elif dmg > 5 and dmg <= 15:
         magerySpell = "Heal"
     else:
         magerySpell = "Greater Heal"

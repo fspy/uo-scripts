@@ -389,11 +389,13 @@ def recall_home(home_serial: int) -> bool:
     Returns True if successful, False otherwise.
     """
     API.SysMsg("Recalling home...")
-    
-    if recall_with_retry(home_serial, MAX_TRAVEL_RETRIES, TRAVEL_RETRY_DELAY, USE_SACRED_JOURNEY):
+
+    if recall_with_retry(
+        home_serial, MAX_TRAVEL_RETRIES, TRAVEL_RETRY_DELAY, USE_SACRED_JOURNEY
+    ):
         API.SysMsg("Successfully recalled home")
         return True
-    
+
     API.SysMsg(f"Failed to recall home after {MAX_TRAVEL_RETRIES} attempts", 32)
     return False
 

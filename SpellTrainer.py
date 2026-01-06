@@ -112,9 +112,6 @@ def get_skill():
     return skill.Value if skill else 0.0
 
 
-
-
-
 def wait_for_mana(min_mana):
     """Wait until player has full mana, using meditation if needed"""
     global last_meditation_time
@@ -151,15 +148,14 @@ def cast_spell(spell_name, base_cast_time, mana_cost, target_self=False):
         if API.WaitForTarget("any", 5):
             API.TargetSelf()
             # Only wait for recovery after targeting
-            recovery = calculate_recovery_time(base_recovery=BASE_RECOVERY, fcr_cap=FCR_CAP)
+            recovery = calculate_recovery_time(
+                base_recovery=BASE_RECOVERY, fcr_cap=FCR_CAP
+            )
             API.Pause(recovery)
     else:
         # Non-targeted spell - need full delay (cast + recovery)
         delay = calculate_full_spell_delay(
-            base_cast_time, 
-            fc_cap=FC_CAP, 
-            base_recovery=BASE_RECOVERY, 
-            fcr_cap=FCR_CAP
+            base_cast_time, fc_cap=FC_CAP, base_recovery=BASE_RECOVERY, fcr_cap=FCR_CAP
         )
         API.Pause(delay)
 
@@ -205,7 +201,7 @@ def train_phase(end_skill, spell_name, base_cast_time, mana_cost, target_self, h
 
 def main():
     skill_cap = API.GetSkill(SKILL_NAME).Cap
-    
+
     for phase in TRAINING_PHASES:
         if API.StopRequested:
             return False
@@ -222,11 +218,10 @@ def main():
             train_phase(
                 end_skill, spell_name, base_cast_time, mana_cost, target_self, handler
             )
-    
+
     return True  # Continue training (looping through phases)
 
 
 while not API.StopRequested:
     if not main():
         break  # Stop if main() returns False (cap reached or stop requested)
-
