@@ -16,6 +16,7 @@ except (ImportError, NameError):
 
 # Import move_item_robust and find_salvage_bag for salvage operations
 from lib.items import move_item_robust, find_salvage_bag
+from lib.persistence import load_int, save_int
 
 # Tool type constants
 SCISSORS_TYPE = 0xF9F
@@ -26,6 +27,16 @@ CRAFTING_GUMP = 0x38920ABD
 SALVAGE_ITEM_THRESHOLD = 100
 SALVAGE_WEIGHT_THRESHOLD = API.Player.WeightMax - 20
 SALVAGE_CONTEXT_MENU_INDEX = 2  # "Salvage All"
+
+# Material weights (stones per unit)
+MATERIAL_WEIGHTS = {
+    0x1BF2: 0.1,  # Iron ingots
+    0xF95: 0.1,  # Cloth
+    0x1081: 1.0,  # Leather
+    0x1BD7: 1.0,  # Boards
+    0xEF3: 1.0,  # Blank scrolls
+}
+DEFAULT_MATERIAL_WEIGHT = 0.1  # Fallback for unknown types
 
 
 class PageTracker:
@@ -221,6 +232,138 @@ def salvage_if_needed(
     return True
 
 
+def count_materials(material_types):
+    """
+    Count total materials in backpack.
+
+    Args:
+        material_types: List of material graphic IDs to count
+
+    Returns:
+        Total count of all material types
+    """
+    total = 0
+    for mat_type in material_types:
+        items = API.FindTypeAll(mat_type, API.Player.Backpack) or []
+        for item in items:
+            total += getattr(item, "Amount", 0) or 0
+    return total
+
+
+def get_material_weight(graphic):
+    """
+    Get weight per unit for a material type.
+
+    Args:
+        graphic: Material graphic ID
+
+    Returns:
+        Weight in stones per unit
+    """
+    return MATERIAL_WEIGHTS.get(graphic, DEFAULT_MATERIAL_WEIGHT)
+
+
+def grab_materials_by_weight(container_serial, material_types, weight_buffer=20):
+    """
+    Pull materials from container until weight limit reached.
+
+    Opens the container and moves materials to backpack, respecting
+    different material weights. Stops when player is within weight_buffer
+    stones of max weight.
+
+    Args:
+        container_serial: Storage container serial
+        material_types: List of material graphic IDs to grab
+        weight_buffer: Stones to leave free (don't fill completely)
+
+    Returns:
+        Number of material units moved
+    """
+    # Open container to see contents
+    API.UseObject(container_serial)
+    API.Pause(0.5)
+
+    moved_count = 0
+    available_weight = API.Player.WeightMax - API.Player.Weight - weight_buffer
+
+    for mat_type in material_types:
+        if available_weight <= 0:
+            break
+
+        mat_weight = get_material_weight(mat_type)
+        items = API.FindTypeAll(mat_type, container_serial) or []
+
+        for item in items:
+            if available_weight <= 0:
+                break
+
+            amount = getattr(item, "Amount", 0) or 0
+            can_grab = min(amount, int(available_weight / mat_weight))
+
+            if can_grab > 0:
+                if move_item_robust(item.Serial, API.Player.Backpack, can_grab):
+                    moved_count += can_grab
+                    available_weight -= can_grab * mat_weight
+
+    return moved_count
+
+
+def restock_if_needed(config, storage_serial):
+    """
+    Check materials and restock if low.
+
+    Flow:
+    1. Check if materials below threshold
+    2. If low: force salvage to recover materials
+    3. If still low: grab from storage container
+    4. If still low after grab: storage is empty, return False
+
+    Args:
+        config: Craft trainer config dict with material_types and material_threshold
+        storage_serial: Storage container serial to pull from
+
+    Returns:
+        True if we have enough materials to continue, False if storage empty
+    """
+    material_types = config.get("material_types")
+    if not material_types:
+        return True  # No restock configured
+
+    threshold = config.get("material_threshold", 50)
+    salvage_tool_type = config.get("salvage_tool_type")
+
+    # Check if we need to restock
+    if count_materials(material_types) >= threshold:
+        return True  # Have enough materials
+
+    # Low on materials - salvage first to recover
+    if salvage_tool_type:
+        API.SysMsg("Low materials - salvaging", 68)
+        salvage_if_needed(item_threshold=0, weight_threshold=0)  # Force salvage
+        API.Pause(1.0)
+
+    # Check again after salvage
+    if count_materials(material_types) >= threshold:
+        return True  # Salvage gave us enough
+
+    # Still low - pull from storage
+    if not storage_serial:
+        API.SysMsg("No storage container configured - stopping", 32)
+        return False
+
+    before = count_materials(material_types)
+    API.SysMsg("Restocking from storage...", 68)
+    grabbed = grab_materials_by_weight(storage_serial, material_types)
+
+    if grabbed == 0:
+        API.SysMsg("Storage empty - stopping", 32)
+        return False
+
+    after = count_materials(material_types)
+    API.SysMsg(f"Restocked: {before} -> {after} materials", 68)
+    return True
+
+
 def run_craft_trainer(config):
     """
     Generic craft training loop.
@@ -235,6 +378,9 @@ def run_craft_trainer(config):
             - salvage_tool_type (int or None): Tool for salvage, None to skip salvage
             - brackets (list): List of bracket dicts with max_skill, page, button, desc
             - target_skill (float or None): Target skill value, None for skill cap
+            - material_types (list, optional): Material graphic IDs for restocking
+            - material_threshold (int, optional): Restock when materials below this
+            - storage_key (str, optional): Persistence key for storage container
 
     Example config:
         {
@@ -246,6 +392,9 @@ def run_craft_trainer(config):
                 {'max_skill': 45.0, 'page': 43, 'button': 9, 'desc': 'mace'},
                 # ... more brackets
             ],
+            'material_types': [0x1BF2],  # Iron ingots
+            'material_threshold': 50,
+            'storage_key': 'ezSmith.Storage',
         }
     """
     skill_name = config["skill_name"]
@@ -253,6 +402,22 @@ def run_craft_trainer(config):
     salvage_tool_type = config.get("salvage_tool_type")
     brackets = config["brackets"]
     target_skill = config.get("target_skill")
+
+    # Setup storage container for restocking (if configured)
+    storage_serial = None
+    if config.get("material_types") and config.get("storage_key"):
+        storage_key = config["storage_key"]
+        storage_serial = load_int(storage_key, 0)
+        if not storage_serial:
+            API.SysMsg("Target your material storage container", 68)
+            storage_serial = API.RequestTarget()
+            if storage_serial:
+                save_int(storage_key, storage_serial)
+                API.SysMsg("Storage container saved", 68)
+            else:
+                API.SysMsg(
+                    "No storage container targeted - continuing without restock", 33
+                )
 
     # Setup based on whether salvage is used
     if salvage_tool_type:
@@ -306,6 +471,12 @@ def run_craft_trainer(config):
         # Salvage if enabled
         if salvage_tool_type:
             if not salvage_if_needed():
+                API.Stop()
+                break
+
+        # Restock if needed
+        if config.get("material_types"):
+            if not restock_if_needed(config, storage_serial):
                 API.Stop()
                 break
 

@@ -22,6 +22,10 @@ CONFIG = {
         {"max_skill": 90.0, "page": 36, "button": 37, "desc": "spyglass"},
         {"max_skill": 100.0, "page": 1, "button": 2, "desc": "ring"},
     ],
+    # Restock configuration
+    "material_types": [0x1BF2],  # Iron ingots
+    "material_threshold": 50,  # Restock when below this amount
+    "storage_key": "ezTinker.Storage",  # Persistence key for storage container
 }
 
 run_craft_trainer(CONFIG)

@@ -20,6 +20,10 @@ CONFIG = {
         {"max_skill": 74.6, "page": 29, "button": 9, "desc": "fur boots"},
         {"max_skill": 120.0, "page": 22, "button": 86, "desc": "oil cloth"},
     ],
+    # Restock configuration
+    "material_types": [0xF95],  # Cloth
+    "material_threshold": 50,  # Restock when below this amount
+    "storage_key": "ezTailor.Storage",  # Persistence key for storage container
 }
 
 run_craft_trainer(CONFIG)

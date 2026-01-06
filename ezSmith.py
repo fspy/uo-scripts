@@ -26,6 +26,10 @@ CONFIG = {
         {"max_skill": 118.8, "page": 1, "button": 72, "desc": "platemail legs"},
         {"max_skill": 120.0, "page": 1, "button": 79, "desc": "platemail tunics"},
     ],
+    # Restock configuration
+    "material_types": [0x1BF2],  # Iron ingots
+    "material_threshold": 50,  # Restock when below this amount
+    "storage_key": "ezSmith.Storage",  # Persistence key for storage container
 }
 
 run_craft_trainer(CONFIG)
