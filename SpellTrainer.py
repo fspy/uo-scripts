@@ -16,10 +16,15 @@ from enum import Enum
 # CONFIGURATION - Just change SKILL_NAME to switch presets
 # =============================================================================
 
-SKILL_NAME = "Spellweaving"  # Options: "Spellweaving", "Magery", "Necromancy"
+SKILL_NAME = "Magery"  # Options: "Spellweaving", "Magery", "Necromancy"
 
 # Healing config (set HEAL_SPELL to None to disable)
-HEAL_SPELL = ("Greater Heal", 2.0, 11, True)  # (name, cast_time, mana_cost, target_self)
+HEAL_SPELL = (
+    "Greater Heal",
+    2.0,
+    11,
+    True,
+)  # (name, cast_time, mana_cost, target_self)
 HEAL_THRESHOLD = 0.5
 
 # Timing settings
@@ -54,7 +59,7 @@ PRESETS = {
         "phases": [
             (45, "Bless", 1.0, 9, True, "NONE"),
             (55, "Greater Heal", 1.25, 11, True, "NONE"),
-            (65, "Magic Reflection", 1.5, 14, True, "NONE"),
+            (65, "Magic Reflection", 1.75, 14, False, "NONE"),
             (75, "Invisibility", 1.75, 20, True, "NONE"),
             (90, "Mana Vampire", 2.0, 40, True, "NONE"),
             (100, "Earthquake", 2.25, 50, False, "NONE"),
@@ -83,6 +88,7 @@ TRAINING_PHASES = _preset["phases"]
 
 # Global state
 last_meditation_time = 0
+
 
 class Handler(Enum):
     NONE = None
@@ -120,7 +126,7 @@ def calculate_spell_delay(base_cast_time):
 def wait_for_mana(min_mana):
     """Wait until player has full mana, using meditation if needed"""
     global last_meditation_time
-    
+
     if API.Player.Mana < min_mana:
         # Wait for meditation cooldown if needed
         current_time = time.time()
@@ -128,12 +134,12 @@ def wait_for_mana(min_mana):
         if time_since_last < MEDITATION_COOLDOWN:
             wait_time = MEDITATION_COOLDOWN - time_since_last
             API.Pause(wait_time)
-        
+
         # Wait a bit before meditating so it isn't instantly cancelled
         API.Pause(0.5)
         API.UseSkill("Meditation")
         last_meditation_time = time.time()
-        
+
         while API.Player.Mana < API.Player.ManaMax:
             if API.StopRequested:
                 return False
@@ -198,13 +204,16 @@ def main():
     for phase in TRAINING_PHASES:
         if API.StopRequested:
             break
-        
+
         end_skill, spell_name, base_cast_time, mana_cost, target_self, handler = phase
         current_skill = get_skill()
-        
+
         if current_skill < end_skill:
-            train_phase(end_skill, spell_name, base_cast_time, mana_cost, target_self, handler)
+            train_phase(
+                end_skill, spell_name, base_cast_time, mana_cost, target_self, handler
+            )
 
 
 while not API.StopRequested:
     main()
+
