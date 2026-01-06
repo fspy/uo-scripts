@@ -38,6 +38,12 @@ MATERIAL_WEIGHTS = {
 }
 DEFAULT_MATERIAL_WEIGHT = 0.1  # Fallback for unknown types
 
+# Materials that should only grab hue 0 (default color)
+# Used to avoid grabbing colored ore ingots, special cloths, etc.
+HUE_ZERO_MATERIALS = {
+    0x1BF2,  # Iron ingots (avoid colored ore ingots)
+}
+
 
 class PageTracker:
     """
@@ -271,6 +277,9 @@ def grab_materials_by_weight(container_serial, material_types, weight_buffer=20)
     different material weights. Stops when player is within weight_buffer
     stones of max weight.
 
+    For materials in HUE_ZERO_MATERIALS (like ingots), only grabs items
+    with hue 0 to avoid taking colored ore ingots.
+
     Args:
         container_serial: Storage container serial
         material_types: List of material graphic IDs to grab
@@ -296,6 +305,12 @@ def grab_materials_by_weight(container_serial, material_types, weight_buffer=20)
         for item in items:
             if available_weight <= 0:
                 break
+
+            # Skip colored materials if this type requires hue 0
+            if mat_type in HUE_ZERO_MATERIALS:
+                item_hue = getattr(item, "Hue", -1)
+                if item_hue != 0:
+                    continue  # Skip colored ingots
 
             amount = getattr(item, "Amount", 0) or 0
             can_grab = min(amount, int(available_weight / mat_weight))
