@@ -293,22 +293,39 @@ def show_startup_status():
         return
 
     ready_count = 0
+    current_char = API.Player.Name
+
     for char_name, profs in timers.items():
+        ready_profs = []
+        waiting_profs = []
+
         for profession, ready_at in profs.items():
             remaining = ready_at - now
-            status = format_time_remaining(remaining)
-
             if remaining <= 0:
-                hue = HUE_READY
+                ready_profs.append(profession)
                 ready_count += 1
             else:
-                hue = HUE_INFO
+                status = format_time_remaining(remaining)
+                waiting_profs.append((profession, status))
 
-            API.SysMsg(f"{char_name} - {profession}: {status}", hue)
+        # Show ready BODs grouped
+        if ready_profs:
+            prof_list = ", ".join(ready_profs)
+            API.SysMsg(f"{char_name} - BODs ready: {prof_list}", HUE_READY)
+
+        # Show waiting BODs individually
+        for profession, status in waiting_profs:
+            API.SysMsg(f"{char_name} - {profession}: {status}", HUE_INFO)
 
     if ready_count > 0:
-        API.SysMsg(f"{ready_count} BOD(s) ready to collect!", HUE_READY)
-        API.HeadMsg(f"{ready_count} BOD(s) READY!", API.Player.Serial, HUE_READY)
+        API.SysMsg(f"{ready_count} total BOD(s) ready to collect!", HUE_READY)
+        # Only show HeadMsg if current player has ready BODs
+        if current_char in timers:
+            current_ready = sum(
+                1 for ready_at in timers[current_char].values() if ready_at <= now
+            )
+            if current_ready > 0:
+                API.HeadMsg("You have BODs ready!", API.Player.Serial, HUE_READY)
 
     API.SysMsg("=" * 50, HUE_SUCCESS)
 
@@ -345,7 +362,9 @@ def notify_bod_ready(char_name, profession):
     """
     msg = f"{char_name} - {profession} BOD READY!"
     API.SysMsg(msg, HUE_READY)
-    API.HeadMsg("BOD READY!", API.Player.Serial, HUE_READY)
+    # Only show HeadMsg if it's the current player's BOD
+    if char_name == API.Player.Name:
+        API.HeadMsg("You have BODs ready!", API.Player.Serial, HUE_READY)
 
 
 # ============================================================================
@@ -747,14 +766,36 @@ def main():
             last_ready_check = now
             timers = load_all_timers()
 
+            # Group ready BODs by character
+            ready_by_char = {}
             for char_name, profs in timers.items():
-                for profession, ready_at in profs.items():
-                    if ready_at <= now:
-                        key = (char_name, profession)
-                        last_notif = last_notifications.get(key, 0)
-                        if now - last_notif > READY_REMINDER_INTERVAL:
-                            notify_bod_ready(char_name, profession)
-                            last_notifications[key] = now
+                ready_profs = [
+                    prof for prof, ready_at in profs.items() if ready_at <= now
+                ]
+                if ready_profs:
+                    ready_by_char[char_name] = ready_profs
+
+            # Send grouped notifications
+            for char_name, ready_profs in ready_by_char.items():
+                # Check if we should notify (respect reminder interval)
+                # Use first profession as key for throttling
+                key = (char_name, ready_profs[0])
+                last_notif = last_notifications.get(key, 0)
+
+                if now - last_notif > READY_REMINDER_INTERVAL:
+                    # Update all professions' notification time for this char
+                    for prof in ready_profs:
+                        last_notifications[(char_name, prof)] = now
+
+                    # Send grouped notification
+                    prof_list = ", ".join(ready_profs)
+                    API.SysMsg(f"{char_name} - BODs ready: {prof_list}", HUE_READY)
+
+                    # HeadMsg only for current player
+                    if char_name == API.Player.Name:
+                        API.HeadMsg(
+                            "You have BODs ready!", API.Player.Serial, HUE_READY
+                        )
 
         API.Pause(0.05)
 
