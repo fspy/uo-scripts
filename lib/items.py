@@ -12,25 +12,28 @@ except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
 
-def move_item_robust(serial, dest, amount, max_retries=3):
+def move_item_robust(serial, dest, amount, max_retries=5):
     """
     Move item with retry logic for 'you must wait' messages.
+    Uses adaptive delays starting at 0.6s and increasing by 0.1s per retry, capped at 1.5s.
     Returns True if move succeeded (or no error detected), False if failed after retries.
     """
-    base_delay = 0.5  # Starting delay
+    base_delay = 0.6
+    max_delay = 1.5
+    delay_increment = 0.1
 
     for attempt in range(max_retries):
         API.ClearJournal()
         API.MoveItem(serial, dest, amt=amount)
 
-        # Wait for server response
-        API.Pause(base_delay)
+        # Incremental delay: 0.6s, 0.7s, 0.8s, ..., capped at 1.5s
+        current_delay = min(base_delay + (attempt * delay_increment), max_delay)
+        API.Pause(current_delay)
 
         # Check for "you must wait"
         if API.InJournalAny(["you must wait"]):
             if attempt < max_retries - 1:
                 API.HeadMsg("Waiting...", API.Player.Serial, 946)
-                API.Pause(1.0)  # Extra wait before retry
                 continue
             else:
                 # Final attempt failed
