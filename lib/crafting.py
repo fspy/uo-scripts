@@ -295,8 +295,6 @@ def trash_items(
     trash_container,
     item_types,
     source_container=None,
-    item_threshold=SALVAGE_ITEM_THRESHOLD,
-    weight_threshold=None,
 ):
     """
     Trash crafted items by dropping them into a trash container.
@@ -304,32 +302,20 @@ def trash_items(
     For carpentry and other crafts where salvage doesn't work. Drops all
     items of specified types into a trash barrel or container.
 
-    Uses thresholds to batch trash operations (similar to salvage).
+    Called every craft cycle to utilize crafting downtime efficiently - items
+    are trashed in parallel while the craft operation completes.
 
     Args:
         trash_container: Trash container serial to drop items into
         item_types: List of item graphic IDs to trash
         source_container: Source container to pull items from (defaults to backpack)
-        item_threshold: Only trash when backpack has more than this many items (default 100)
-        weight_threshold: Only trash when weight exceeds this (default: WeightMax - 20)
 
     Returns:
-        True if trash not needed or succeeded, False if failed (no container)
+        True if succeeded, False if failed (no container)
     """
     if not trash_container:
         API.SysMsg("No trash container configured!", 32)
         return False
-
-    # Check thresholds first (batch trash operations for performance)
-    if weight_threshold is None:
-        weight_threshold = API.Player.WeightMax - 20
-
-    # Use recursive item count to include items in sub-containers (salvage bag)
-    over_items = len(API.ItemsInContainer(API.Backpack, True)) > item_threshold
-    over_weight = API.Player.Weight > weight_threshold
-
-    if not (over_items or over_weight):
-        return True  # No trash needed yet
 
     # Container already opened at startup, no need to re-open
     # Drop all items of specified types from source
