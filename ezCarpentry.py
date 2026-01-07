@@ -5,7 +5,7 @@ from lib.crafting import run_craft_trainer
 
 CONFIG = {
     "skill_name": "Carpentry",
-    "tool_type": 0x10E7,  # saw (updated graphic)
+    "tool_type": 0x1034,  # saw (updated graphic)
     "salvage_tool_type": None,  # carpentry items can't be salvaged
     "target_skill": 100.0,
     "brackets": [
@@ -33,8 +33,9 @@ CONFIG = {
     "trash_item_types": [
         0x0E3D,  # large crate
         0x0E3E,  # medium crate
+        0x0E3F,  # small? crate
         0x1B7A,  # wooden shield
-        0x1008,  # fukiya (guessing - will discover)
+        0x27AA,  # fukiya (guessing - will discover)
         0x0E89,  # quarter staff
         0x13F8,  # gnarled staff
         0x0DF0,  # black staff
