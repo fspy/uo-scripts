@@ -8,6 +8,8 @@ from lib.weight import is_heavy, is_overweight
 from lib.utils import count_items, stop_script, chebyshev_distance
 from lib.journal import wait_for_any
 from lib.runebook import recall_and_target, recall_with_retry, TRAVEL_FAIL_MSGS
+from lib.utils import dismount_if_mounted
+from lib.recovery import is_stuck, shutdown_cleanly
 
 # =========================
 # CONFIG
@@ -203,6 +205,21 @@ wait_msgs = [
     "you must wait",
 ]
 
+# =========================
+# TRAVEL & RECOVERY CONFIG
+# =========================
+
+# Travel config
+MAX_TRAVEL_RETRIES = 3
+TRAVEL_RETRY_DELAY = 2.0
+USE_SACRED_JOURNEY = False  # Future support
+
+# Timeout config
+PACK_WAIT_TIMEOUT = 15.0  # Align with Mining's beetle timeout
+
+# Recovery config
+MAX_CONSECUTIVE_FAILURES = 5
+
 # Travel constants moved to lib.runebook
 
 # =========================
@@ -228,6 +245,9 @@ class LumberjackState:
 
         # Bad tree graphics that caused "can't use axe" errors
         self.bad_graphics = set()
+
+        # Track consecutive failures for recovery
+        self.consecutive_failures = 0
 
 
 # =========================
@@ -565,7 +585,8 @@ def find_nearest_tree(state):
 
 def pathfind_to_tree(tree):
     """Pathfind to tree. Returns True if successful."""
-    return API.Pathfind(tree.X, tree.Y, tree.Z, distance=1, wait=True, timeout=10)
+    result = API.Pathfind(tree.X, tree.Y, tree.Z, distance=1, wait=True, timeout=10)
+    return result
 
 
 def mark_depleted(state, tree):
@@ -599,6 +620,8 @@ def chop_tree(state, tree):
 
     # If we're already holding a target cursor, just retarget
     if API.HasTarget("any"):
+        API.CancelTarget()
+        API.Pause(0.1)
         API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
         wait_for_any(success_msgs + depleted_msgs + wait_msgs, 1.0)
         return True
@@ -629,6 +652,8 @@ def chop_all_logs(state):
                 return False
 
             API.ClearJournal()
+            API.CancelTarget()
+            API.Pause(0.1)
 
             axe = ensure_axe_equipped(state)
             if not axe:
@@ -847,7 +872,12 @@ def deposit_routine(state):
 
     # 4. Cast Recall to runebook (go home)
     API.HeadMsg("Recalling home...", API.Player.Serial, 946)
-    if not recall_with_retry(state.runebook_serial, max_retries=3, retry_delay=2.0):
+    if not recall_with_retry(
+        state.runebook_serial,
+        max_retries=MAX_TRAVEL_RETRIES,
+        retry_delay=TRAVEL_RETRY_DELAY,
+        use_sacred_journey=USE_SACRED_JOURNEY,
+    ):
         stop_script("Failed to recall home after 3 attempts")
         return False
 
@@ -869,7 +899,12 @@ def deposit_routine(state):
 
     # 7. Cast Recall to marked rune (return to lumber spot)
     API.HeadMsg("Recalling back...", API.Player.Serial, 946)
-    if not recall_with_retry(state.rune_serial, max_retries=3, retry_delay=2.0):
+    if not recall_with_retry(
+        state.rune_serial,
+        max_retries=MAX_TRAVEL_RETRIES,
+        retry_delay=TRAVEL_RETRY_DELAY,
+        use_sacred_journey=USE_SACRED_JOURNEY,
+    ):
         stop_script("Failed to recall back to lumber spot after 3 attempts")
         return False
 
@@ -912,6 +947,16 @@ def main():
     if not setup_all_items(state, first_run):
         return
 
+    # Dirty state detection - check if at home with resources
+    chest = API.FindItem(state.drop_chest_serial)
+    boards = count_items(0x1BD7, API.Backpack) + count_items(0x1BD7, state.pack_serial)
+
+    if chest and boards > 0:
+        API.SysMsg("Detected dirty state - at home with resources, depositing...", 946)
+        if not deposit_routine(state):
+            stop_script("Failed to deposit on startup")
+            return
+
     # Wait for player to travel to lumber spot
     if not wait_for_travel_to_lumber_spot(state, first_run):
         return
@@ -933,7 +978,18 @@ def main():
         boards_in_pack = count_items(0x1BD7, state.pack_serial)
         if boards_in_pack >= 1600:
             if not deposit_routine(state):
+                state.consecutive_failures += 1
+                if state.consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    API.SysMsg(
+                        f"Too many failures ({state.consecutive_failures}) - attempting recovery",
+                        32,
+                    )
+                    if shutdown_cleanly(state.runebook_serial):
+                        return
+                    stop_script("Recovery failed - stopping")
+                    return
                 break
+            state.consecutive_failures = 0  # Reset on success
             continue
 
         # Weight management
@@ -947,7 +1003,18 @@ def main():
             boards_in_pack = count_items(0x1BD7, state.pack_serial)
             if boards_in_pack >= 1600:
                 if not deposit_routine(state):
+                    state.consecutive_failures += 1
+                    if state.consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                        API.SysMsg(
+                            f"Too many failures ({state.consecutive_failures}) - attempting recovery",
+                            32,
+                        )
+                        if shutdown_cleanly(state.runebook_serial):
+                            return
+                        stop_script("Recovery failed - stopping")
+                        return
                     break
+                state.consecutive_failures = 0  # Reset on success
                 continue
 
             # If still heavy, wait for pack and retry dump
@@ -979,7 +1046,12 @@ def main():
                 )
                 API.Dress("Main")
                 API.Pause(1.5)
-                recall_with_retry(state.runebook_serial, max_retries=5, retry_delay=2.0)
+                recall_with_retry(
+                    state.runebook_serial,
+                    max_retries=5,
+                    retry_delay=TRAVEL_RETRY_DELAY,
+                    use_sacred_journey=USE_SACRED_JOURNEY,
+                )
                 break
             API.Pause(1.0)
             continue
@@ -987,12 +1059,24 @@ def main():
         # Harvest tree
         harvest_tree(state, tree)
         state.no_trees_count = 0  # Reset counter after successful tree find
+        state.consecutive_failures = 0  # Reset failures after successful harvest
 
         # Check if pack is full after harvesting
         boards_in_pack = count_items(0x1BD7, state.pack_serial)
         if boards_in_pack >= 1600:
             if not deposit_routine(state):
+                state.consecutive_failures += 1
+                if state.consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    API.SysMsg(
+                        f"Too many failures ({state.consecutive_failures}) - attempting recovery",
+                        32,
+                    )
+                    if shutdown_cleanly(state.runebook_serial):
+                        return
+                    stop_script("Recovery failed - stopping")
+                    return
                 break
+            state.consecutive_failures = 0  # Reset on success
 
         API.Pause(0.1)
 
