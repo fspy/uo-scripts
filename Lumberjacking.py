@@ -386,7 +386,7 @@ def setup_all_items(state, first_run):
         return False
 
     # Drop chest - special handling for out of range
-    state.drop_chest_serial = setup_drop_chest(state, first_run)
+    state.drop_chest_serial = setup_drop_chest(first_run)
     if not state.drop_chest_serial:
         stop_script("Drop chest setup failed")
         return False

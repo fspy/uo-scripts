@@ -605,12 +605,15 @@ def run_craft_trainer(config):
         tool_container = find_salvage_bag() or API.Player.Backpack
         strict = False
 
-    # Pre-open storage and trash containers so contents are loaded (performance optimization)
+    # Pre-open storage, trash, and salvage bag so contents are loaded (performance optimization)
     if storage_serial:
         API.UseObject(storage_serial)
         API.Pause(0.3)
     if trash_serial:
         API.UseObject(trash_serial)
+        API.Pause(0.3)
+    if tool_container != API.Player.Backpack:
+        API.UseObject(tool_container)
         API.Pause(0.3)
 
     # Open crafting gump
