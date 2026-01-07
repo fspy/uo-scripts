@@ -26,7 +26,7 @@ HATCHET_TYPE = 0x0F43
 # Crafting constants
 CRAFTING_GUMP = 0x38920ABD
 SALVAGE_ITEM_THRESHOLD = 100
-SALVAGE_WEIGHT_THRESHOLD = API.Player.WeightMax - 20
+SALVAGE_WEIGHT_THRESHOLD = None  # Computed at runtime (API.Player.WeightMax - 20)
 SALVAGE_CONTEXT_MENU_INDEX = 2  # "Salvage All"
 
 # Material weights (stones per unit)
@@ -202,23 +202,26 @@ def should_continue_training(skill_name, target_skill):
     return not API.StopRequested and API.GetSkill(skill_name).Value < target_skill
 
 
-def salvage_if_needed(
-    item_threshold=SALVAGE_ITEM_THRESHOLD, weight_threshold=SALVAGE_WEIGHT_THRESHOLD
-):
+def salvage_if_needed(item_threshold=SALVAGE_ITEM_THRESHOLD, weight_threshold=None):
     """
     Salvage crafted items when over threshold.
 
-    Checks backpack item count and player weight. If either exceeds threshold,
-    finds salvage bag and triggers salvage via context menu.
+    Checks backpack item count (recursive) and player weight. If either exceeds
+    threshold, finds salvage bag and triggers salvage via context menu.
 
     Args:
         item_threshold: Max items in backpack before salvaging (default 100)
-        weight_threshold: Max weight before salvaging (default 450)
+        weight_threshold: Max weight before salvaging (default: WeightMax - 20)
 
     Returns:
         True if salvage not needed or succeeded, False if salvage needed but failed
     """
-    over_items = API.Contents(API.Backpack) > item_threshold
+    # Compute weight threshold at runtime
+    if weight_threshold is None:
+        weight_threshold = API.Player.WeightMax - 20
+
+    # Use recursive item count to include items in sub-containers (salvage bag)
+    over_items = len(API.ItemsInContainer(API.Backpack, True)) > item_threshold
     over_weight = API.Player.Weight > weight_threshold
 
     if over_items or over_weight:
@@ -321,7 +324,8 @@ def trash_items(
     if weight_threshold is None:
         weight_threshold = API.Player.WeightMax - 20
 
-    over_items = API.Contents(API.Backpack) > item_threshold
+    # Use recursive item count to include items in sub-containers (salvage bag)
+    over_items = len(API.ItemsInContainer(API.Backpack, True)) > item_threshold
     over_weight = API.Player.Weight > weight_threshold
 
     if not (over_items or over_weight):
