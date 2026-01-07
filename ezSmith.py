@@ -1,13 +1,12 @@
 # ezSmith - Automated Blacksmithing Skill Training
 
-import API
-from lib.crafting import run_craft_trainer, TONGS_TYPE
+from lib.crafting import TONGS_TYPE, run_craft_trainer
 
 CONFIG = {
     "skill_name": "Blacksmithy",
-    "tool_type": 0x0FBB,  # tongs
+    "tool_type": TONGS_TYPE,  # tongs
     "salvage_tool_type": TONGS_TYPE,  # tongs for salvage
-    "target_skill": 90.0,  # Set to None to train to skill cap
+    "target_skill": None,  # Set to None to train to skill cap
     "brackets": [
         {
             "max_skill": 40.0,
@@ -15,16 +14,10 @@ CONFIG = {
             "button": None,
             "desc": "too low - train to 40 in new haven",
         },
-        {"max_skill": 45.0, "page": 43, "button": 9, "desc": "mace"},
-        {"max_skill": 50.0, "page": 43, "button": 16, "desc": "maul"},
-        {"max_skill": 55.0, "page": 22, "button": 23, "desc": "cutlass"},
-        {"max_skill": 59.5, "page": 22, "button": 37, "desc": "katana"},
-        {"max_skill": 70.5, "page": 22, "button": 58, "desc": "scimitar"},
-        {"max_skill": 106.4, "page": 1, "button": 65, "desc": "platemail gorget"},
-        {"max_skill": 108.9, "page": 1, "button": 58, "desc": "platemail gloves"},
-        {"max_skill": 116.3, "page": 1, "button": 51, "desc": "platemail arms"},
-        {"max_skill": 118.8, "page": 1, "button": 72, "desc": "platemail legs"},
-        {"max_skill": 120.0, "page": 1, "button": 79, "desc": "platemail tunics"},
+        {"max_skill": 75.0, "page": 22, "button": 44, "desc": "kryss"},
+        {"max_skill": 89.9, "page": 22, "button": 107, "desc": "shuriken"},
+        {"max_skill": 100.0, "page": 8, "button": 93, "desc": "circlet"},
+        {"max_skill": 120.0, "page": 57, "button": 2, "desc": "boomerang"},
     ],
     # Restock configuration
     "material_types": [0x1BF2],  # Iron ingots

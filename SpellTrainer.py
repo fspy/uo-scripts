@@ -17,7 +17,9 @@ from lib.spells import calculate_recovery_time, calculate_full_spell_delay
 # CONFIGURATION - Just change SKILL_NAME to switch presets
 # =============================================================================
 
-SKILL_NAME = "Chivalry"  # Options: "Spellweaving", "Magery", "Necromancy", "Chivalry"
+SKILL_NAME = (
+    "Spellweaving"  # Options: "Spellweaving", "Magery", "Necromancy", "Chivalry"
+)
 
 # Healing config (set HEAL_SPELL to None to disable)
 HEAL_SPELL = (
@@ -50,8 +52,8 @@ PRESETS = {
             (44, "Reaper Form", 2.5, 34, False, "NONE"),
             (60, "Summon Fey", 1.5, 10, False, "DISMISS_FOLLOWERS"),
             (74, "Essence of Wind", 3.0, 40, False, "NONE"),
-            (90, "Wildfire", 2.5, 50, True, "NONE"),
-            (100, "Word of Death", 3.5, 50, True, "HEAL_CHECK"),
+            (103.5, "Wildfire", 2.5, 50, True, "NONE"),
+            (120, "Word of Death", 3.5, 50, True, "HEAL_CHECK"),
         ],
     },
     "Magery": {
