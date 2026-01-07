@@ -4,7 +4,8 @@ from lib.runebook import Runebook, wait_for_travel, recall_and_target, recall_wi
 from lib.items import drop_all_items_at_home
 from lib.persistence import load_int, save_int
 from lib.weight import is_heavy, is_overweight
-from lib.utils import find_any_type
+from lib.utils import find_any_type, dismount_if_mounted, stop_script
+from lib.recovery import is_stuck, shutdown_cleanly
 
 # =========================
 # CONFIG
@@ -75,6 +76,9 @@ DROP_ITEM_TYPES = [INGOT_TYPE] + BONUS_MINING_ITEMS
 USE_SACRED_JOURNEY = False  # True = Chivalry Sacred Journey, False = Magery Recall
 MAX_TRAVEL_RETRIES = 3
 TRAVEL_RETRY_DELAY = 2.0  # Seconds between retry attempts
+
+# Recovery config
+MAX_CONSECUTIVE_FAILURES = 5
 
 # Weight and item finding functions moved to lib modules (lib.weight, lib.utils)
 
@@ -289,13 +293,6 @@ def smelt_before_travel(beetle_serial: int) -> int:
     return beetle_serial
 
 
-def dismount_if_mounted() -> None:
-    """Dismount if currently mounted (mining requires being on foot)."""
-    if API.Player.Mount:
-        API.Dismount()
-        API.Pause(0.5)
-
-
 # =========================
 # TRAVEL FUNCTIONS
 # =========================
@@ -403,7 +400,10 @@ def recall_home(home_serial: int) -> bool:
     API.SysMsg("Recalling home...")
 
     if recall_with_retry(
-        home_serial, MAX_TRAVEL_RETRIES, TRAVEL_RETRY_DELAY, USE_SACRED_JOURNEY
+        home_serial,
+        max_retries=MAX_TRAVEL_RETRIES,
+        retry_delay=TRAVEL_RETRY_DELAY,
+        use_sacred_journey=USE_SACRED_JOURNEY,
     ):
         API.SysMsg("Successfully recalled home")
         return True
@@ -483,6 +483,16 @@ max_mining_spots = 16
 # Dismount before starting (mining requires being on foot)
 dismount_if_mounted()
 
+# Dirty state detection - check if at home with ingots
+if drop_container_serial and is_at_home(drop_container_serial):
+    from lib.utils import count_items
+
+    ingots = count_items(INGOT_TYPE, API.Backpack)
+    if ingots > 0:
+        API.SysMsg("Detected dirty state - at home with ingots, depositing...", 946)
+        dropped = drop_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
+        API.SysMsg(f"Dumped {dropped} stacks on startup", 946)
+
 # Handle dirty state: if at home and heavy, dump first
 if drop_container_serial and is_at_home(drop_container_serial):
     if is_heavy():
@@ -517,6 +527,9 @@ if mining_runebook:
 # Track depletion per offset so we can rotate through all 4 directions.
 depleted_offsets = set()
 
+# Track consecutive failures for recovery
+consecutive_failures = 0
+
 while not API.StopRequested:
     shovel = find_shovel()
     if not shovel:
@@ -525,12 +538,18 @@ while not API.StopRequested:
         if home_rune_serial:
             API.SysMsg("Recalling home...")
             beetle = smelt_before_travel(beetle)
-            recall_with_retry(home_rune_serial, max_retries=3)
+            recall_with_retry(
+                home_rune_serial,
+                max_retries=MAX_TRAVEL_RETRIES,
+                retry_delay=TRAVEL_RETRY_DELAY,
+                use_sacred_journey=USE_SACRED_JOURNEY,
+            )
         break
 
     if is_heavy():
         API.SysMsg("Heavy -> smelting on beetle")
         beetle = smelt_all_ore(beetle)
+        consecutive_failures = 0  # Reset on successful smelt
 
         # If we're still heavy but there's nothing left we can smelt,
         # travel home to drop items (if travel is configured)
@@ -541,10 +560,20 @@ while not API.StopRequested:
                 # Travel home
                 if not recall_home(home_rune_serial):
                     API.SysMsg("Failed to recall home; stopping")
+                    consecutive_failures += 1
+                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                        API.SysMsg(
+                            f"Too many failures ({consecutive_failures}) - attempting recovery",
+                            32,
+                        )
+                        if shutdown_cleanly(home_rune_serial):
+                            break
+                        stop_script("Recovery failed - stopping")
                     break
 
                 # Drop ingots and other configured items
                 dropped = drop_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
+                consecutive_failures = 0  # Reset on successful banking
 
                 if dropped == 0:
                     API.SysMsg("No items to drop but still heavy; stopping")
@@ -554,6 +583,15 @@ while not API.StopRequested:
                 if mining_runebook:
                     if not recall_to_mining_spot(mining_runebook, current_spot_index):
                         API.SysMsg("Failed to return to mining spot; stopping")
+                        consecutive_failures += 1
+                        if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                            API.SysMsg(
+                                f"Too many failures ({consecutive_failures}) - attempting recovery",
+                                32,
+                            )
+                            if shutdown_cleanly(home_rune_serial):
+                                break
+                            stop_script("Recovery failed - stopping")
                         break
 
                     # Wait for beetle to arrive after teleport
@@ -563,6 +601,7 @@ while not API.StopRequested:
                     if not beetle:
                         API.SysMsg("Cannot find beetle after teleport; stopping")
                         break
+                    consecutive_failures = 0  # Reset on successful return
                 else:
                     API.SysMsg("No mining runebook configured; cannot return to spot")
                     break
@@ -634,6 +673,7 @@ while not API.StopRequested:
 
         mined_any = True
         mine_once(shovel, x_off, y_off)
+        consecutive_failures = 0  # Reset after successful mining action
 
         if should_mark_depleted():
             depleted_offsets.add((x_off, y_off))
