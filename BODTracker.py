@@ -56,7 +56,7 @@ STORAGE_KEY = "BODTimers"
 
 # Colors
 HUE_SUCCESS = 62  # Green - BOD accepted, timer saved
-HUE_READY = 37  # Gold/Yellow - BOD is ready!
+HUE_READY = 56  # Green/Yellow - BOD is ready!
 HUE_INFO = 946  # Gray - status info
 HUE_ALERT = 32  # Red - errors/warnings
 
