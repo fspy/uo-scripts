@@ -137,6 +137,11 @@ def smelt_all_ore(beetle_serial: int) -> int:
 
         API.ClearJournal()
 
+        # Cancel any pending target cursor before starting (lag protection)
+        if API.HasTarget("any"):
+            API.CancelTarget()
+            API.Pause(0.1)
+
         # Use ore and wait for target cursor
         API.UseObject(ore.Serial)
 
@@ -148,6 +153,13 @@ def smelt_all_ore(beetle_serial: int) -> int:
         # Target the beetle
         API.Target(beetle_serial)  # type: ignore
         API.Pause(SMELT_DELAY)
+
+        # If target cursor is still up, targeting failed (lag spike)
+        if API.HasTarget("any"):
+            API.CancelTarget()
+            API.Pause(0.1)
+            no_progress += 1
+            continue
 
         if API.InJournal("You must wait"):
             API.Pause(0.5)
@@ -509,6 +521,11 @@ while not API.StopRequested:
     shovel = find_shovel()
     if not shovel:
         API.SysMsg("Out of shovels; stopping")
+        # Recall home before stopping
+        if home_rune_serial:
+            API.SysMsg("Recalling home...")
+            beetle = smelt_before_travel(beetle)
+            recall_with_retry(home_rune_serial, max_retries=3)
         break
 
     if is_heavy():

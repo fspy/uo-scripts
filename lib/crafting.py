@@ -21,6 +21,7 @@ from lib.persistence import load_int, save_int
 # Tool type constants
 SCISSORS_TYPE = 0xF9F
 TONGS_TYPE = 0x0FBB
+HATCHET_TYPE = 0x0F43
 
 # Crafting constants
 CRAFTING_GUMP = 0x38920ABD
@@ -232,6 +233,112 @@ def salvage_if_needed(
     return True
 
 
+def destroy_items_with_axe(item_types, item_threshold=None, weight_threshold=None):
+    """
+    Destroy crafted items using a hatchet.
+
+    For carpentry and other crafts where salvage doesn't work. Uses a hatchet
+    to destroy items (no materials returned).
+
+    DEPRECATED: Use trash_items() instead - many items can't be axe-destroyed.
+
+    Args:
+        item_types: List of item graphic IDs to destroy
+        item_threshold: Only destroy if backpack has more than this many items (None = always destroy)
+        weight_threshold: Only destroy if weight exceeds this (None = always destroy)
+
+    Returns:
+        True if destruction not needed or succeeded, False if failed
+    """
+    # Check thresholds if specified
+    if item_threshold is not None or weight_threshold is not None:
+        if weight_threshold is None:
+            weight_threshold = API.Player.WeightMax - 20
+
+        item_count = API.Contents(API.Backpack)
+        weight = API.Player.Weight
+
+        over_items = item_threshold is None or item_count > item_threshold
+        over_weight = weight_threshold is None or weight > weight_threshold
+
+        if not (over_items or over_weight):
+            return True  # No destruction needed
+
+    # Find hatchet in backpack
+    hatchet = API.FindType(HATCHET_TYPE, API.Player.Backpack)
+    if not hatchet:
+        API.SysMsg("No hatchet found for destroying items!", 32)
+        return False
+
+    destroyed_count = 0
+
+    # Destroy all items of specified types
+    for item_type in item_types:
+        items = API.FindTypeAll(item_type, API.Player.Backpack) or []
+        for item in items:
+            API.UseObject(hatchet.Serial)
+            if API.WaitForTarget("any", 0.5):
+                API.Target(item.Serial)  # type: ignore
+                API.Pause(0.3)
+                destroyed_count += 1
+
+    if destroyed_count > 0:
+        API.SysMsg(f"Destroyed {destroyed_count} items", 68)
+
+    return True
+
+
+def trash_items(
+    trash_container,
+    item_types,
+    source_container=None,
+    item_threshold=SALVAGE_ITEM_THRESHOLD,
+    weight_threshold=None,
+):
+    """
+    Trash crafted items by dropping them into a trash container.
+
+    For carpentry and other crafts where salvage doesn't work. Drops all
+    items of specified types into a trash barrel or container.
+
+    Uses thresholds to batch trash operations (similar to salvage).
+
+    Args:
+        trash_container: Trash container serial to drop items into
+        item_types: List of item graphic IDs to trash
+        source_container: Source container to pull items from (defaults to backpack)
+        item_threshold: Only trash when backpack has more than this many items (default 100)
+        weight_threshold: Only trash when weight exceeds this (default: WeightMax - 20)
+
+    Returns:
+        True if trash not needed or succeeded, False if failed (no container)
+    """
+    if not trash_container:
+        API.SysMsg("No trash container configured!", 32)
+        return False
+
+    # Check thresholds first (batch trash operations for performance)
+    if weight_threshold is None:
+        weight_threshold = API.Player.WeightMax - 20
+
+    over_items = API.Contents(API.Backpack) > item_threshold
+    over_weight = API.Player.Weight > weight_threshold
+
+    if not (over_items or over_weight):
+        return True  # No trash needed yet
+
+    # Container already opened at startup, no need to re-open
+    # Drop all items of specified types from source
+    trashed = drop_items_to_container(
+        trash_container, item_types, source=source_container
+    )
+
+    if trashed > 0:
+        API.SysMsg(f"Trashed {trashed} item stack(s)", 68)
+
+    return True
+
+
 def count_materials(material_types):
     """
     Count total materials in backpack.
@@ -267,12 +374,13 @@ def grab_materials_by_weight(container_serial, material_types, weight_buffer=20)
     """
     Pull materials from container until weight limit reached.
 
-    Opens the container and moves materials to backpack, respecting
-    different material weights. Stops when player is within weight_buffer
-    stones of max weight.
+    Moves materials to backpack, respecting different material weights.
+    Stops when player is within weight_buffer stones of max weight.
 
     Only grabs items with hue 0 (default color) to avoid taking colored
     ore ingots, special cloths, or other valuable dyed materials.
+
+    Note: Container should be pre-opened at startup for performance.
 
     Args:
         container_serial: Storage container serial
@@ -282,10 +390,7 @@ def grab_materials_by_weight(container_serial, material_types, weight_buffer=20)
     Returns:
         Number of material units moved
     """
-    # Open container to see contents
-    API.UseObject(container_serial)
-    API.Pause(0.5)
-
+    # Container already opened at startup, no need to re-open
     moved_count = 0
     available_weight = API.Player.WeightMax - API.Player.Weight - weight_buffer
 
@@ -473,6 +578,20 @@ def run_craft_trainer(config):
                     "No storage container targeted - continuing without restock", 33
                 )
 
+    # Setup trash container for disposing items (if configured)
+    trash_serial = None
+    if config.get("trash_item_types") and config.get("trash_container_key"):
+        trash_key = config["trash_container_key"]
+        trash_serial = load_int(trash_key, 0)
+        if not trash_serial:
+            API.SysMsg("Target your trash container", 68)
+            trash_serial = API.RequestTarget()
+            if trash_serial:
+                save_int(trash_key, trash_serial)
+                API.SysMsg("Trash container saved", 68)
+            else:
+                API.SysMsg("No trash container targeted - items may accumulate", 33)
+
     # Setup based on whether salvage is used
     if salvage_tool_type:
         # Salvage-enabled crafting (smith, tailor)
@@ -496,6 +615,14 @@ def run_craft_trainer(config):
         tool_container = find_salvage_bag() or API.Player.Backpack
         strict = False
 
+    # Pre-open storage and trash containers so contents are loaded (performance optimization)
+    if storage_serial:
+        API.UseObject(storage_serial)
+        API.Pause(0.3)
+    if trash_serial:
+        API.UseObject(trash_serial)
+        API.Pause(0.3)
+
     # Open crafting gump
     if not open_craft_gump(tool_type, tool_container, CRAFTING_GUMP, strict=strict):
         API.SysMsg("Failed to open crafting gump!", 32)
@@ -517,22 +644,36 @@ def run_craft_trainer(config):
             break
 
         page, button = bracket
-        craft_item(CRAFTING_GUMP, page_tracker.get_page(page), button)
-        wait_for_gump_or_replace_tool(
-            CRAFTING_GUMP, tool_type, tool_container, strict=strict
-        )
 
-        # Salvage if enabled
+        # Start the craft (gump closes, craft begins in background)
+        start_craft(CRAFTING_GUMP, page_tracker.get_page(page), button)
+
+        # Do work WHILE craft is happening (true parallelism!)
         if salvage_tool_type:
             if not salvage_if_needed():
                 API.Stop()
                 break
+        elif config.get("trash_item_types") and trash_serial:
+            # Use trash container for non-salvageable items (carpentry, etc.)
+            # Items are in tool_container (salvage bag or backpack)
+            if not trash_items(
+                trash_serial,
+                config["trash_item_types"],
+                source_container=tool_container,
+            ):
+                API.Stop()
+                break
 
-        # Restock if needed
+        # Restock if needed (also while craft is happening)
         if config.get("material_types"):
             if not restock_if_needed(config, storage_serial):
                 API.Stop()
                 break
+
+        # Now wait for craft to complete
+        wait_for_gump_or_replace_tool(
+            CRAFTING_GUMP, tool_type, tool_container, strict=strict
+        )
 
     # Training complete
     final_skill = API.GetSkill(skill_name).Value
@@ -677,12 +818,38 @@ def wait_for_gump_or_replace_tool(gump_id, tool_type, tool_container, strict=Fal
         API.Pause(0.1)
 
 
+def start_craft(gump_id, page, button):
+    """
+    Start crafting an item via gump - does NOT wait for completion.
+
+    If page is provided, navigates to that page first. Then clicks the
+    craft button and returns immediately. Craft happens in background.
+
+    Use this to do work (trash/restock) while craft is in progress, then
+    call wait_for_gump_or_replace_tool() to wait for completion.
+
+    Args:
+        gump_id: Crafting gump ID
+        page: Page number to navigate to (None to skip navigation)
+        button: Button ID to click for crafting
+    """
+    if page:
+        API.ReplyGump(page, gump_id)
+        API.WaitForGump(gump_id)
+
+    API.ReplyGump(button, gump_id)
+    # Craft is now in progress - gump will return when done
+
+
 def craft_item(gump_id, page, button):
     """
     Craft an item via gump with page navigation.
 
     If page is provided, navigates to that page first. Then clicks the
     craft button and waits for confirmation.
+
+    DEPRECATED: Use start_craft() + wait_for_gump_or_replace_tool() instead
+    for better performance (allows parallel work during craft).
 
     Args:
         gump_id: Crafting gump ID
