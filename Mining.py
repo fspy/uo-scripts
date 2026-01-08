@@ -5,7 +5,12 @@ from lib.items import drop_all_items_at_home
 from lib.persistence import load_int, save_int
 from lib.recovery import is_stuck, shutdown_cleanly
 from lib.runebook import Runebook, recall_and_target, recall_with_retry, wait_for_travel
-from lib.utils import dismount_if_mounted, find_any_type, stop_script
+from lib.utils import (
+    dismount_if_mounted,
+    find_any_type,
+    stop_script,
+    use_item_on_target,
+)
 from lib.weight import is_heavy, is_overweight
 
 # =========================
@@ -147,17 +152,22 @@ def smelt_all_ore(beetle_serial: int) -> int:
             API.CancelTarget()
             API.Pause(0.1)
 
-        # Use ore and wait for target cursor
-        API.UseObject(ore.Serial)
+        if beetle_serial <= 0:
+            API.SysMsg("No fire beetle serial set; stopping", 32)
+            API.Stop()
+            return 0
 
-        if not API.WaitForTarget(timeout=2.0):
+        # Use ore and target the beetle (robust against lag)
+        if not use_item_on_target(
+            ore.Serial,
+            beetle_serial,
+            timeout=2.0,
+            delay=SMELT_DELAY,
+        ):
             # No target cursor appeared - server might be lagging
+            no_progress += 1
             API.Pause(SMELT_DELAY)
             continue
-
-        # Target the beetle
-        API.Target(beetle_serial)  # type: ignore
-        API.Pause(SMELT_DELAY)
 
         # If target cursor is still up, targeting failed (lag spike)
         if API.HasTarget("any"):
@@ -194,10 +204,19 @@ def smelt_all_ore(beetle_serial: int) -> int:
             no_progress += 1
 
         if no_progress >= SMELT_NO_PROGRESS_LIMIT:
-            API.SysMsg("Smelting made no progress; retarget your fire beetle")
+            # Prefer auto-reacquire (beetle might have come into range) before prompting.
+            detected = find_fire_beetle()
+            if detected:
+                beetle_serial = detected
+                save_beetle_serial(beetle_serial)
+                API.SysMsg(f"Reacquired fire beetle: {hex(beetle_serial)}", 68)
+                no_progress = 0
+                continue
+
+            API.SysMsg("Smelting stuck; retarget your fire beetle", 32)
             new_beetle = API.RequestTarget()
             if not new_beetle:
-                API.SysMsg("No beetle targeted; stopping")
+                API.SysMsg("No beetle targeted; stopping", 32)
                 API.Stop()
                 return beetle_serial
 
@@ -531,7 +550,22 @@ depleted_offsets = set()
 # Track consecutive failures for recovery
 consecutive_failures = 0
 
+# Track apparent stuck state (no movement) for recovery
+stuck_checks = 0
+
 while not API.StopRequested:
+    # If we haven't moved for a while, try to bail out safely.
+    if is_stuck(timeout=20):
+        stuck_checks += 1
+        if stuck_checks >= 2:
+            API.SysMsg("Stuck detected; attempting to recall home", 32)
+            if shutdown_cleanly(home_rune_serial):
+                break
+            stop_script("Stuck and could not recall home")
+            break
+    else:
+        stuck_checks = 0
+
     shovel = find_shovel()
     if not shovel:
         API.SysMsg("Out of shovels; stopping")

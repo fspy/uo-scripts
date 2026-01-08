@@ -654,43 +654,84 @@ def chop_tree(state, tree):
 
 
 def chop_all_logs(state):
-    """Convert all logs to boards. Returns True if successful."""
+    """Convert all logs to boards.
+
+    Hardened against lag spikes:
+    - Uses lib.utils.use_item_on_target() for standard targeting sequence
+    - If we fail to make progress for too long, attempt to recall home
+
+    Returns True if finished (or deposit needed), False if stopped.
+    """
+
+    no_progress = 0
+    no_progress_limit = 12
+
     while not API.StopRequested:
         logs = API.FindTypeAll(0x1BDD, API.Backpack) or []
         if not logs:
-            break
+            return True
+
+        progressed_this_pass = False
 
         for log in logs:
             if API.StopRequested:
                 return False
 
+            before_amount = getattr(API.FindItem(log.Serial), "Amount", None)
+
             API.ClearJournal()
-            API.CancelTarget()
-            API.Pause(0.1)
+            if API.HasTarget("any"):
+                API.CancelTarget()
+                API.Pause(0.1)
 
             axe = ensure_axe_equipped(state)
             if not axe:
                 stop_script("Could not equip axe")
                 return False
 
-            # Use standard targeting sequence (never use PreTarget)
-            API.UseObject(axe.Serial)
-            if API.WaitForTarget(timeout=0.5):
-                API.Target(log.Serial)
+            dismount_if_mounted()
+
+            # Preferred: item-on-item targeting
+            if not use_item_on_target(axe.Serial, log.Serial, timeout=0.5, delay=0.1):
+                # Fallback: try again with a slightly longer target wait
+                if API.WaitForTarget(timeout=1.5):
+                    API.Target(log.Serial)
+                    API.Pause(0.1)
 
             API.Pause(0.5)
 
             if API.InJournalAny(wait_msgs):
                 API.Pause(0.5)
 
+            after_item = API.FindItem(log.Serial)
+            after_amount = getattr(after_item, "Amount", None) if after_item else None
+
+            made_progress = (after_item is None) or (
+                before_amount is not None and after_amount != before_amount
+            )
+            progressed_this_pass = progressed_this_pass or made_progress
+
+        if progressed_this_pass:
+            no_progress = 0
+        else:
+            no_progress += 1
+
+        if no_progress >= no_progress_limit:
+            API.SysMsg("Log->board conversion stuck; recalling home", 32)
+            # Prefer the runebook (more likely to be in pack) but fall back to rune.
+            if shutdown_cleanly(
+                home_serial=state.runebook_serial, runebook_serial=state.rune_serial
+            ):
+                return False
+            stop_script("Could not recover from stuck board conversion")
+            return False
+
         # Dump boards after each batch
         if not dump_boards_to_pack(state):
             # Pack might be full, check if we should deposit
             boards_in_pack = count_items(0x1BD7, state.pack_serial)
             if boards_in_pack >= 1600:
-                return True  # Let caller handle deposit routine
-
-    return True
+                return True  # caller handles deposit routine
 
 
 def dump_boards_to_pack(state):
@@ -981,6 +1022,16 @@ def main():
 
     # Main loop
     while not API.StopRequested:
+        # If we're not moving for a while, try to recall home.
+        if is_stuck(timeout=25):
+            API.SysMsg("Stuck detected; attempting recovery", 32)
+            if shutdown_cleanly(
+                home_serial=state.runebook_serial, runebook_serial=state.rune_serial
+            ):
+                return
+            stop_script("Stuck and could not recall home")
+            return
+
         # Equip axe
         axe = ensure_axe_equipped(state)
         if not axe:
