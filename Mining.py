@@ -23,7 +23,7 @@ SMALL_ORE_TYPE = 0x19B7
 
 # Mining is stationary, so we can tolerate being overweight.
 # Start smelting once we reach (WeightMax + allowance).
-SMELT_OVERWEIGHT_ALLOWANCE = 60
+SMELT_OVERWEIGHT_ALLOWANCE = -30
 
 MINING_DELAY = 0.5
 SMELT_DELAY = 0.5
@@ -142,8 +142,7 @@ def smelt_all_ore(beetle_serial: int) -> int:
             API.Pause(0.1)
 
         if beetle_serial <= 0:
-            API.SysMsg("No fire beetle serial set; stopping", 32)
-            API.Stop()
+            stop_script("No fire beetle serial set; stopping", 32)
             return 0
 
         # Use ore and target the beetle (robust against lag)
@@ -205,8 +204,7 @@ def smelt_all_ore(beetle_serial: int) -> int:
             API.SysMsg("Smelting stuck; retarget your fire beetle", 32)
             new_beetle = API.RequestTarget()
             if not new_beetle:
-                API.SysMsg("No beetle targeted; stopping", 32)
-                API.Stop()
+                stop_script("No beetle targeted; stopping", 32)
                 return beetle_serial
 
             beetle_serial = int(new_beetle)
@@ -496,8 +494,7 @@ else:
 # can still be valid. We'll only prompt to retarget if smelting makes no progress.
 
 if not beetle:
-    API.SysMsg("No beetle targeted; stopping")
-    API.Stop()
+    stop_script("No beetle targeted; stopping")
 
 API.SysMsg("Mining started (will smelt when heavy)")
 
@@ -565,16 +562,14 @@ if mining_runebook:
 
     API.SysMsg(f"Recalling to mining spot {current_spot_index}...")
     if not recall_to_mining_spot(mining_runebook, current_spot_index):
-        API.SysMsg("Failed to recall to initial mining spot; stopping")
-        API.Stop()
+        stop_script("Failed to recall to initial mining spot; stopping")
 
     # Wait for beetle to arrive after teleport
     beetle = wait_for_beetle(timeout=15)
     if not beetle:
         beetle = load_beetle_serial()  # Fall back to saved serial
     if not beetle:
-        API.SysMsg("Cannot find beetle after teleport; stopping")
-        API.Stop()
+        stop_script("Cannot find beetle after teleport; stopping")
 
 # Track depletion per offset so we can rotate through all 4 directions.
 depleted_offsets = set()
