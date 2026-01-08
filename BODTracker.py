@@ -24,7 +24,6 @@ import re
 import time
 
 import API
-from lib.journal import find_entry
 from lib.persistence import load_json, save_json
 from lib.utils import format_time_remaining
 
@@ -51,8 +50,8 @@ LARGE_BOD_GUMP_ID = 0xBE0DAD1E  # Large BOD gump
 CONTEXT_MENU_BOD_INFO = 1  # "Bulk Order Info" context menu entry
 ACCEPT_BUTTON = 1  # OK button on BOD gump
 RETRIGGER_DELAY = 0.5  # Wait 0.5s between accept and re-trigger (for saves)
-READY_CHECK_INTERVAL = 60  # Check for ready BODs every 60s
-READY_REMINDER_INTERVAL = 300  # Re-notify every 5 min
+READY_CHECK_INTERVAL = 60
+READY_REMINDER_INTERVAL = 300
 STORAGE_KEY = "BODTimers"
 
 # Colors
@@ -252,6 +251,36 @@ def trigger_bod_check(npc_serial):
 # ============================================================================
 # JOURNAL PARSING
 # ============================================================================
+
+
+def find_entry(pattern, timeout=5.0, seconds_back=5):
+    """
+    Wait for and return a journal entry matching a pattern.
+
+    Polls the journal every 50ms until a matching entry is found or timeout expires.
+
+    Args:
+        pattern: String or regex pattern to search for (prefix with $ for regex)
+        timeout: Maximum seconds to wait for the entry
+        seconds_back: How many seconds back to search in journal history
+
+    Returns:
+        Journal entry object with .Text, .Name, .Hue attributes, or None if timeout
+
+    Example:
+        entry = find_entry("offer may be available", timeout=2.0)
+        if entry:
+            print(f"{entry.Name} said: {entry.Text}")
+        else:
+            print("No matching entry found")
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline and not API.StopRequested:
+        entries = API.GetJournalEntries(seconds_back, pattern)
+        if entries:
+            return entries[-1]
+        API.Pause(0.05)
+    return None
 
 
 def check_for_timer_message():
