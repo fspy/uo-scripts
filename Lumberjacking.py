@@ -655,18 +655,12 @@ def chop_tree(state, tree):
     # Clear journal before action to get fresh response
     API.ClearJournal()
 
-    # Standard use-then-target sequence via lib helper
+    # Trees are static map objects (no Serial), so we use direct targeting
     dismount_if_mounted()
 
-    if not use_item_on_target(
-        axe.Serial,
-        tree.Serial,
-        timeout=0.5,
-        delay=0.1,
-    ):
-        # Fallback for tile-only targets on some shards
-        if API.WaitForTarget(timeout=0.5) or API.HasTarget("any"):
-            API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
+    API.UseObject(axe.Serial)
+    if API.WaitForTarget(timeout=0.5) or API.HasTarget("any"):
+        API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
 
     # Wait for server response
     wait_for_any(success_msgs + depleted_msgs + wait_msgs, 1.0)
