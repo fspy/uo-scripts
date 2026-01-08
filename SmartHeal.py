@@ -1,5 +1,3 @@
-import API
-
 if API.HasTarget("beneficial"):
     API.Stop()
 elif API.HasTarget("any"):

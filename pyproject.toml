@@ -14,7 +14,7 @@ select = ["E", "F", "I"]
 
 # Ignore some overly strict rules
 ignore = [
-    "E501",  # Line too long (handled by formatter)
+  "E501", # Line too long (handled by formatter)
 ]
 
 [tool.ruff.format]
@@ -29,3 +29,7 @@ skip-magic-trailing-comma = false
 
 # Format docstrings
 docstring-code-format = true
+
+[tool.pyright]
+reportMissingImports = false
+pythonVersion = "3.6"
