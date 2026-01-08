@@ -28,28 +28,29 @@ from lib.spells import (
     SPELL_GIFT_OF_RENEWAL,
     SPELL_GREATER_HEAL,
     Spell,
-    calculate_recovery_time,
-    cast_spell_on_target as cast_spell_on_target_lib,
     detect_poison_level,
+)
+from lib.spells import (
+    cast_spell_on_target as cast_spell_on_target_lib,
 )
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-MAX_PET_RANGE = 12  # Monitor pets within this many tiles
-HEAL_THRESHOLD = 0.70  # Start healing below 70% HP
-HEAL_UNTIL = 0.95  # Keep healing until above 95% HP
-RENEWAL_THRESHOLD = 0.90  # Apply Gift of Renewal below 90% HP
-CHECK_INTERVAL = 0.05  # Seconds between main loop iterations
+MAX_PET_RANGE = 12
+HEAL_THRESHOLD = 0.70
+HEAL_UNTIL = 0.95
+RENEWAL_THRESHOLD = 0.90
+CHECK_INTERVAL = 0.05
 
 # Arcane Focus
-ARCANE_FOCUS_GRAPHIC = 0x3155  # Arcane focus crystal graphic ID
+ARCANE_FOCUS_GRAPHIC = 0x3155
 
 # Spell constants are imported from lib.spells
 
 # Spell timing constants
-BASE_RECOVERY = 1.5  # Recovery time between spells
+BASE_RECOVERY = 1.5
 MAGERY_FC_CAP = 2
 SPELLWEAVING_FC_CAP = 4
 FCR_CAP = 6
@@ -254,9 +255,6 @@ def check_spell_fizzled():
 # =============================================================================
 # POISON DETECTION & CURE
 # =============================================================================
-
-
-# detect_poison_level moved to lib.spells
 
 
 def cure_pet(pet, poison_level):

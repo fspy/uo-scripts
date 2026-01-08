@@ -20,7 +20,7 @@ LOOMS = [0x1061, 0x1062]
 RAW = [0xDF8, 0xDF9, 0x1A9C]  # cotton, flax, wool
 THREAD = [0xE1D, 0xE1E, 0xE1F, 0xFA0]
 CLOTH = 0xF95
-WEIGHT_BUFFER = 50  # Dump cloth when within this many stones of max
+WEIGHT_BUFFER = 50
 
 
 def find_ground(types):

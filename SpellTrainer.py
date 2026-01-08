@@ -32,7 +32,7 @@ HEAL_THRESHOLD = 0.5
 
 # Timing settings
 BASE_RECOVERY = 1.5
-MEDITATION_COOLDOWN = 10.0  # Meditation skill internal cooldown (seconds)
+MEDITATION_COOLDOWN = 10.0
 FCR_CAP = 6
 
 # Other
