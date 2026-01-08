@@ -22,12 +22,6 @@ Features:
 - Train button launches selected trainer
 """
 
-# API is injected by TazUO at runtime
-try:
-    import API
-except (ImportError, NameError):
-    pass
-
 GUMP_WIDTH = 320
 GUMP_HEIGHT = 180
 DROPDOWN_WIDTH = 200
@@ -199,5 +193,4 @@ def main():
     launcher.dispose()
 
 
-if __name__ == "__main__":
-    main()
+main()
