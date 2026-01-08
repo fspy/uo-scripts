@@ -1,13 +1,19 @@
-"""Shared spell timing utilities for Legion scripts.
+"""Shared spell utilities for Legion scripts.
 
-Provides helpers for calculating spell cast and recovery times based on
-Faster Casting (FC) and Faster Cast Recovery (FCR) stats.
+Provides helpers for calculating spell cast and recovery times based on Faster
+Casting (FC) and Faster Cast Recovery (FCR) stats, plus common helpers for
+casting targeted spells.
 
 Note: API module is injected by Legion engine at runtime as a global.
 Import is wrapped in try/except for type hints in editors.
 """
 
 # pyright: basic
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
 # Try to import API for type hints, but don't fail if unavailable
 try:
     import API
@@ -18,6 +24,28 @@ except (ImportError, NameError):
 DEFAULT_BASE_RECOVERY = 1.5
 DEFAULT_MIN_CAST_TIME = 0.5
 DEFAULT_FCR_CAP = 6
+
+
+@dataclass(frozen=True)
+class Spell:
+    name: str
+    base_cast_time: float
+    mana_cost: int
+
+
+SPELL_CURE = Spell("Cure", 0.75, 6)
+SPELL_ARCH_CURE = Spell("Arch Cure", 1.25, 11)
+SPELL_GREATER_HEAL = Spell("Greater Heal", 1.25, 11)
+SPELL_GIFT_OF_RENEWAL = Spell("Gift of Renewal", 3.0, 24)
+SPELL_GIFT_OF_LIFE = Spell("Gift of Life", 4.0, 70)
+
+POISON_PATTERNS: list[tuple[str, int]] = [
+    ("begins to spasm uncontrollably", 5),  # Lethal
+    ("is wracked with extreme pain", 4),  # Deadly
+    ("stumbles around in confusion", 3),  # Greater
+    ("looks extremely ill", 2),  # Standard
+    ("looks ill", 1),  # Lesser
+]
 
 
 def calculate_cast_time(
@@ -123,3 +151,47 @@ def calculate_full_spell_delay(
     cast_time = calculate_cast_time(base_cast_time, fc, fc_cap, min_cast_time)
     recovery = calculate_recovery_time(fcr, base_recovery, fcr_cap)
     return cast_time + recovery
+
+
+def cast_spell_on_target(
+    spell: Spell,
+    target_serial: int,
+    *,
+    base_recovery: float = DEFAULT_BASE_RECOVERY,
+    fcr_cap: int = DEFAULT_FCR_CAP,
+    target_timeout: float = 5,
+) -> bool:
+    """Cast a targeted spell using the standard targeting sequence.
+
+    Notes:
+    - This intentionally does not use API.PreTarget().
+    - WaitForTarget() consumes the cast time; we only pause for recovery.
+
+    Returns:
+        True if target cursor appeared and we targeted; False otherwise.
+    """
+    if API.Player.Mana < spell.mana_cost:
+        return False
+
+    API.CastSpell(spell.name)
+
+    if not API.WaitForTarget(timeout=target_timeout):
+        return False
+
+    API.Target(target_serial)  # type: ignore
+
+    recovery = calculate_recovery_time(base_recovery=base_recovery, fcr_cap=fcr_cap)
+    API.Pause(recovery)
+    return True
+
+
+def detect_poison_level(pet_name: str) -> int:
+    """Infer poison level (1-5) from journal messages.
+
+    Returns 0 when no matching message is found.
+    """
+    for pattern, level in POISON_PATTERNS:
+        if API.InJournal(f"* {pet_name} {pattern}"):
+            return level
+
+    return 0

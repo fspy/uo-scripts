@@ -21,7 +21,17 @@ import re
 import time
 
 import API
-from lib.spells import calculate_recovery_time
+from lib.spells import (
+    SPELL_ARCH_CURE,
+    SPELL_CURE,
+    SPELL_GIFT_OF_LIFE,
+    SPELL_GIFT_OF_RENEWAL,
+    SPELL_GREATER_HEAL,
+    Spell,
+    calculate_recovery_time,
+    cast_spell_on_target as cast_spell_on_target_lib,
+    detect_poison_level,
+)
 
 # =============================================================================
 # CONFIGURATION
@@ -36,12 +46,7 @@ CHECK_INTERVAL = 0.05  # Seconds between main loop iterations
 # Arcane Focus
 ARCANE_FOCUS_GRAPHIC = 0x3155  # Arcane focus crystal graphic ID
 
-# Spell definitions: (name, base_cast_time, mana_cost)
-SPELL_CURE = ("Cure", 0.75, 6)
-SPELL_ARCH_CURE = ("Arch Cure", 1.25, 11)
-SPELL_GREATER_HEAL = ("Greater Heal", 1.25, 11)
-SPELL_GIFT_OF_RENEWAL = ("Gift of Renewal", 3.0, 24)
-SPELL_GIFT_OF_LIFE = ("Gift of Life", 4.0, 70)
+# Spell constants are imported from lib.spells
 
 # Spell timing constants
 BASE_RECOVERY = 1.5  # Recovery time between spells
@@ -49,27 +54,31 @@ MAGERY_FC_CAP = 2
 SPELLWEAVING_FC_CAP = 4
 FCR_CAP = 6
 
-# Poison detection patterns (journal messages when others are poisoned)
-# Format: (pattern, poison_level)
-POISON_PATTERNS = [
-    ("begins to spasm uncontrollably", 5),  # Lethal
-    ("is wracked with extreme pain", 4),  # Deadly
-    ("stumbles around in confusion", 3),  # Greater
-    ("looks extremely ill", 2),  # Standard
-    ("looks ill", 1),  # Lesser
-]
+# Poison patterns are handled by lib.spells.detect_poison_level
 
 
 # =============================================================================
 # GLOBAL STATE
 # =============================================================================
 
-# Track Gift of Life timers per pet: {pet_serial: expiry_timestamp}
-gift_of_life_timers = {}
-# Track pet death state to detect resurrections: {pet_serial: was_dead}
-pet_was_dead = {}
-# Track Gift of Renewal timers per pet: {pet_serial: expiry_timestamp}
-gift_of_renewal_timers = {}
+
+class PetState:
+    def __init__(self):
+        self.gift_of_life_expires_at = 0.0
+        self.gift_of_renewal_expires_at = 0.0
+        self.was_dead = False
+
+
+pet_states = {}
+
+
+def get_pet_state(pet_serial):
+    state = pet_states.get(pet_serial)
+    if state is None:
+        state = PetState()
+        pet_states[pet_serial] = state
+    return state
+
 
 # Cached values (set at startup, don't re-check)
 cached_focus_level = None
@@ -247,23 +256,7 @@ def check_spell_fizzled():
 # =============================================================================
 
 
-def detect_poison_level(pet_name):
-    """
-    Check journal for poison level message.
-
-    Args:
-        pet_name: Name of the pet to check
-
-    Returns:
-        Poison level 0-5 (0 = unknown/none, 1-5 = poison levels)
-    """
-    # Check patterns in order of severity (most severe first)
-    for pattern, level in POISON_PATTERNS:
-        if API.InJournal(f"* {pet_name} {pattern}"):
-            return level
-
-    # No poison message found, default to unknown (will use regular Cure)
-    return 0
+# detect_poison_level moved to lib.spells
 
 
 def cure_pet(pet, poison_level):
@@ -326,25 +319,19 @@ def needs_gift_of_life(pet):
     """
     now = time.time()
 
-    # Check if pet was just resurrected (was dead, now alive)
-    was_dead = pet_was_dead.get(pet.Serial, False)
-    is_alive = not pet.IsDead
+    state = get_pet_state(pet.Serial)
 
-    if was_dead and is_alive:
-        # Pet was resurrected! GoL was consumed, needs reapplication
-        pet_was_dead[pet.Serial] = False
-        gift_of_life_timers[pet.Serial] = 0  # Clear GoL timer
-        gift_of_renewal_timers[pet.Serial] = (
-            0  # Clear GoR timer (death resets cooldown)
-        )
+    # Check if pet was just resurrected (was dead, now alive)
+    if state.was_dead and not pet.IsDead:
+        state.was_dead = False
+        state.gift_of_life_expires_at = 0
+        state.gift_of_renewal_expires_at = 0
         return True
 
     # Update death tracking
-    pet_was_dead[pet.Serial] = pet.IsDead
+    state.was_dead = pet.IsDead
 
-    # Check if timer expired
-    expiry = gift_of_life_timers.get(pet.Serial, 0)
-    return now >= expiry
+    return now >= state.gift_of_life_expires_at
 
 
 def cast_gift_of_life(pet):
@@ -362,7 +349,8 @@ def cast_gift_of_life(pet):
     if success and not check_spell_fizzled():
         # Mark timer using cached duration (guaranteed set by validate_arcane_focus)
         duration = cached_gol_duration if cached_gol_duration else 180  # Fallback 3 min
-        gift_of_life_timers[pet.Serial] = time.time() + duration
+        state = get_pet_state(pet.Serial)
+        state.gift_of_life_expires_at = time.time() + duration
         # Show cooldown bar (light green)
         API.CreateCooldownBar(duration, "Gift of Life", 63)
         return True
@@ -395,8 +383,8 @@ def can_apply_renewal(pet):
 
     # Check if timer expired
     now = time.time()
-    expiry = gift_of_renewal_timers.get(pet.Serial, 0)
-    return now >= expiry
+    state = get_pet_state(pet.Serial)
+    return now >= state.gift_of_renewal_expires_at
 
 
 def cast_gift_of_renewal(pet):
@@ -416,7 +404,8 @@ def cast_gift_of_renewal(pet):
         recast_time = (
             cached_gor_recast_time if cached_gor_recast_time else 90
         )  # Fallback 90 sec
-        gift_of_renewal_timers[pet.Serial] = time.time() + recast_time
+        state = get_pet_state(pet.Serial)
+        state.gift_of_renewal_expires_at = time.time() + recast_time
         # Show cooldown bar (light yellow)
         API.CreateCooldownBar(recast_time, "Gift of Renewal", 53)
         return True
@@ -429,39 +418,10 @@ def cast_gift_of_renewal(pet):
 # =============================================================================
 
 
-def cast_spell_on_target(spell_info, target_serial):
-    """
-    Cast spell using proper targeting sequence (no PreTarget).
-
-    Args:
-        spell_info: Tuple of (spell_name, base_cast_time, mana_cost)
-        target_serial: Serial number of target
-        fc_cap: Faster Casting cap for this spell school (not used, kept for compatibility)
-
-    Returns:
-        True if spell was cast and target cursor appeared, False otherwise
-    """
-    spell_name, _, mana_cost = spell_info
-
-    # Check if we have enough mana (optional - could wait/meditate)
-    if API.Player.Mana < mana_cost:
-        return False
-
-    # Cast spell
-    API.CastSpell(spell_name)
-
-    # Wait for target cursor (this blocks through cast time)
-    if not API.WaitForTarget(timeout=5):
-        return False
-
-    # Target the pet
-    API.Target(target_serial)  # type: ignore
-
-    # Only wait for recovery time (cast time already consumed by WaitForTarget)
-    recovery = calculate_recovery_time(base_recovery=BASE_RECOVERY, fcr_cap=FCR_CAP)
-    API.Pause(recovery)
-
-    return True
+def cast_spell_on_target(spell_info: Spell, target_serial: int) -> bool:
+    return cast_spell_on_target_lib(
+        spell_info, target_serial, base_recovery=BASE_RECOVERY, fcr_cap=FCR_CAP
+    )
 
 
 # =============================================================================
