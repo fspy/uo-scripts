@@ -8,7 +8,13 @@ from lib.journal import wait_for_any
 from lib.persistence import setup_target
 from lib.recovery import is_stuck, shutdown_cleanly
 from lib.runebook import TRAVEL_FAIL_MSGS, recall_and_target, recall_with_retry
-from lib.utils import chebyshev_distance, count_items, dismount_if_mounted, stop_script
+from lib.utils import (
+    chebyshev_distance,
+    count_items,
+    dismount_if_mounted,
+    stop_script,
+    use_item_on_target,
+)
 from lib.weight import is_heavy, is_overweight
 
 # =========================
@@ -629,11 +635,18 @@ def chop_tree(state, tree):
     # Clear journal before action to get fresh response
     API.ClearJournal()
 
-    # Manual targeting
-    API.UseObject(axe.Serial)
+    # Standard use-then-target sequence via lib helper
+    dismount_if_mounted()
 
-    if API.WaitForTarget(timeout=0.5) or API.HasTarget("any"):
-        API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
+    if not use_item_on_target(
+        axe.Serial,
+        tree.Serial,
+        timeout=0.5,
+        delay=0.1,
+    ):
+        # Fallback for tile-only targets on some shards
+        if API.WaitForTarget(timeout=0.5) or API.HasTarget("any"):
+            API.Target(tree.X, tree.Y, tree.Z, tree.Graphic)
 
     # Wait for server response
     wait_for_any(success_msgs + depleted_msgs + wait_msgs, 1.0)
