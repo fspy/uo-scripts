@@ -12,7 +12,10 @@ Features:
 """
 
 import API
+from lib.items import move_item_robust
 from lib.persistence import save_int, setup_target
+from lib.utils import use_item_on_target
+from lib.weight import is_heavy
 
 # Item types
 WHEELS = [0x1015, 0x1019]
@@ -41,14 +44,6 @@ def find_item(types):
     return None
 
 
-def use_on(item, target):
-    """Use item on target station. No success checking - just fire and forget."""
-    API.UseObject(item.Serial)
-    if API.WaitForTarget(timeout=1.0):
-        API.Target(target.Serial)  # type: ignore
-    API.Pause(0.1)
-
-
 def dump_cloth(container):
     """Dump all cloth to container."""
     API.UseObject(container)
@@ -57,8 +52,7 @@ def dump_cloth(container):
         cloth = API.FindType(CLOTH, API.Player.Backpack)
         if not cloth:
             break
-        API.MoveItem(cloth.Serial, container)
-        API.Pause(0.6)
+        move_item_robust(cloth.Serial, container, cloth.Amount or 1)
 
 
 def restock_raw(container):
@@ -71,8 +65,7 @@ def restock_raw(container):
         item = API.FindType(raw_type, container)
         if item:
             # Grab 100 of this type
-            API.MoveItem(item.Serial, 100, API.Player.Backpack)
-            API.Pause(0.6)
+            move_item_robust(item.Serial, API.Player.Backpack, 100)
             found_any = True
             break  # Just grab one type at a time
 
@@ -122,7 +115,7 @@ def main():
     # Main loop
     while not API.StopRequested:
         # Dump cloth if getting heavy
-        if API.Player.Weight > API.Player.WeightMax - WEIGHT_BUFFER:
+        if is_heavy(buffer=WEIGHT_BUFFER):
             dump_cloth(container)
 
         # Try to use raw materials on each wheel
@@ -130,12 +123,12 @@ def main():
         for wheel in wheels:
             raw = find_item(RAW)
             if raw:
-                use_on(raw, wheel)
+                use_item_on_target(raw.Serial, wheel.Serial, timeout=1.0, delay=0.1)
 
         # Try to use thread on loom
         thread = find_item(THREAD)
         if thread:
-            use_on(thread, loom)
+            use_item_on_target(thread.Serial, loom.Serial, timeout=1.0, delay=0.1)
 
         # If we're out of both raw and thread, try to restock
         if not find_item(RAW) and not find_item(THREAD):
