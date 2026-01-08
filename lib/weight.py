@@ -43,3 +43,21 @@ def is_overweight() -> bool:
     if not API.Player or API.Player.WeightMax is None or API.Player.Weight is None:
         return False
     return API.Player.Weight > API.Player.WeightMax
+
+
+def is_overweight_by(over: int) -> bool:
+    """Check if player is at least ``over`` stones above max weight.
+
+    This is useful for stationary actions (like mining) where being overweight can be
+    acceptable up to a point, as long as you don't try to travel.
+
+    Args:
+        over: Stones above max weight allowed before returning True
+
+    Returns:
+        True if player weight >= (max_weight + over)
+    """
+    if not API.Player or API.Player.WeightMax is None or API.Player.Weight is None:
+        return False
+
+    return API.Player.Weight >= (API.Player.WeightMax + over)

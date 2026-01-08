@@ -11,7 +11,7 @@ from lib.utils import (
     stop_script,
     use_item_on_target,
 )
-from lib.weight import is_heavy, is_overweight
+from lib.weight import is_heavy, is_overweight, is_overweight_by
 
 # =========================
 # CONFIG
@@ -25,10 +25,9 @@ SHOVEL_TYPE = 0x0F39
 ORE_TYPES = [0x19B8, 0x19B7, 0x19B9, 0x19BA]
 SMALL_ORE_TYPE = 0x19B7
 
-# When your weight is within this many stones of max,
-# stop mining and smelt on the beetle.
-# Note: is_heavy() function from lib.weight uses default buffer of 50 stones
-WEIGHT_BUFFER = 50
+# Mining is stationary, so we can tolerate being overweight.
+# Start smelting once we reach (WeightMax + allowance).
+SMELT_OVERWEIGHT_ALLOWANCE = 60
 
 MINING_DELAY = 0.5
 SMELT_DELAY = 0.5
@@ -274,11 +273,7 @@ def find_fire_beetle() -> int:
 
 
 def wait_for_beetle(timeout: float = 15.0) -> int:
-    """
-    Wait for fire beetle to arrive after recall.
-    Returns serial or 0 if timeout.
-    """
-    # First check if beetle is already here
+    """Wait for fire beetle to arrive (post-recall or desync recovery)."""
     beetle = find_fire_beetle()
     if beetle:
         return beetle
@@ -294,6 +289,61 @@ def wait_for_beetle(timeout: float = 15.0) -> int:
         API.Pause(1.0)
 
     API.SysMsg("Beetle did not arrive within timeout", 32)
+    return 0
+
+
+def drop_ore_until_not_overweight() -> None:
+    API.SysMsg("Overweight with no beetle; dropping ore until safe", 32)
+
+    while is_overweight() and not API.StopRequested:
+        ore_items = []
+        for ore_type in ORE_TYPES:
+            ore_items.extend(API.FindTypeAll(ore_type, API.Backpack) or [])
+
+        if not ore_items:
+            API.SysMsg("No ore found to drop, but still overweight", 32)
+            return
+
+        def sort_key(item):
+            amount = getattr(item, "Amount", 0) or 0
+            return amount
+
+        ore_items.sort(key=sort_key, reverse=True)
+        ore = ore_items[0]
+
+        API.MoveItemOffset(ore.Serial, 0, 1, 1, 0)
+        API.Pause(0.75)
+
+
+def ensure_beetle_or_dump_and_recall(
+    beetle_serial: int,
+    home_rune_serial: int,
+    *,
+    wait_timeout: float = 60.0,
+) -> int:
+    """Ensure beetle is present; else drop ore until recall is possible.
+
+    If the beetle can't be found within ``wait_timeout``, we drop ore until we are
+    no longer overweight, then recall home.
+
+    Returns the beetle serial if found, or 0 if we had to bail out.
+    """
+    beetle = find_fire_beetle() or beetle_serial
+
+    # If the client hasn't synced the beetle yet, wait.
+    if not find_fire_beetle():
+        beetle = wait_for_beetle(timeout=wait_timeout) or beetle
+
+    if beetle and find_fire_beetle():
+        return beetle
+
+    if is_overweight():
+        drop_ore_until_not_overweight()
+
+    if home_rune_serial:
+        recall_home(home_rune_serial)
+
+    API.Stop()
     return 0
 
 
@@ -598,14 +648,18 @@ while not API.StopRequested:
             )
         break
 
-    if is_heavy():
-        API.SysMsg("Heavy -> smelting on beetle")
+    if is_overweight_by(SMELT_OVERWEIGHT_ALLOWANCE):
+        API.SysMsg("Heavy (overweight allowance reached) -> smelting on beetle")
+        beetle = ensure_beetle_or_dump_and_recall(beetle, home_rune_serial)
+        if not beetle:
+            break
+
         beetle = smelt_all_ore(beetle)
         consecutive_failures = 0  # Reset on successful smelt
 
         # If we're still heavy but there's nothing left we can smelt,
         # travel home to drop items (if travel is configured)
-        if is_heavy() and not find_smeltable_ore():
+        if is_overweight_by(SMELT_OVERWEIGHT_ALLOWANCE) and not find_smeltable_ore():
             if home_rune_serial and drop_container_serial:
                 API.SysMsg("Still heavy after smelting -> banking ingots at home")
 
