@@ -4,7 +4,7 @@ import API
 from lib.items import drop_all_items_at_home
 from lib.persistence import load_int, save_int
 from lib.recovery import is_stuck, shutdown_cleanly
-from lib.runebook import Runebook, recall_and_target, recall_with_retry, wait_for_travel
+from lib.runebook import Runebook, recall_with_retry, wait_for_travel
 from lib.utils import (
     dismount_if_mounted,
     find_any_type,
@@ -12,10 +12,6 @@ from lib.utils import (
     use_item_on_target,
 )
 from lib.weight import is_heavy, is_overweight, is_overweight_by
-
-# =========================
-# CONFIG
-# =========================
 
 # Mine using shovels only (stop script when out).
 SHOVEL_TYPE = 0x0F39
@@ -52,10 +48,6 @@ DEPLETED_MSGS = [
 # NOTE: This is replaced by runebook travel when enabled
 ALL_DEPLETED_PAUSE = 15.0
 
-# =========================
-# TRAVEL & RUNEBOOK CONFIG
-# =========================
-
 # Fire Beetle auto-detection
 FIRE_BEETLE_GRAPHIC = 0x00A9
 FIRE_BEETLE_HUE = 1161
@@ -80,12 +72,10 @@ DROP_ITEM_TYPES = [INGOT_TYPE] + BONUS_MINING_ITEMS
 # Travel settings
 USE_SACRED_JOURNEY = False  # True = Chivalry Sacred Journey, False = Magery Recall
 MAX_TRAVEL_RETRIES = 3
-TRAVEL_RETRY_DELAY = 2.0  # Seconds between retry attempts
+TRAVEL_RETRY_DELAY = 2.0
 
 # Recovery config
 MAX_CONSECUTIVE_FAILURES = 5
-
-# Weight and item finding functions moved to lib modules (lib.weight, lib.utils)
 
 
 def find_shovel():
@@ -227,18 +217,11 @@ def smelt_all_ore(beetle_serial: int) -> int:
     return beetle_serial
 
 
-# =========================
-# PERSISTENT VARIABLES
-# =========================
-
 PERSIST_KEY_BEETLE = "Mining.FireBeetleSerial"
 PERSIST_KEY_MINING_BOOK = "Mining.MiningRunebookSerial"
 PERSIST_KEY_HOME_RUNE = "Mining.HomeRuneSerial"
 PERSIST_KEY_DROP_CONTAINER = "Mining.DropContainerSerial"
 PERSIST_KEY_CURRENT_SPOT = "Mining.CurrentSpotIndex"
-
-
-# Persistence helpers moved to lib/persistence.py
 
 
 def load_beetle_serial() -> int:
@@ -249,11 +232,6 @@ def load_beetle_serial() -> int:
 def save_beetle_serial(serial: int) -> None:
     """Save beetle serial to persistent storage."""
     save_int(PERSIST_KEY_BEETLE, serial)
-
-
-# =========================
-# FIRE BEETLE AUTO-DETECTION
-# =========================
 
 
 def find_fire_beetle() -> int:
@@ -361,11 +339,6 @@ def smelt_before_travel(beetle_serial: int) -> int:
         API.SysMsg("WARNING: Overweight after smelting - recall may fail!", 32)
 
     return beetle_serial
-
-
-# =========================
-# TRAVEL FUNCTIONS
-# =========================
 
 
 def setup_travel_targets():
@@ -498,10 +471,6 @@ def drop_items_at_home(container_serial: int, item_types: list) -> int:
     return drop_all_items_at_home(container_serial, item_types)
 
 
-# =========================
-# BEETLE INITIALIZATION
-# =========================
-
 # Try to auto-detect beetle first
 beetle = find_fire_beetle()
 
@@ -531,10 +500,6 @@ if not beetle:
     API.Stop()
 
 API.SysMsg("Mining started (will smelt when heavy)")
-
-# =========================
-# TRAVEL TARGET INITIALIZATION
-# =========================
 
 # Setup travel targets (mining runebook, home rune, drop container)
 mining_runebook_serial, home_rune_serial, drop_container_serial, current_spot_index = (

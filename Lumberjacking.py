@@ -3,11 +3,10 @@
 import time
 
 import API
-from lib.items import drop_items_to_container, move_item_robust
-from lib.journal import wait_for_any
+from lib.items import drop_all_items_at_home, move_item_robust
 from lib.persistence import setup_target
 from lib.recovery import is_stuck, shutdown_cleanly
-from lib.runebook import TRAVEL_FAIL_MSGS, recall_and_target, recall_with_retry
+from lib.runebook import TRAVEL_FAIL_MSGS, recall_with_retry
 from lib.utils import (
     chebyshev_distance,
     count_items,
@@ -16,6 +15,34 @@ from lib.utils import (
     use_item_on_target,
 )
 from lib.weight import is_heavy, is_overweight
+
+
+def wait_for_any(messages: list, timeout: float) -> bool:
+    """
+    Wait for any message from a list to appear in the journal.
+
+    Polls the journal every 50ms until a message is found or timeout expires.
+
+    Args:
+        messages: List of strings to search for in journal
+        timeout: Maximum seconds to wait
+
+    Returns:
+        True if any message found, False if timeout expired
+
+    Example:
+        if wait_for_any(["You chop", "That is too far"], timeout=2.0):
+            # Message appeared
+        else:
+            # Timeout - no message found
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline and not API.StopRequested:
+        if API.InJournalAny(messages):
+            return True
+        API.Pause(0.05)
+    return False
+
 
 # =========================
 # CONFIG
@@ -226,7 +253,6 @@ PACK_WAIT_TIMEOUT = 15.0  # Align with Mining's beetle timeout
 # Recovery config
 MAX_CONSECUTIVE_FAILURES = 5
 
-# Travel constants moved to lib.runebook
 
 # =========================
 # STATE
@@ -259,12 +285,6 @@ class LumberjackState:
 # =========================
 # HELPERS
 # =========================
-
-
-# Utility functions moved to lib modules (lib.utils, lib.weight, lib.journal)
-
-# is_heavy() function moved to lib.weight (uses 50 stone buffer by default)
-# Lumberjacking uses 60 stones - calls pass buffer=60 explicitly
 
 
 def is_pack_in_range(state):
@@ -884,26 +904,9 @@ def cast_mark(rune_serial):
     return True
 
 
-# cast_recall() and wait_for_travel() moved to lib.runebook (use recall_and_target)
-
 # =========================
 # DEPOSIT ROUTINE
 # =========================
-
-
-def dump_to_chest(state):
-    """Dump all boards and bonus items from backpack and pack to chest."""
-    chest_serial = state.drop_chest_serial
-
-    # All item types to drop (boards + bonus items)
-    all_items = [0x1BD7] + bonus_lumberjack_items
-
-    # Drop from backpack and pack animal
-    dropped = drop_items_to_container(chest_serial, all_items, API.Backpack)
-    dropped += drop_items_to_container(chest_serial, all_items, state.pack_serial)
-
-    if dropped > 0:
-        API.SysMsg(f"Dropped {dropped} item stacks", 946)
 
 
 def deposit_routine(state):
@@ -935,23 +938,14 @@ def deposit_routine(state):
         stop_script("Failed to recall home after 3 attempts")
         return False
 
-    # 5. Pathfind to drop chest
-    chest = API.FindItem(state.drop_chest_serial)
-    if not chest:
-        stop_script("Cannot find drop chest")
-        return False
-
-    API.Pathfind(chest.X, chest.Y, chest.Z, distance=1, wait=True, timeout=10)
-    API.Pause(0.5)
-
-    # 6. Open chest and dump boards
+    # 5. Pathfind to drop chest and dump items
     API.HeadMsg("Depositing...", API.Player.Serial, 946)
-    API.UseObject(state.drop_chest_serial)
-    API.Pause(1.0)
-    dump_to_chest(state)
-    API.Pause(1.5)  # Wait for server to update weight
+    all_items = [0x1BD7] + bonus_lumberjack_items
+    drop_all_items_at_home(
+        state.drop_chest_serial, all_items, [API.Backpack, state.pack_serial]
+    )
 
-    # 7. Cast Recall to marked rune (return to lumber spot)
+    # 6. Cast Recall to marked rune (return to lumber spot)
     API.HeadMsg("Recalling back...", API.Player.Serial, 946)
     if not recall_with_retry(
         state.rune_serial,

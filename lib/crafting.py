@@ -236,61 +236,6 @@ def salvage_if_needed(item_threshold=SALVAGE_ITEM_THRESHOLD, weight_threshold=No
     return True
 
 
-def destroy_items_with_axe(item_types, item_threshold=None, weight_threshold=None):
-    """
-    Destroy crafted items using a hatchet.
-
-    For carpentry and other crafts where salvage doesn't work. Uses a hatchet
-    to destroy items (no materials returned).
-
-    DEPRECATED: Use trash_items() instead - many items can't be axe-destroyed.
-
-    Args:
-        item_types: List of item graphic IDs to destroy
-        item_threshold: Only destroy if backpack has more than this many items (None = always destroy)
-        weight_threshold: Only destroy if weight exceeds this (None = always destroy)
-
-    Returns:
-        True if destruction not needed or succeeded, False if failed
-    """
-    # Check thresholds if specified
-    if item_threshold is not None or weight_threshold is not None:
-        if weight_threshold is None:
-            weight_threshold = API.Player.WeightMax - 20
-
-        item_count = API.Contents(API.Backpack)
-        weight = API.Player.Weight
-
-        over_items = item_threshold is None or item_count > item_threshold
-        over_weight = weight_threshold is None or weight > weight_threshold
-
-        if not (over_items or over_weight):
-            return True  # No destruction needed
-
-    # Find hatchet in backpack
-    hatchet = API.FindType(HATCHET_TYPE, API.Player.Backpack)
-    if not hatchet:
-        API.SysMsg("No hatchet found for destroying items!", 32)
-        return False
-
-    destroyed_count = 0
-
-    # Destroy all items of specified types
-    for item_type in item_types:
-        items = API.FindTypeAll(item_type, API.Player.Backpack) or []
-        for item in items:
-            API.UseObject(hatchet.Serial)
-            if API.WaitForTarget("any", 0.5):
-                API.Target(item.Serial)  # type: ignore
-                API.Pause(0.3)
-                destroyed_count += 1
-
-    if destroyed_count > 0:
-        API.SysMsg(f"Destroyed {destroyed_count} items", 68)
-
-    return True
-
-
 def trash_items(
     trash_container,
     item_types,
@@ -317,8 +262,6 @@ def trash_items(
         API.SysMsg("No trash container configured!", 32)
         return False
 
-    # Container already opened at startup, no need to re-open
-    # Drop all items of specified types from source
     trashed = drop_items_to_container(
         trash_container, item_types, source=source_container
     )
@@ -380,7 +323,6 @@ def grab_materials_by_weight(container_serial, material_types, weight_buffer=20)
     Returns:
         Number of material units moved
     """
-    # Container already opened at startup, no need to re-open
     moved_count = 0
     available_weight = API.Player.WeightMax - API.Player.Weight - weight_buffer
 
@@ -832,26 +774,3 @@ def start_craft(gump_id, page, button):
 
     API.ReplyGump(button, gump_id)
     # Craft is now in progress - gump will return when done
-
-
-def craft_item(gump_id, page, button):
-    """
-    Craft an item via gump with page navigation.
-
-    If page is provided, navigates to that page first. Then clicks the
-    craft button and waits for confirmation.
-
-    DEPRECATED: Use start_craft() + wait_for_gump_or_replace_tool() instead
-    for better performance (allows parallel work during craft).
-
-    Args:
-        gump_id: Crafting gump ID
-        page: Page number to navigate to (None to skip navigation)
-        button: Button ID to click for crafting
-    """
-    if page:
-        API.ReplyGump(page, gump_id)
-        API.WaitForGump(gump_id)
-
-    API.ReplyGump(button, gump_id)
-    API.WaitForGump(gump_id)

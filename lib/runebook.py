@@ -222,16 +222,3 @@ def recall_with_retry(
         if attempt < max_retries:
             API.Pause(retry_delay)
     return False
-
-
-def find_runebook_in_backpack() -> int:
-    """
-    Find the first runebook in the player's backpack.
-
-    Returns:
-        Runebook serial, or 0 if not found
-    """
-    book = API.FindType(RUNEBOOK_GRAPHIC, API.Backpack)
-    if book:
-        return book.Serial
-    return 0
