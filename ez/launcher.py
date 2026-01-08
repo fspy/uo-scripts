@@ -139,7 +139,7 @@ class TrainerLauncherGump:
                 self.skill_label.SetText(f"{trainer['skill']}: --")
 
     def _get_target_skill(self):
-        text = self.editbox.GetText()
+        text = self.editbox.Text
         if not text or text.strip() == "":
             return None
         try:
