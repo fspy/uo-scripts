@@ -524,6 +524,12 @@ if drop_container_serial and is_at_home(drop_container_serial):
 
 # Recall to a mining spot before starting (if runebook configured)
 if mining_runebook:
+    # Do not travel if we can't actually mine.
+    shovel = find_shovel()
+    if not shovel:
+        API.SysMsg("Out of shovels - not traveling", 32)
+        API.Stop()
+
     # If we aren't at home when we start, assume we're already "mid-run".
     # In that case, skip to the next rune instead of recalling to the current one.
     # This avoids: recalling to the same spot (no movement) + stuck detection.
