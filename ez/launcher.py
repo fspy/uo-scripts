@@ -198,7 +198,11 @@ class TrainerLauncherGump:
         if self._should_run_trainer:
             self._should_run_trainer = False
             self._run_trainer()
+            self.create()
             return True
+
+        if not self.gump:
+            return False
 
         return True
 
