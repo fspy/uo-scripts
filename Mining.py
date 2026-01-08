@@ -522,8 +522,19 @@ if drop_container_serial and is_at_home(drop_container_serial):
         if dropped > 0:
             API.SysMsg(f"Dumped {dropped} item stacks before starting")
 
-# Recall to current mining spot before starting (if runebook configured)
+# Recall to a mining spot before starting (if runebook configured)
 if mining_runebook:
+    # If we aren't at home when we start, assume we're already "mid-run".
+    # In that case, skip to the next rune instead of recalling to the current one.
+    # This avoids: recalling to the same spot (no movement) + stuck detection.
+    if drop_container_serial and not is_at_home(drop_container_serial):
+        API.SysMsg(
+            f"Mid-run restart detected; advancing spot {current_spot_index} -> {((current_spot_index + 1) % max_mining_spots)}",
+            946,
+        )
+        current_spot_index = (current_spot_index + 1) % max_mining_spots
+        save_int(PERSIST_KEY_CURRENT_SPOT, current_spot_index)
+
     # Smelt any ore before traveling
     beetle = smelt_before_travel(beetle)
 
@@ -555,7 +566,7 @@ stuck_checks = 0
 
 while not API.StopRequested:
     # If we haven't moved for a while, try to bail out safely.
-    if is_stuck(timeout=20):
+    if is_stuck(timeout=120):
         stuck_checks += 1
         if stuck_checks >= 2:
             API.SysMsg("Stuck detected; attempting to recall home", 32)
