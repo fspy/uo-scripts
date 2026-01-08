@@ -49,6 +49,9 @@ class TrainerLauncherGump:
         self.train_btn = None
         self.close_btn = None
         self.skill_label = None
+        self._should_close = False
+        self._should_run_trainer = None
+        self._should_clear_editbox = False
 
     def create(self):
         self.gump = API.CreateGump(True, True, False)
@@ -87,6 +90,7 @@ class TrainerLauncherGump:
         self.cap_btn.SetX(10 + EDITBOX_WIDTH + 5)
         self.cap_btn.SetY(75)
         self.gump.Add(self.cap_btn)
+        API.Gumps.AddControlOnClick(self.cap_btn, lambda: self._on_cap_click())
 
         self.skill_label = API.CreateGumpTTFLabel("", 16, "#808080", "IBMPlexSans-Text")
         self.skill_label.SetX(10)
@@ -99,14 +103,25 @@ class TrainerLauncherGump:
         self.train_btn.SetX((GUMP_WIDTH - TRAIN_BUTTON_WIDTH) // 2)
         self.train_btn.SetY(130)
         self.gump.Add(self.train_btn)
+        API.Gumps.AddControlOnClick(self.train_btn, lambda: self._on_train_click())
 
         self.close_btn = API.CreateSimpleButton("X", 30, 25)
         self.close_btn.SetX(GUMP_WIDTH - 40)
         self.close_btn.SetY(10)
         self.gump.Add(self.close_btn)
+        API.Gumps.AddControlOnClick(self.close_btn, lambda: self._on_close_click())
 
         self._update_skill_display()
         API.Gumps.AddGump(self.gump)
+
+    def _on_close_click(self):
+        self._should_close = True
+
+    def _on_cap_click(self):
+        self._should_clear_editbox = True
+
+    def _on_train_click(self):
+        self._should_run_trainer = True
 
     def _update_skill_display(self):
         idx = self.dropdown.GetSelectedIndex()
@@ -168,26 +183,33 @@ class TrainerLauncherGump:
                 pass
             self.gump = None
 
+    def update(self):
+        API.ProcessCallbacks()
+
+        if self._should_close:
+            self._should_close = False
+            self.dispose()
+            return False
+
+        if self._should_clear_editbox:
+            self._should_clear_editbox = False
+            self.editbox.SetText("")
+
+        if self._should_run_trainer:
+            self._should_run_trainer = False
+            self._run_trainer()
+            return True
+
+        return True
+
 
 def main():
     launcher = TrainerLauncherGump()
     launcher.create()
 
     while not API.StopRequested:
-        API.ProcessCallbacks()
-
-        if launcher.close_btn.HasBeenClicked():
-            launcher.dispose()
+        if not launcher.update():
             break
-
-        if launcher.cap_btn.HasBeenClicked():
-            launcher.editbox.SetText("")
-
-        if launcher.train_btn.HasBeenClicked():
-            launcher._run_trainer()
-            launcher.create()
-            continue
-
         API.Pause(0.1)
 
     launcher.dispose()
