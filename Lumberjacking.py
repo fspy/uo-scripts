@@ -4,7 +4,7 @@ import time
 
 import API
 from lib.items import drop_all_items_at_home, move_item_robust
-from lib.persistence import setup_target
+from lib.persistence import load_int, load_json, save_int, save_json, setup_target
 from lib.recovery import is_stuck, shutdown_cleanly
 from lib.runebook import TRAVEL_FAIL_MSGS, recall_with_retry
 from lib.utils import (
@@ -343,25 +343,13 @@ def warn_weight(state):
 
 def is_first_run():
     """Check if this is the first run (no persisted chest serial)."""
-    saved = API.GetPersistentVar("LumberjackDropChest", "0", API.PersistentVar.Char)
-    return not saved or saved == "0"
+    return load_int("LumberjackDropChest", 0) == 0
 
 
 def load_bad_graphics():
     """Load persisted bad graphics from char-specific storage."""
-    saved = API.GetPersistentVar("LumberjackBadGraphics", "", API.PersistentVar.Char)
-    if not saved:
-        return set()
-
-    bad = set()
-    for part in saved.split(","):
-        part = part.strip()
-        if part:
-            try:
-                bad.add(int(part, 16))
-            except ValueError:
-                pass
-    return bad
+    data = load_json("LumberjackBadGraphics", default=[])
+    return set(data) if isinstance(data, list) else set()
 
 
 def save_bad_graphics(state):
@@ -369,8 +357,7 @@ def save_bad_graphics(state):
     if not state.bad_graphics:
         return
 
-    hex_list = ",".join(f"0x{g:X}" for g in sorted(state.bad_graphics))
-    API.SavePersistentVar("LumberjackBadGraphics", hex_list, API.PersistentVar.Char)
+    save_json("LumberjackBadGraphics", sorted(list(state.bad_graphics)))
 
 
 def setup_drop_chest(first_run):
@@ -413,9 +400,7 @@ def setup_all_items(state, first_run):
     mob = API.FindMobile(state.pack_serial)
     if mob and getattr(mob, "Backpack", None):
         state.pack_serial = mob.Backpack.Serial
-        API.SavePersistentVar(
-            "LumberjackPack", str(state.pack_serial), API.PersistentVar.Char
-        )
+        save_int("LumberjackPack", state.pack_serial)
         API.SysMsg(f"Using pack animal backpack: 0x{state.pack_serial:X}")
 
     # Open pack backpack to ensure contents are loaded
@@ -520,9 +505,7 @@ def ensure_axe_equipped(state):
         return None
 
     # Dismount if mounted
-    if API.Player.Mount:
-        API.Dismount(skipQueue=True)
-        API.Pause(1.0)
+    dismount_if_mounted(delay=1.0)
 
     # Clear both hands before equipping
     API.ClearLeftHand()
