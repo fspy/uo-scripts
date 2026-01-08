@@ -1,4 +1,4 @@
-# ezKegMaker.py - Batch craft potion kegs from raw materials
+# ez/_kegmaker.py - Batch craft potion kegs from raw materials
 #
 # Workflow (makes one complete keg at a time):
 #   1. Check materials (7 ingots, 23 boards, 10 bottles)
@@ -19,7 +19,7 @@
 #   - Requires 75+ Tinkering skill (for potion keg assembly)
 
 import API
-from lib.crafting import (
+from ez._trainer import (
     CRAFTING_GUMP,
     PageTracker,
     count_materials,
