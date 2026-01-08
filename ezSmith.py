@@ -1,5 +1,4 @@
 # ezSmith - Automated Blacksmithing Skill Training
-
 from lib.crafting import TONGS_TYPE, run_craft_trainer
 
 CONFIG = {

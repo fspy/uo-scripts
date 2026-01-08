@@ -7,11 +7,11 @@ Supports: Spellweaving, Magery, Necromancy
 USAGE: Just change SKILL_NAME below to switch between skills.
 """
 
-import API
 import time
 from enum import Enum
-from lib.spells import calculate_recovery_time, calculate_full_spell_delay
 
+import API
+from lib.spells import calculate_full_spell_delay, calculate_recovery_time
 
 # =============================================================================
 # CONFIGURATION - Just change SKILL_NAME to switch presets

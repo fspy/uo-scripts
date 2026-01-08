@@ -17,11 +17,11 @@ Priority Order:
 USAGE: Run inside TazUO client. Script auto-starts monitoring on login.
 """
 
-import API
-import time
 import re
-from lib.spells import calculate_recovery_time
+import time
 
+import API
+from lib.spells import calculate_recovery_time
 
 # =============================================================================
 # CONFIGURATION
@@ -278,14 +278,9 @@ def cure_pet(pet, poison_level):
         True if cure was attempted, False on failure
     """
     # Use Arch Cure for Deadly (4) and Lethal (5) poison
-    if poison_level >= 4:
-        spell_info = SPELL_ARCH_CURE
-        fc_cap = MAGERY_FC_CAP
-    else:
-        spell_info = SPELL_CURE
-        fc_cap = MAGERY_FC_CAP
+    spell_info = SPELL_ARCH_CURE if poison_level >= 4 else SPELL_CURE
 
-    return cast_spell_on_target(spell_info, pet.Serial, fc_cap)
+    return cast_spell_on_target(spell_info, pet.Serial)
 
 
 # =============================================================================
@@ -307,7 +302,7 @@ def heal_pet(pet):
     if pet.IsYellowHits:
         return False
 
-    return cast_spell_on_target(SPELL_GREATER_HEAL, pet.Serial, MAGERY_FC_CAP)
+    return cast_spell_on_target(SPELL_GREATER_HEAL, pet.Serial)
 
 
 # =============================================================================
@@ -362,7 +357,7 @@ def cast_gift_of_life(pet):
     Returns:
         True if cast was successful
     """
-    success = cast_spell_on_target(SPELL_GIFT_OF_LIFE, pet.Serial, SPELLWEAVING_FC_CAP)
+    success = cast_spell_on_target(SPELL_GIFT_OF_LIFE, pet.Serial)
 
     if success and not check_spell_fizzled():
         # Mark timer using cached duration (guaranteed set by validate_arcane_focus)
@@ -414,9 +409,7 @@ def cast_gift_of_renewal(pet):
     Returns:
         True if cast was successful
     """
-    success = cast_spell_on_target(
-        SPELL_GIFT_OF_RENEWAL, pet.Serial, SPELLWEAVING_FC_CAP
-    )
+    success = cast_spell_on_target(SPELL_GIFT_OF_RENEWAL, pet.Serial)
 
     if success and not check_spell_fizzled():
         # Mark timer using cached recast time (guaranteed set by validate_arcane_focus)
@@ -436,7 +429,7 @@ def cast_gift_of_renewal(pet):
 # =============================================================================
 
 
-def cast_spell_on_target(spell_info, target_serial, fc_cap):
+def cast_spell_on_target(spell_info, target_serial):
     """
     Cast spell using proper targeting sequence (no PreTarget).
 
@@ -448,7 +441,7 @@ def cast_spell_on_target(spell_info, target_serial, fc_cap):
     Returns:
         True if spell was cast and target cursor appeared, False otherwise
     """
-    spell_name, base_cast_time, mana_cost = spell_info
+    spell_name, _, mana_cost = spell_info
 
     # Check if we have enough mana (optional - could wait/meditate)
     if API.Player.Mana < mana_cost:

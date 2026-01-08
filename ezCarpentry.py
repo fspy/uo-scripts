@@ -1,6 +1,4 @@
 # ezCarpentry - Automated Carpentry Skill Training
-
-import API
 from lib.crafting import run_craft_trainer
 
 CONFIG = {

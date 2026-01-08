@@ -13,12 +13,13 @@ Features:
 - Supports both static containers and pack animals
 """
 
-import API
 import time
-from lib.persistence import setup_target, save_int
-from lib.weight import is_heavy
+
+import API
 from lib.items import drop_items_to_container, move_item_robust
+from lib.persistence import save_int, setup_target
 from lib.utils import find_any_type, stop_script
+from lib.weight import is_heavy
 
 SPINNING_WHEEL_TYPES = [0x1015, 0x1019]
 LOOM_TYPES = [0x1061, 0x1062]

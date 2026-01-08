@@ -12,7 +12,7 @@ Features:
 """
 
 import API
-from lib.persistence import setup_target, save_int
+from lib.persistence import save_int, setup_target
 
 # Item types
 WHEELS = [0x1015, 0x1019]

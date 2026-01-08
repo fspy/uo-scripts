@@ -20,3 +20,5 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+recorded_script_*.py

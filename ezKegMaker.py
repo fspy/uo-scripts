@@ -22,13 +22,13 @@ import API
 from lib.crafting import (
     CRAFTING_GUMP,
     PageTracker,
-    open_craft_gump,
-    wait_for_gump_or_replace_tool,
-    start_craft,
-    grab_materials_by_weight,
     count_materials,
+    grab_materials_by_weight,
+    open_craft_gump,
+    start_craft,
+    wait_for_gump_or_replace_tool,
 )
-from lib.items import find_salvage_bag, drop_items_to_container
+from lib.items import drop_items_to_container, find_salvage_bag
 from lib.persistence import load_int, save_int
 
 # === CONFIG ===
@@ -119,7 +119,7 @@ def restock_for_one_keg(storage_serial):
         API.SysMsg("Storage empty - no materials grabbed", 32)
         return False
 
-    API.SysMsg(f"Grabbed materials from storage", 68)
+    API.SysMsg("Grabbed materials from storage", 68)
     return True
 
 
@@ -134,8 +134,8 @@ def craft_items_in_batch(gump_id, page_tracker, tool_type, tool_container, items
         tool_container: Container with tools
         items: List of ((page, button), quantity, desc) tuples
     """
-    for (page, button), quantity, desc in items:
-        for i in range(quantity):
+    for (page, button), quantity, _ in items:
+        for _ in range(quantity):
             if API.StopRequested:
                 return
 

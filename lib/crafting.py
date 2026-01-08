@@ -15,7 +15,7 @@ except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
 # Import move_item_robust and find_salvage_bag for salvage operations
-from lib.items import move_item_robust, find_salvage_bag, drop_items_to_container
+from lib.items import drop_items_to_container, find_salvage_bag, move_item_robust
 from lib.persistence import load_int, save_int
 
 # Tool type constants
@@ -129,7 +129,7 @@ def ensure_salvage_tool_outside(salvage_bag_serial, salvage_tool_type):
     # Move one tool from bag to backpack
     tool_to_move = tools_in_bag[0]
     if move_item_robust(tool_to_move.Serial, API.Player.Backpack, 1):
-        API.SysMsg(f"Moved salvage tool outside bag", 68)
+        API.SysMsg("Moved salvage tool outside bag", 68)
         return True
 
     return False

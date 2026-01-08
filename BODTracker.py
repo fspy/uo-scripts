@@ -19,13 +19,14 @@ Features:
   Fletching, Inscription, Tailoring, Tinkering
 """
 
-import API
-import time
-import re
 import json
+import re
+import time
+
+import API
 from lib.journal import find_entry
-from lib.utils import format_time_remaining
 from lib.persistence import load_json, save_json
+from lib.utils import format_time_remaining
 
 # ============================================================================
 # CONFIGURATION
@@ -197,7 +198,7 @@ def find_profession_npc(preferred_name=None):
                 # Check if name matches preferred (journal speaker)
                 name_match = preferred_name and mob.Name == preferred_name
                 candidates.append((mob.Serial, profession, dist, name_match))
-        except:
+        except Exception:
             continue
 
     if not candidates:
@@ -387,8 +388,9 @@ class BODStatusGump:
 
         # Load saved position, or use defaults
         saved_pos = load_gump_position()
-        self.gump_x = saved_pos.get("x", 100)
-        self.gump_y = saved_pos.get("y", 100)
+        if saved_pos:
+            self.gump_x = saved_pos.get("x", 100)
+            self.gump_y = saved_pos.get("y", 100)
 
         # Pending NPC interaction from click handler
         self.pending_npc_serial = None
@@ -415,6 +417,9 @@ class BODStatusGump:
 
     def _create_collapsed(self):
         """Create collapsed bar view showing earliest BOD."""
+        if not self.gump:
+            return
+
         self.gump.SetWidth(self.width)
         self.gump.SetHeight(self.collapsed_height)
 
@@ -445,6 +450,9 @@ class BODStatusGump:
 
     def _create_expanded(self):
         """Create expanded view showing all characters and BODs."""
+        if not self.gump:
+            return
+
         timers = load_all_timers()
         now = time.time()
 
@@ -582,7 +590,7 @@ class BODStatusGump:
                 for suffix in valid_suffixes:
                     if suffix in props_lower:
                         return mob.Serial
-            except:
+            except Exception:
                 continue
         return None
 
@@ -787,9 +795,9 @@ def main():
                     for prof in ready_profs:
                         last_notifications[(char_name, prof)] = now
 
-                    # Send grouped notification
-                    prof_list = ", ".join(ready_profs)
-                    API.SysMsg(f"{char_name} - BODs ready: {prof_list}", HUE_READY)
+                    API.SysMsg(
+                        f"{char_name}: {len(ready_profs)} BOD(s) ready.", HUE_READY
+                    )
 
                     # HeadMsg only for current player
                     if char_name == API.Player.Name:
