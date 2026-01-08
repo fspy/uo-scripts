@@ -22,24 +22,11 @@ Features:
 - Train button launches selected trainer
 """
 
-import API
-
+# API is injected by TazUO at runtime
 try:
-    import ez._smith
-    import ez._tailor
-    import ez._tinker
-    import ez._carpentry
-    import ez._kegmaker
-except ImportError:
+    import API
+except (ImportError, NameError):
     pass
-
-TRAINERS = [
-    {"name": "Blacksmithy", "module": "ez._smith", "skill": "Blacksmithy"},
-    {"name": "Tailoring", "module": "ez._tailor", "skill": "Tailoring"},
-    {"name": "Tinkering", "module": "ez._tinker", "skill": "Tinkering"},
-    {"name": "Carpentry", "module": "ez._carpentry", "skill": "Carpentry"},
-    {"name": "KegMaker", "module": "ez._kegmaker", "skill": None},
-]
 
 GUMP_WIDTH = 320
 GUMP_HEIGHT = 180
@@ -48,9 +35,15 @@ EDITBOX_WIDTH = 80
 BUTTON_WIDTH = 60
 TRAIN_BUTTON_WIDTH = 200
 TRAIN_BUTTON_HEIGHT = 35
-HUE_SUCCESS = 68
-HUE_INFO = 33
-HUE_ALERT = 32
+
+
+TRAINERS = [
+    {"name": "Blacksmithy", "module": "ez._smith", "skill": "Blacksmithy"},
+    {"name": "Tailoring", "module": "ez._tailor", "skill": "Tailoring"},
+    {"name": "Tinkering", "module": "ez._tinker", "skill": "Tinkering"},
+    {"name": "Carpentry", "module": "ez._carpentry", "skill": "Carpentry"},
+    {"name": "KegMaker", "module": "ez._kegmaker", "skill": None},
+]
 
 
 class TrainerLauncherGump:
@@ -146,6 +139,12 @@ class TrainerLauncherGump:
             return None
 
     def _run_trainer(self):
+        import ez._smith
+        import ez._tailor
+        import ez._tinker
+        import ez._carpentry
+        import ez._kegmaker
+
         idx = self.dropdown.GetSelectedIndex()
         trainer = TRAINERS[idx]
         target_skill = self._get_target_skill()
@@ -154,20 +153,18 @@ class TrainerLauncherGump:
 
         try:
             if trainer["skill"] is None:
-                getattr(ez._kegmaker, "main")()
+                ez._kegmaker.main()
             else:
-                getattr(
-                    ez._smith
-                    if "smith" in trainer["module"]
-                    else ez._tailor
-                    if "tailor" in trainer["module"]
-                    else ez._tinker
-                    if "tinker" in trainer["module"]
-                    else ez._carpentry,
-                    "main",
-                )(target_skill)
+                modules = {
+                    "ez._smith": ez._smith,
+                    "ez._tailor": ez._tailor,
+                    "ez._tinker": ez._tinker,
+                    "ez._carpentry": ez._carpentry,
+                }
+                mod = modules[trainer["module"]]
+                mod.main(target_skill)
         except Exception as e:
-            API.SysMsg(f"Error running {trainer['name']}: {e}", HUE_ALERT)
+            API.SysMsg(f"Error running {trainer['name']}: {e}", 32)
 
     def dispose(self):
         if self.gump:
