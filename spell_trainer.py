@@ -11,15 +11,13 @@ import time
 from enum import Enum
 
 import API
-from lib.spells import calculate_full_spell_delay, calculate_recovery_time
+from _lib.spells import calculate_full_spell_delay, calculate_recovery_time
 
 # =============================================================================
 # CONFIGURATION - Just change SKILL_NAME to switch presets
 # =============================================================================
 
-SKILL_NAME = (
-    "Spellweaving"  # Options: "Spellweaving", "Magery", "Necromancy", "Chivalry"
-)
+SKILL_NAME = "Necromancy"  # Options: "Spellweaving", "Magery", "Necromancy", "Chivalry"
 
 # Healing config (set HEAL_SPELL to None to disable)
 HEAL_SPELL = (
@@ -73,7 +71,7 @@ PRESETS = {
             (50, "Pain Spike", 1.25, 5, True, "HEAL_CHECK"),
             (70, "Horrific Beast", 2.25, 11, False, "NONE"),
             (90, "Wither", 1.5, 23, False, "NONE"),
-            (100, "Lich Form", 2.0, 23, False, "NONE"),
+            (100, "Lich Form", 1.75, 23, False, "NONE"),
         ],
     },
     "Chivalry": {
@@ -227,3 +225,4 @@ def main():
 while not API.StopRequested:
     if not main():
         break  # Stop if main() returns False (cap reached or stop requested)
+

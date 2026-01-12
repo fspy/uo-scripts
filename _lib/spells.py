@@ -10,10 +10,6 @@ Import is wrapped in try/except for type hints in editors.
 
 # pyright: basic
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-
 # Try to import API for type hints, but don't fail if unavailable
 try:
     import API
@@ -26,11 +22,11 @@ DEFAULT_MIN_CAST_TIME = 0.5
 DEFAULT_FCR_CAP = 6
 
 
-@dataclass(frozen=True)
 class Spell:
-    name: str
-    base_cast_time: float
-    mana_cost: int
+    def __init__(self, name: str, base_cast_time: float, mana_cost: int):
+        self.name = name
+        self.base_cast_time = base_cast_time
+        self.mana_cost = mana_cost
 
 
 SPELL_CURE = Spell("Cure", 0.75, 6)
@@ -39,6 +35,13 @@ SPELL_GREATER_HEAL = Spell("Greater Heal", 1.25, 11)
 SPELL_GIFT_OF_RENEWAL = Spell("Gift of Renewal", 3.0, 24)
 SPELL_GIFT_OF_LIFE = Spell("Gift of Life", 4.0, 70)
 
+SELF_POISON_PATTERNS: list[tuple[str, int]] = [
+    ("you are in extreme pain, and require immediate aid!", 5),
+    ("you feel extremely weak and are in severe pain!", 4),
+    ("you begin to feel pain throughout your body!", 3),
+    ("you feel disorientated and nauseous!", 2),
+    ("you feel a bit nauseous", 1),
+]
 POISON_PATTERNS: list[tuple[str, int]] = [
     ("begins to spasm uncontrollably", 5),  # Lethal
     ("is wracked with extreme pain", 4),  # Deadly
@@ -185,13 +188,21 @@ def cast_spell_on_target(
     return True
 
 
-def detect_poison_level(pet_name: str) -> int:
+def detect_poison_level(target_name: str) -> int:
     """Infer poison level (1-5) from journal messages.
 
     Returns 0 when no matching message is found.
     """
     for pattern, level in POISON_PATTERNS:
-        if API.InJournal(f"* {pet_name} {pattern}"):
+        if API.InJournal(f"{target_name} {pattern}"):
+            return level
+
+    return 0
+
+
+def detect_self_poison_level() -> int:
+    for pattern, level in SELF_POISON_PATTERNS:
+        if API.InJournal(pattern, True):
             return level
 
     return 0

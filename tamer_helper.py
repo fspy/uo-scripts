@@ -21,7 +21,7 @@ import re
 import time
 
 import API
-from lib.spells import (
+from _lib.spells import (
     SPELL_ARCH_CURE,
     SPELL_CURE,
     SPELL_GIFT_OF_LIFE,
@@ -30,7 +30,7 @@ from lib.spells import (
     Spell,
     detect_poison_level,
 )
-from lib.spells import (
+from _lib.spells import (
     cast_spell_on_target as cast_spell_on_target_lib,
 )
 

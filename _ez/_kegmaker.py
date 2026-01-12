@@ -19,8 +19,8 @@
 #   - Requires 75+ Tinkering skill (for potion keg assembly)
 
 # API is injected by TazUO at runtime - do NOT import
-from lib.items import drop_items_to_container, find_salvage_bag
-from lib.persistence import load_int, save_int
+from _lib.items import drop_items_to_container, find_salvage_bag
+from _lib.persistence import load_int, save_int
 
 from ._trainer import (
     CRAFTING_GUMP,

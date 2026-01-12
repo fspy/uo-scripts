@@ -24,25 +24,25 @@ import re
 import time
 
 import API
-from lib.persistence import load_json, save_json
-from lib.utils import format_time_remaining
+from _lib.persistence import load_json, save_json
+from _lib.utils import format_time_remaining
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
 
 NPC_SUFFIXES = {
-    "alchemist": "Alchemy",
-    "blacksmith": "Blacksmithing",
-    "weaponsmith": "Blacksmithing",
-    "armourer": "Blacksmithing",
-    "carpenter": "Carpentry",
-    "cook": "Cooking",
-    "bowyer": "Fletching",
-    "scribe": "Inscription",
-    # "tailor": "Tailoring",
-    "weaver": "Tailoring",
-    "tinker": "Tinkering",
+    "the alchemist": "Alchemy",
+    "the blacksmith": "Blacksmithing",
+    "the weaponsmith": "Blacksmithing",
+    "the armourer": "Blacksmithing",
+    "the carpenter": "Carpentry",
+    "the cook": "Cooking",
+    "the bowyer": "Fletching",
+    "the scribe": "Inscription",
+    "the tailor": "Tailoring",
+    "the weaver": "Tailoring",
+    "the tinker": "Tinkering",
 }
 
 BOD_GUMP_ID = 0x9BADE6EA  # Small BOD gump
@@ -615,7 +615,12 @@ class BODStatusGump:
                 props = mob.NameAndProps(wait=False, timeout=2)
                 if not props:
                     continue
+
                 props_lower = props.lower()
+
+                if "guildmaster" in props_lower or "guildmistress" in props_lower:
+                    continue
+
                 for suffix in valid_suffixes:
                     if suffix in props_lower:
                         return mob.Serial

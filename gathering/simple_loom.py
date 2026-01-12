@@ -1,21 +1,8 @@
-"""
-SimpleLoom - Stupid simple cloth production.
-
-Finds wheels and loom nearby, spams them with materials.
-No timers, no state tracking, no journal parsing.
-Just brute force: use material on station, let server reject if busy.
-
-Features:
-- Auto-dump cloth when heavy
-- Auto-restock raw materials from container
-- Stops when container is empty
-"""
-
 import API
-from lib.items import move_item_robust
-from lib.persistence import save_int, setup_target
-from lib.utils import use_item_on_target
-from lib.weight import is_heavy
+from _lib.items import move_item_robust
+from _lib.persistence import save_int, setup_target
+from _lib.utils import use_item_on_target
+from _lib.weight import is_heavy
 
 # Item types
 WHEELS = [0x1015, 0x1019]

@@ -1,4 +1,6 @@
-# ez/launcher.py - Gump-based trainer selection UI
+# ez_crafting.py - Gump-based trainer selection UI
+import API
+
 """
 Trainer Launcher Gump
 
@@ -76,7 +78,7 @@ class TrainerLauncherGump:
         self.dropdown.SetY(45)
         self.gump.Add(self.dropdown)
 
-        def on_selection_changed(index):
+        def on_selection_changed():
             self._update_skill_display()
 
         self.dropdown.OnDropDownOptionSelected(on_selection_changed)
@@ -148,11 +150,11 @@ class TrainerLauncherGump:
             return None
 
     def _run_trainer(self):
-        import ez._smith
-        import ez._tailor
-        import ez._tinker
-        import ez._carpentry
-        import ez._kegmaker
+        import _ez._carpentry as carpentry
+        import _ez._kegmaker as kegmaker
+        import _ez._smith as smith
+        import _ez._tailor as tailor
+        import _ez._tinker as tinker
 
         idx = self.dropdown.GetSelectedIndex()
         trainer = TRAINERS[idx]
@@ -162,13 +164,13 @@ class TrainerLauncherGump:
 
         try:
             if trainer["skill"] is None:
-                ez._kegmaker.main()
+                kegmaker.main()
             else:
                 modules = {
-                    "ez._smith": ez._smith,
-                    "ez._tailor": ez._tailor,
-                    "ez._tinker": ez._tinker,
-                    "ez._carpentry": ez._carpentry,
+                    "ez._smith": smith,
+                    "ez._tailor": tailor,
+                    "ez._tinker": tinker,
+                    "ez._carpentry": carpentry,
                 }
                 mod = modules[trainer["module"]]
                 mod.main(target_skill)

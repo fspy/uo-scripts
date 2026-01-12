@@ -15,8 +15,8 @@ except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
 # Import move_item_robust and find_salvage_bag for salvage operations
-from lib.items import drop_items_to_container, find_salvage_bag, move_item_robust
-from lib.persistence import load_int, save_int
+from _lib.items import drop_items_to_container, find_salvage_bag, move_item_robust
+from _lib.persistence import load_int, save_int
 
 # Tool type constants
 SCISSORS_TYPE = 0xF9F

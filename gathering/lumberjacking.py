@@ -1,20 +1,19 @@
 # pyright: reportCallIssue=false
-
 import time
 
 import API
-from lib.items import drop_all_items_at_home, move_item_robust
-from lib.persistence import load_int, load_json, save_int, save_json, setup_target
-from lib.recovery import is_stuck, shutdown_cleanly
-from lib.runebook import TRAVEL_FAIL_MSGS, recall_with_retry
-from lib.utils import (
+from _lib.items import drop_all_items_at_home, move_item_robust
+from _lib.persistence import load_int, load_json, save_int, save_json, setup_target
+from _lib.recovery import is_stuck, shutdown_cleanly
+from _lib.runebook import TRAVEL_FAIL_MSGS, recall_with_retry
+from _lib.utils import (
     chebyshev_distance,
     count_items,
     dismount_if_mounted,
     stop_script,
     use_item_on_target,
 )
-from lib.weight import is_heavy, is_overweight
+from _lib.weight import is_heavy, is_overweight
 
 
 def wait_for_any(messages: list, timeout: float) -> bool:

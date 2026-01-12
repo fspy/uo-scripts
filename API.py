@@ -2223,7 +2223,7 @@ def ReplyGump(button: "int", gump: "int" = 1337) -> "bool":
     """
     pass
 
-def CloseGump(ID: "int" = 1337) -> None:
+def CloseGump(ID: "int" = 1337) -> "bool":
     """
      Close the last gump open, or a specific gump.
      Example:

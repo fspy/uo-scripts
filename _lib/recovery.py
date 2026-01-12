@@ -71,7 +71,7 @@ def shutdown_cleanly(home_serial=None, runebook_serial=None, max_retries=3):
                 return
             stop_script("Cannot recover - stopping")
     """
-    from lib.runebook import recall_with_retry
+    from _lib.runebook import recall_with_retry
 
     target = home_serial or runebook_serial
     if target:
