@@ -12,21 +12,8 @@ class ProvocationScript:
     PROXIMITY_THRESHOLD = 5
     SCAN_RADIUS = 12
 
-    PROVO_FAIL_MSGS = [
-        "You must wait to perform another action",
-        "You are too far away",
-        "Your target is out of range",
-        "You can't provoke",
-        "Your concentration is disturbed",
-        "You have not yet recovered",
-        "You fail to provoke",
-        "You don't have enough mana",
-        "your music fails to incite enough anger",
-    ]
-
-    PROVO_SUCCESS_MSGS = [
-        "you play your music and your target becomes angered",
-    ]
+    PROVO_FAIL_MSG = "Your music fails to incite enough anger"
+    PROVO_SUCCESS_MSG = "Your music succeeds, as you start a fight"
 
     def __init__(self):
         self._last_provo_time = 0
@@ -99,19 +86,19 @@ class ProvocationScript:
             return False
 
         API.Target(mob_a.Serial)  # pyright: ignore
+        API.HeadMsg(f"Target A: {mob_a.Name}", API.Player)
         if not API.WaitForTarget():
             return False
 
         API.Target(mob_b.Serial)  # pyright: ignore
+        API.HeadMsg(f"Target B: {mob_b.Name}", API.Player)
         API.Pause(0.5)
 
-        for msg in self.PROVO_SUCCESS_MSGS:
-            if API.InJournal(msg):
-                return True
+        if API.InJournal(self.PROVO_SUCCESS_MSG):
+            return True
 
-        for msg in self.PROVO_FAIL_MSGS:
-            if API.InJournal(msg):
-                return False
+        if API.InJournal(self.PROVO_FAIL_MSG):
+            return False
 
         return False
 
@@ -144,5 +131,4 @@ class ProvocationScript:
             API.HeadMsg(msg, API.Player)
 
 
-def main():
-    ProvocationScript().run()
+ProvocationScript().run()
