@@ -66,7 +66,6 @@ def parse_gump(html: str) -> Optional[dict]:
         return None
 
     animal_class = basefont_matches[1]
-    pet_class = animal_class
 
     if (
         len(basefont_matches) > 2
@@ -75,27 +74,6 @@ def parse_gump(html: str) -> Optional[dict]:
         animal_status = "Wild"
     else:
         animal_status = "Tamed"
-
-    strength_match_end = None
-    regen_pos = html.find("Regen")
-    if regen_pos != -1:
-        after_regen = html[regen_pos:]
-        strength_gump_match = re.search(BASEFONT_PATTERN, after_regen, re.IGNORECASE)
-        if strength_gump_match:
-            animal_strength = strength_gump_match.group(1)
-            strength_match_end = strength_gump_match.end()
-        else:
-            animal_strength = None
-    else:
-        animal_strength = None
-
-    if animal_strength and strength_match_end is not None:
-        after_strength_pos = regen_pos + strength_match_end
-        after_strength = html[after_strength_pos:]
-        hp_h4_match = re.search(r"<h4>(\d+)/(\d+)</h4>", after_strength, re.IGNORECASE)
-        animal_max_hp = hp_h4_match.group(2) if hp_h4_match else None
-    else:
-        animal_max_hp = None
 
     matches = list(re.finditer(CENTER_BASEFONT_PATTERN, html, re.IGNORECASE))
     str_index = next(
@@ -141,18 +119,17 @@ def parse_gump(html: str) -> Optional[dict]:
             stats[resist_type + "_res"] = resist_value
 
     return {
-        "class": pet_class,
+        "class": animal_class,
         "status": animal_status,
         "stats": stats,
     }
 
 
-def evaluate(stats: dict, ranges: dict) -> Tuple[dict, dict, float]:
+def evaluate(stats: dict, ranges: dict) -> Tuple[dict, float]:
     pet_ranges = ranges.get(stats["class"], {})
     status_ranges = pet_ranges.get(stats["status"], {})
 
     evaluation = {}
-    percentiles = {}
     total_percentile = 0
     count = 0
 
@@ -163,7 +140,6 @@ def evaluate(stats: dict, ranges: dict) -> Tuple[dict, dict, float]:
             percentile = max(
                 0, min(100, (val_int - min_val) / (max_val - min_val) * 100)
             )
-            percentiles[key] = percentile
             evaluation[key] = f"{val} ({percentile:.0f}%)"
             total_percentile += percentile
             count += 1
@@ -171,7 +147,7 @@ def evaluate(stats: dict, ranges: dict) -> Tuple[dict, dict, float]:
             evaluation[key] = f"{stats.get(key, 'N/A')} (N/A%)"
 
     avg_percentile = total_percentile / count if count > 0 else 0
-    return evaluation, percentiles, avg_percentile
+    return evaluation, avg_percentile
 
 
 def main():
@@ -193,7 +169,7 @@ def main():
         return
 
     stats = result["stats"]
-    evaluation, percentiles, avg = evaluate(stats, RANGES)
+    evaluation, avg = evaluate(stats, RANGES)
 
     avg_display = f"{avg:.1f}%"
     stat_count = len([k for k in evaluation.keys() if "_res" not in k])
