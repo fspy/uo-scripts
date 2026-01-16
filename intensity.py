@@ -161,7 +161,7 @@ def evaluate(
             soft_cap = SOFT_CAPS.get(key)
             if soft_cap is not None and val_int > soft_cap:
                 over_amount = val_int - soft_cap
-                penalty = over_amount * 15
+                penalty = (over_amount**2) * 2
                 percentile = max(0, percentile - penalty)
 
             evaluation[key] = f"{val} ({percentile:.0f}%)"
