@@ -246,9 +246,6 @@ MAX_TRAVEL_RETRIES = 3
 TRAVEL_RETRY_DELAY = 2.0
 USE_SACRED_JOURNEY = False  # Future support
 
-# Timeout config
-PACK_WAIT_TIMEOUT = 15.0  # Align with Mining's beetle timeout
-
 # Recovery config
 MAX_CONSECUTIVE_FAILURES = 5
 

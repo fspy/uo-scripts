@@ -308,58 +308,6 @@ def check_for_timer_message():
 # ============================================================================
 
 
-def show_startup_status():
-    """Display all BOD timers on script start."""
-    API.SysMsg("=" * 50, HUE_SUCCESS)
-    API.SysMsg("=== BOD Timer Tracker ===", HUE_SUCCESS)
-    API.SysMsg("=" * 50, HUE_SUCCESS)
-
-    timers = load_all_timers()
-    now = time.time()
-
-    if not timers:
-        API.SysMsg("No timers recorded yet.", HUE_INFO)
-        API.SysMsg("Walk up to a profession NPC and use Bulk Order Info", HUE_INFO)
-        return
-
-    ready_count = 0
-    current_char = API.Player.Name
-
-    for char_name, profs in timers.items():
-        ready_profs = []
-        waiting_profs = []
-
-        for profession, ready_at in profs.items():
-            remaining = ready_at - now
-            if remaining <= 0:
-                ready_profs.append(profession)
-                ready_count += 1
-            else:
-                status = format_time_remaining(remaining)
-                waiting_profs.append((profession, status))
-
-        # Show ready BODs grouped
-        if ready_profs:
-            prof_list = ", ".join(ready_profs)
-            API.SysMsg(f"{char_name} - BODs ready: {prof_list}", HUE_READY)
-
-        # Show waiting BODs individually
-        for profession, status in waiting_profs:
-            API.SysMsg(f"{char_name} - {profession}: {status}", HUE_INFO)
-
-    if ready_count > 0:
-        API.SysMsg(f"{ready_count} total BOD(s) ready to collect!", HUE_READY)
-        # Only show HeadMsg if current player has ready BODs
-        if current_char in timers:
-            current_ready = sum(
-                1 for ready_at in timers[current_char].values() if ready_at <= now
-            )
-            if current_ready > 0:
-                API.HeadMsg("You have BODs ready!", API.Player.Serial, HUE_READY)
-
-    API.SysMsg("=" * 50, HUE_SUCCESS)
-
-
 def notify_bod_accepted(profession):
     """
     Notify player that a BOD was accepted.
@@ -380,21 +328,6 @@ def notify_timer_saved(profession, minutes):
     """
     formatted = format_time_remaining(minutes * 60)
     API.SysMsg(f"{profession} BOD in {formatted}", HUE_SUCCESS)
-
-
-def notify_bod_ready(char_name, profession):
-    """
-    Notify player that a BOD is ready.
-
-    Args:
-        char_name (str): Character name
-        profession (str): Profession name
-    """
-    msg = f"{char_name} - {profession} BOD READY!"
-    API.SysMsg(msg, HUE_READY)
-    # Only show HeadMsg if it's the current player's BOD
-    if char_name == API.Player.Name:
-        API.HeadMsg("You have BODs ready!", API.Player.Serial, HUE_READY)
 
 
 # ============================================================================

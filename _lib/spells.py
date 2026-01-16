@@ -35,14 +35,14 @@ SPELL_GREATER_HEAL = Spell("Greater Heal", 1.25, 11)
 SPELL_GIFT_OF_RENEWAL = Spell("Gift of Renewal", 3.0, 24)
 SPELL_GIFT_OF_LIFE = Spell("Gift of Life", 4.0, 70)
 
-SELF_POISON_PATTERNS: list[tuple[str, int]] = [
+SELF_POISON_PATTERNS: "list[tuple[str, int]]" = [
     ("you are in extreme pain, and require immediate aid!", 5),
     ("you feel extremely weak and are in severe pain!", 4),
     ("you begin to feel pain throughout your body!", 3),
     ("you feel disorientated and nauseous!", 2),
     ("you feel a bit nauseous", 1),
 ]
-POISON_PATTERNS: list[tuple[str, int]] = [
+POISON_PATTERNS: "list[tuple[str, int]]" = [
     ("begins to spasm uncontrollably", 5),  # Lethal
     ("is wracked with extreme pain", 4),  # Deadly
     ("stumbles around in confusion", 3),  # Greater
@@ -189,12 +189,9 @@ def cast_spell_on_target(
 
 
 def detect_poison_level(target_name: str) -> int:
-    """Infer poison level (1-5) from journal messages.
-
-    Returns 0 when no matching message is found.
-    """
     for pattern, level in POISON_PATTERNS:
         if API.InJournal(f"{target_name} {pattern}"):
+            API.SysMsg(f"curing level {level} poison", 53)
             return level
 
     return 0
@@ -202,7 +199,8 @@ def detect_poison_level(target_name: str) -> int:
 
 def detect_self_poison_level() -> int:
     for pattern, level in SELF_POISON_PATTERNS:
-        if API.InJournal(pattern, True):
+        if API.InJournal(pattern):
+            API.SysMsg(f"curing level {level} poison", 53)
             return level
 
     return 0

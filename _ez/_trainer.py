@@ -21,12 +21,10 @@ from _lib.persistence import load_int, save_int
 # Tool type constants
 SCISSORS_TYPE = 0xF9F
 TONGS_TYPE = 0x0FBB
-HATCHET_TYPE = 0x0F43
 
 # Crafting constants
 CRAFTING_GUMP = 0x38920ABD
 SALVAGE_ITEM_THRESHOLD = 100
-SALVAGE_WEIGHT_THRESHOLD = None  # Computed at runtime (API.Player.WeightMax - 20)
 SALVAGE_CONTEXT_MENU_INDEX = 2  # "Salvage All"
 
 # Material weights (stones per unit)

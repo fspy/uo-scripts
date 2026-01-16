@@ -2365,6 +2365,22 @@ def SecondaryAbilityActive() -> "bool":
     """
     pass
 
+def CurrentAbilityNames() -> "list[str]":
+    """
+     Gets your currently available ability names.
+    
+     The full list of known abilities can be obtained via the `KnownAbilityNames` API
+    
+    """
+    pass
+
+def KnownAbilityNames() -> "list[str]":
+    """
+     Gets an array of all known ability names
+    
+    """
+    pass
+
 def InJournal(msg: "str", clearMatches: "bool" = False) -> "bool":
     """
      Check if your journal contains a message.

@@ -8,38 +8,26 @@ USAGE: Just change SKILL_NAME below to switch between skills.
 """
 
 import time
-from enum import Enum
 
 import API
 from _lib.spells import calculate_full_spell_delay, calculate_recovery_time
 
-# =============================================================================
-# CONFIGURATION - Just change SKILL_NAME to switch presets
-# =============================================================================
+SKILL_NAME = "Mysticism"
 
-SKILL_NAME = "Necromancy"  # Options: "Spellweaving", "Magery", "Necromancy", "Chivalry"
-
-# Healing config (set HEAL_SPELL to None to disable)
+# Healing config (None to disable)
 HEAL_SPELL = (
     "Greater Heal",
     2.0,
     11,
     True,
-)  # (name, cast_time, mana_cost, target_self)
+)
 HEAL_THRESHOLD = 0.5
 
-# Timing settings
 BASE_RECOVERY = 1.5
 MEDITATION_COOLDOWN = 10.0
 FCR_CAP = 6
-
-# Other
 FOLLOWER_DISMISS_DISTANCE = 2
 
-
-# =============================================================================
-# PRESETS - Auto-selected based on SKILL_NAME above
-# =============================================================================
 
 PRESETS = {
     "Spellweaving": {
@@ -84,26 +72,22 @@ PRESETS = {
             (120, "Noble Sacrifice", 3, 20, False, "NONE"),
         ],
     },
+    "Mysticism": {
+        "fc_cap": 4,
+        "phases": [
+            (62.9, "Stone Form", 2.5, 11, False, "NONE"),
+            (79.9, "Cleansing Winds", 1.25, 20, True, "NONE"),
+            (95.0, "Hail Storm", 2, 50, True, "NONE"),
+            (120.0, "Nether Cyclone", 3, 50, True, "NONE"),
+        ],
+    },
 }
 
 # Auto-select preset
 _preset = PRESETS[SKILL_NAME]
 FC_CAP = _preset["fc_cap"]
 TRAINING_PHASES = _preset["phases"]
-
-
-# =============================================================================
-# CORE FUNCTIONS - Do not edit below unless you know what you're doing
-# =============================================================================
-
-# Global state
 last_meditation_time = 0
-
-
-class Handler(Enum):
-    NONE = None
-    DISMISS_FOLLOWERS = "dismiss_followers"
-    HEAL_CHECK = "heal_check"
 
 
 def get_skill():
@@ -225,4 +209,3 @@ def main():
 while not API.StopRequested:
     if not main():
         break  # Stop if main() returns False (cap reached or stop requested)
-

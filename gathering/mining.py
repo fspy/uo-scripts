@@ -5,12 +5,7 @@ from _lib.items import drop_all_items_at_home
 from _lib.persistence import load_int, save_int
 from _lib.recovery import is_stuck, shutdown_cleanly
 from _lib.runebook import Runebook, recall_with_retry, wait_for_travel
-from _lib.utils import (
-    dismount_if_mounted,
-    find_any_type,
-    stop_script,
-    use_item_on_target,
-)
+from _lib.utils import dismount_if_mounted, stop_script, use_item_on_target
 from _lib.weight import is_heavy, is_overweight, is_overweight_by
 
 # Mine using shovels only (stop script when out).
@@ -80,11 +75,6 @@ MAX_CONSECUTIVE_FAILURES = 5
 
 def find_shovel():
     return API.FindType(SHOVEL_TYPE, API.Backpack)
-
-
-def find_any_ore(min_amount: int = 0):
-    """Find any ore type in backpack. Wrapper for lib.utils.find_any_type."""
-    return find_any_type(ORE_TYPES, API.Backpack, min_amount=min_amount)
 
 
 def find_smeltable_ore():

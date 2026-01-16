@@ -1,0 +1,69 @@
+import re
+
+import API
+from _lib.utils import Hue
+
+
+class JournalMonitor:
+    def __init__(self):
+        self._patterns = []
+        self.last_timestamp = None
+
+    def add_pattern(self, regex, display, hue):
+        compiled = re.compile(regex, re.I)
+        self._patterns.append((compiled, display, hue))
+
+    def check_entry(self, entry):
+        for compiled, display, hue in self._patterns:
+            match = compiled.search(entry.Text)
+            if not match:
+                continue
+
+            if match.lastindex:
+                display = re.sub(
+                    r"\\(\d+)",
+                    lambda m: match.group(int(m.group(1)))
+                    if int(m.group(1)) <= match.lastindex
+                    else m.group(0),
+                    display,
+                )
+
+            return (display, hue)
+        return None
+
+    def run(self):
+        while not API.StopRequested:
+            entries = API.GetJournalEntries(2)
+            if not entries:
+                continue
+            for entry in entries:
+                if self.last_timestamp is None or entry.Time > self.last_timestamp:
+                    match = self.check_entry(entry)
+                    if match:
+                        display, hue = match
+                        API.HeadMsg(display, API.Player.Serial, hue)
+                    self.last_timestamp = entry.Time
+            API.Pause(0.05)
+
+
+patterns = {
+    r"concentration is disturbed": ("* FIZZLE *", Hue.White),
+    r"attunement fades": ("- ATTUNEMENT -", Hue.Red),
+    r"resists the effects of death ray": ("! DEATH RAY RESIST !", Hue.Yellow),
+    r"honorable combat!": ("+ Honored +", Hue.Green),
+    r"You are at peace.": ("+ Mana 100% +", Hue.Cyan),
+    r"enter a meditative trance.": ("~ Meditating ~", Hue.Cyan),
+    r"resists spell plague.": ("! Plague Resist !", Hue.Yellow),
+    r"(\d+).+?absorbed.+?(\d+).+?shielding": (r"-\1 (\2)", Hue.Red),
+    r"powerful magic, protecting": (r"Gift of Life", Hue.Green),
+    r"fallen beast, a special (reward|artifact)": ("++ Artifact! ++", Hue.Magenta),
+    r"notice the crest of minax on your fallen foe": ("++ Artifact! ++", Hue.Magenta),
+    r"respond immediately to the next blocked blow": ("^ Counter Attack ^", Hue.Orange),
+    r"you feel that you might be able to": ("~ Evasion ~", Hue.Blue),
+}
+
+
+monitor = JournalMonitor()
+for regex, (display, hue) in patterns.items():
+    monitor.add_pattern(regex, display, hue)
+monitor.run()

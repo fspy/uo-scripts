@@ -3,20 +3,18 @@ from typing import Optional
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-import API
 from _lib.pet_parser import LORE_GUMP_ID
 
-BASEFONT_PATTERN = r"<BASEFONT[^>]*>([^<]*)</BASEFONT>"
+import API
 
+BASEFONT_PATTERN = r"<BASEFONT[^>]*>([^<]*)</BASEFONT>"
 STAT_RE = re.compile(
     r"<div align=right>(\d+(?:\.\d+)?)(?:/\d+)?%?</div>", re.IGNORECASE
 )
-
 RESIST_RE = re.compile(
     r"(?:<BASEFONT[^>]*>)?<div align=right>(\d+(?:\.\d+)?)(?:/\d+)?%?</div>",
     re.IGNORECASE,
 )
-
 CENTER_BASEFONT_PATTERN = (
     r"<CENTER><BASEFONT[^>]*>(?:<h4>)?([^<]*)(?:</h4>)?</BASEFONT></CENTER>"
 )
@@ -28,16 +26,6 @@ RESIST_COLORS = {
     "poison": "#00FF00",
     "energy": "#FF00FF",
 }
-
-STATS_PRIMARY = [("str", "Str"), ("dex", "Dex"), ("int", "Int")]
-STATS_SECONDARY = [("hits", "Hits"), ("stam", "Stam"), ("mana", "Mana")]
-RESISTS = [
-    ("phys_res", "Phys"),
-    ("fire_res", "Fire"),
-    ("cold_res", "Cold"),
-    ("poison_res", "Poison"),
-    ("energy_res", "Energy"),
-]
 
 
 def parse_gump(html: str) -> Optional[dict]:
@@ -103,34 +91,25 @@ def parse_gump(html: str) -> Optional[dict]:
         "class": animal_class,
         "status": animal_status,
         "stats": stats,
-        "halves_on_tame": animal_class in HALF_STAT_PETS,
+        "halves_on_tame": clean_pet_name(animal_class) in HALF_STAT_PETS,
     }
 
 
 SUPPORTED_PETS = {
     "CuSidhe": "Cu+Sidhe",
-    "Cu Sidhe": "Cu+Sidhe",
 }
 
-HALF_STAT_PETS = {"CuSidhe", "Cu Sidhe"}
+HALF_STAT_PETS = {"CuSidhe"}
 
 NAME_PREFIXES = {
     "Uncommon",
     "Rare",
     "Epic",
     "Legendary",
-    "Exquisite",
-    "Glacial",
-    "Frost",
-    "Infernal",
-    "Shadow",
-    "Ancient",
-    "Prime",
 }
 
 
 def clean_pet_name(name: str) -> str:
-    """Remove rarity prefixes from pet name."""
     for prefix in NAME_PREFIXES:
         if name.startswith(prefix + " "):
             name = name[len(prefix) + 1 :]
@@ -192,8 +171,6 @@ def query_uocah_rating(result: dict) -> Optional[float]:
     }
 
     url = f"https://www.uo-cah.com/pet-intensity-calculator?creature={creature}&{urlencode(params)}#freshresults"
-    API.SysMsg(f"Querying uo-cah for {creature_name}...")
-
     try:
         with urlopen(url, timeout=10) as response:
             html = response.read().decode("utf-8")
@@ -243,7 +220,6 @@ def main():
         return
 
     rating_display = f"{rating:.1f}%"
-
     API.HeadMsg(f"Rating: {rating_display}", API.Player, 69 if rating >= 70 else 33)
     API.SysMsg(f"[{pet_class}] {pet_status} - {rating_display}")
 

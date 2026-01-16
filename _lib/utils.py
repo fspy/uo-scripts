@@ -15,6 +15,23 @@ except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
 
+class Hue:
+    Black = 1
+    Blue = 2122
+    Cyan = 90
+    Gray = 1000
+    Green = 63
+    Magenta = 128
+    Orange = 2736
+    Red = 33
+    Yellow = 253
+    White = 1150
+
+
+def print(m, h=Hue.White):
+    API.SysMsg(str(m), h)
+
+
 def chebyshev_distance(x1: int, y1: int, x2: int, y2: int) -> int:
     """
     Calculate Chebyshev distance (max of x/y deltas).
@@ -49,27 +66,6 @@ def count_items(graphic: int, container) -> int:
     """
     items = API.FindTypeAll(graphic, container) or []
     return sum(getattr(it, "Amount", 0) or 0 for it in items)
-
-
-def find_any_type(types: list, container, min_amount: int = 0):
-    """
-    Find first item matching any type in the list.
-
-    Searches for items in order and returns the first match found.
-
-    Args:
-        types: List of graphic IDs to search for
-        container: Container object or serial to search in
-        min_amount: Minimum stack amount required (default 0)
-
-    Returns:
-        First matching item object, or None if no match found
-    """
-    for item_type in types:
-        item = API.FindType(item_type, container, minamount=min_amount)
-        if item:
-            return item
-    return None
 
 
 def stop_script(msg: str, hue: int = 32) -> None:

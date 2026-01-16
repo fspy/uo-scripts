@@ -19,8 +19,6 @@ def health_percent(mobile) -> float:
         return 1.0
     return mobile.Hits / mobile.HitsMax
 
-    # API.FindMobile
-
 
 def find_my_pets(max_distance=10):
     return sorted(
@@ -68,9 +66,7 @@ def select_heal_target():
         return API.Player.Serial, spell
 
     for pet in find_my_pets():
-        p("pet")
         spell = get_pet_heal_spell(pet, heal_pet_threshold)
-        p(f"pet: {pet.Name} - spell: {spell}")
         if spell:
             return pet.Serial, spell
 
