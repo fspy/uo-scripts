@@ -125,9 +125,11 @@ def parse_gump(html: str) -> Optional[dict]:
     }
 
 
-def evaluate(stats: dict, ranges: dict) -> Tuple[dict, float]:
-    pet_ranges = ranges.get(stats["class"], {})
-    status_ranges = pet_ranges.get(stats["status"], {})
+def evaluate(
+    stats: dict, pet_class: str, pet_status: str, ranges: dict
+) -> Tuple[dict, float]:
+    pet_ranges = ranges.get(pet_class, {})
+    status_ranges = pet_ranges.get(pet_status, {})
 
     evaluation = {}
     total_percentile = 0
@@ -161,12 +163,7 @@ def main():
         API.SysMsg("Analyzing open gump...")
 
     html = API.GetGumpContents(LORE_GUMP_ID)
-
-    API.SysMsg(f"DEBUG: html length = {len(html) if html else 0}")
-
     result = parse_gump(html)
-
-    API.SysMsg(f"DEBUG: result = {result}")
 
     if not result:
         API.SysMsg("Failed to parse gump", 33)
@@ -174,7 +171,7 @@ def main():
         return
 
     stats = result["stats"]
-    evaluation, avg = evaluate(stats, RANGES)
+    evaluation, avg = evaluate(stats, result["class"], result["status"], RANGES)
 
     avg_display = f"{avg:.1f}%"
     stat_count = len([k for k in evaluation.keys() if "_res" not in k])
