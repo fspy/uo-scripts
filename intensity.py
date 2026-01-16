@@ -58,6 +58,16 @@ RESIST_COLORS = {
     "energy": "#FF00FF",
 }
 
+STATS_PRIMARY = [("str", "Str"), ("dex", "Dex"), ("int", "Int")]
+STATS_SECONDARY = [("hits", "Hits"), ("stam", "Stam"), ("mana", "Mana")]
+RESISTS = [
+    ("phys_res", "Phys"),
+    ("fire_res", "Fire"),
+    ("cold_res", "Cold"),
+    ("poison_res", "Poison"),
+    ("energy_res", "Energy"),
+]
+
 
 def parse_gump(html: str) -> Optional[dict]:
     basefont_matches = re.findall(BASEFONT_PATTERN, html, re.IGNORECASE)
@@ -153,14 +163,17 @@ def evaluate(
 
 
 def main():
-    if not API.HasGump(LORE_GUMP_ID):
-        API.HeadMsg("Select an Animal", API.Player)
-        API.UseSkill("Animal Lore")
-        if not API.WaitForGump(LORE_GUMP_ID, 30):
-            API.Stop()
-            return
-    else:
-        API.SysMsg("Analyzing open gump...")
+    if API.HasGump(LORE_GUMP_ID):
+        API.SysMsg("Closing existing gump...")
+        API.CloseGumps()
+
+    API.HeadMsg("Select an Animal", API.Player)
+    API.UseSkill("Animal Lore")
+
+    if not API.WaitForGump(LORE_GUMP_ID, 30):
+        API.SysMsg("No gump opened", 33)
+        API.Stop()
+        return
 
     html = API.GetGumpContents(LORE_GUMP_ID)
     result = parse_gump(html)
@@ -180,15 +193,9 @@ def main():
         f"[{result['class']}] {result['status']} - {avg_display} ({stat_count} stats)"
     )
 
-    stats_primary = [("str", "Str"), ("dex", "Dex"), ("int", "Int")]
-    stats_secondary = [("hits", "Hits"), ("stam", "Stam"), ("mana", "Mana")]
-    resists = [
-        ("phys_res", "Phys"),
-        ("fire_res", "Fire"),
-        ("cold_res", "Cold"),
-        ("poison_res", "Poison"),
-        ("energy_res", "Energy"),
-    ]
+    stats_primary = STATS_PRIMARY
+    stats_secondary = STATS_SECONDARY
+    resists = RESISTS
 
     line1_parts = []
     for key, label in stats_primary:
@@ -204,6 +211,38 @@ def main():
     for key, label in resists:
         line3_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
     API.SysMsg(" | ".join(line3_parts))
+
+
+def monitor():
+    API.SysMsg("Pet monitor started - press Escape to stop")
+    while not API.StopRequested:
+        if API.HasGump(LORE_GUMP_ID):
+            API.Pause(0.3)
+            html = API.GetGumpContents(LORE_GUMP_ID)
+            result = parse_gump(html)
+            if result:
+                stats = result["stats"]
+                evaluation, avg = evaluate(
+                    stats, result["class"], result["status"], RANGES
+                )
+                avg_display = f"{avg:.1f}%"
+                stat_count = len([k for k in evaluation.keys() if "_res" not in k])
+                API.SysMsg(
+                    f"[{result['class']}] {result['status']} - {avg_display} ({stat_count} stats)"
+                )
+                line1_parts = []
+                for key, label in STATS_PRIMARY:
+                    line1_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
+                API.SysMsg(" | ".join(line1_parts))
+                line2_parts = []
+                for key, label in STATS_SECONDARY:
+                    line2_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
+                API.SysMsg(" | ".join(line2_parts))
+                line3_parts = []
+                for key, label in RESISTS:
+                    line3_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
+                API.SysMsg(" | ".join(line3_parts))
+        API.Pause(0.2)
 
 
 main()
