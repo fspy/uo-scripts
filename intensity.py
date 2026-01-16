@@ -33,6 +33,13 @@ INTENSITY_WEIGHTS = {
     "energy_res": 3.0,
 }
 
+STAT_MINIMUMS = {
+    "str": 125,
+    "hits": 125,
+    "dex": 125,
+    "stam": 125,
+}
+
 INTENSITY_RANGES = {
     "CuSidhe": {
         "Wild": (4624, 5261),
@@ -130,7 +137,10 @@ def calculate_intensity(stats: dict) -> float:
     for key, weight in INTENSITY_WEIGHTS.items():
         if key in stats and stats[key]:
             try:
-                total += float(stats[key]) * weight
+                val = float(stats[key])
+                if key in STAT_MINIMUMS:
+                    val = max(val, STAT_MINIMUMS[key])
+                total += val * weight
             except (ValueError, TypeError):
                 pass
     return total
