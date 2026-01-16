@@ -33,105 +33,6 @@ INTENSITY_WEIGHTS = {
     "energy_res": 3.0,
 }
 
-STAT_MINIMUMS = {
-    "str": 125,
-    "hits": 125,
-    "dex": 125,
-    "stam": 125,
-}
-
-INTENSITY_RANGES = {
-    "CuSidhe": {
-        "Wild": (4624, 5261),
-        "Tamed": (4329, 4966),
-    },
-}
-
-RESIST_COLORS = {
-    "phys": "#DC7633",
-    "fire": "#FF0000",
-    "cold": "#00FFFF",
-    "poison": "#00FF00",
-    "energy": "#FF00FF",
-}
-
-STATS_PRIMARY = [("str", "Str"), ("dex", "Dex"), ("int", "Int")]
-STATS_SECONDARY = [("hits", "Hits"), ("stam", "Stam"), ("mana", "Mana")]
-RESISTS = [
-    ("phys_res", "Phys"),
-    ("fire_res", "Fire"),
-    ("cold_res", "Cold"),
-    ("poison_res", "Poison"),
-    ("energy_res", "Energy"),
-]
-
-
-def parse_gump(html: str) -> Optional[dict]:
-    basefont_matches = re.findall(BASEFONT_PATTERN, html, re.IGNORECASE)
-
-    if len(basefont_matches) < 2:
-        return None
-
-    animal_class = basefont_matches[1]
-
-    if (
-        len(basefont_matches) > 2
-        and basefont_matches[2].strip() == "Tame before bonding"
-    ):
-        animal_status = "Wild"
-    else:
-        animal_status = "Tamed"
-
-    matches = list(re.finditer(CENTER_BASEFONT_PATTERN, html, re.IGNORECASE))
-    str_index = next(
-        (i for i, m in enumerate(matches) if m.group(1).strip() == "Str"), -1
-    )
-
-    if str_index == -1 or len(matches) < str_index + 18:
-        return None
-
-    stat_matches = matches[str_index : str_index + 18]
-    stats = {}
-
-    for i in range(3):
-        base_idx = i * 6
-        value1 = stat_matches[base_idx + 3].group(1).strip()
-        value2_full = stat_matches[base_idx + 4].group(1).strip()
-        value2_match = STAT_RE.search(value2_full)
-        value2_max = (
-            value2_match.group(1)
-            if value2_match
-            else value2_full.split("/")[1]
-            if "/" in value2_full
-            else value2_full
-        )
-
-        if i == 0:
-            stats["str"] = value1
-            stats["hits"] = value2_max
-        elif i == 1:
-            stats["dex"] = value1
-            stats["stam"] = value2_max
-        elif i == 2:
-            stats["int"] = value1
-            stats["mana"] = value2_max
-
-    for resist_type, color in RESIST_COLORS.items():
-        pattern = rf"COLOR={color}>(.*?)(?=COLOR=#|$)"
-        match = re.search(pattern, html, re.IGNORECASE)
-        if match:
-            resist_value_raw = match.group(1)
-            resist_match = RESIST_RE.search(resist_value_raw)
-            resist_value = resist_match.group(1) if resist_match else resist_value_raw
-            stats[resist_type + "_res"] = resist_value
-
-    return {
-        "class": animal_class,
-        "status": animal_status,
-        "stats": stats,
-    }
-
-
 STAT_HALF_ON_TAME = {
     "str": 2.0,
     "hits": 2.0,
@@ -146,8 +47,8 @@ def calculate_intensity(stats: dict, pet_status: str) -> float:
         if key in stats and stats[key]:
             try:
                 val = float(stats[key])
-                if pet_status == "Tamed" and key in STAT_HALF_ON_TAME:
-                    val = val * STAT_HALF_ON_TAME[key]
+                if pet_status == "Wild" and key in STAT_HALF_ON_TAME:
+                    val = val / STAT_HALF_ON_TAME[key]
                 total += val * weight
             except (ValueError, TypeError):
                 pass
