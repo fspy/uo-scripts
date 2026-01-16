@@ -1,5 +1,5 @@
 import re
-from typing import Optional, Tuple
+from typing import Optional
 
 import API
 from _lib.pet_parser import LORE_GUMP_ID
@@ -19,34 +19,24 @@ CENTER_BASEFONT_PATTERN = (
     r"<CENTER><BASEFONT[^>]*>(?:<h4>)?([^<]*)(?:</h4>)?</BASEFONT></CENTER>"
 )
 
-RANGES = {
+INTENSITY_WEIGHTS = {
+    "str": 3.0,
+    "hits": 3.0,
+    "dex": 0.1,
+    "int": 0.5,
+    "stam": 0.5,
+    "mana": 0.5,
+    "phys_res": 3.0,
+    "fire_res": 3.0,
+    "cold_res": 3.0,
+    "poison_res": 3.0,
+    "energy_res": 3.0,
+}
+
+INTENSITY_RANGES = {
     "CuSidhe": {
-        "Wild": {
-            "hits": (1000, 1200),
-            "stam": (150, 170),
-            "mana": (250, 290),
-            "str": (1200, 1225),
-            "dex": (150, 170),
-            "int": (250, 290),
-            "phys_res": (50, 65),
-            "fire_res": (25, 45),
-            "cold_res": (70, 85),
-            "poison_res": (30, 50),
-            "energy_res": (70, 85),
-        },
-        "Tamed": {
-            "hits": (500, 600),
-            "stam": (75, 85),
-            "mana": (250, 290),
-            "str": (600, 612),
-            "dex": (75, 85),
-            "int": (250, 290),
-            "phys_res": (50, 65),
-            "fire_res": (25, 45),
-            "cold_res": (70, 85),
-            "poison_res": (30, 50),
-            "energy_res": (70, 85),
-        },
+        "Wild": (4624, 5261),
+        "Tamed": (4329, 4966),
     },
 }
 
@@ -67,11 +57,6 @@ RESISTS = [
     ("poison_res", "Poison"),
     ("energy_res", "Energy"),
 ]
-
-SOFT_CAPS = {
-    "cold_res": 70,
-    "energy_res": 70,
-}
 
 
 def parse_gump(html: str) -> Optional[dict]:
@@ -140,38 +125,24 @@ def parse_gump(html: str) -> Optional[dict]:
     }
 
 
-def evaluate(
-    stats: dict, pet_class: str, pet_status: str, ranges: dict
-) -> Tuple[dict, float]:
-    pet_ranges = ranges.get(pet_class, {})
-    status_ranges = pet_ranges.get(pet_status, {})
+def calculate_intensity(stats: dict) -> float:
+    total = 0.0
+    for key, weight in INTENSITY_WEIGHTS.items():
+        if key in stats and stats[key]:
+            try:
+                total += float(stats[key]) * weight
+            except (ValueError, TypeError):
+                pass
+    return total
 
-    evaluation = {}
-    total_percentile = 0
-    count = 0
 
-    for key, (min_val, max_val) in status_ranges.items():
-        val = stats.get(key)
-        if val and max_val > min_val:
-            val_int = int(val.strip("%") or 0)
-            percentile = max(
-                0, min(100, (val_int - min_val) / (max_val - min_val) * 100)
-            )
-
-            soft_cap = SOFT_CAPS.get(key)
-            if soft_cap is not None and val_int > soft_cap:
-                over_amount = val_int - soft_cap
-                penalty = (over_amount**2) * 2
-                percentile = max(0, percentile - penalty)
-
-            evaluation[key] = f"{val} ({percentile:.0f}%)"
-            total_percentile += percentile
-            count += 1
-        else:
-            evaluation[key] = f"{stats.get(key, 'N/A')} (N/A%)"
-
-    avg_percentile = total_percentile / count if count > 0 else 0
-    return evaluation, avg_percentile
+def calculate_rating(intensity: float, pet_class: str, status: str) -> float:
+    if pet_class not in INTENSITY_RANGES:
+        return 0.0
+    if status not in INTENSITY_RANGES[pet_class]:
+        return 0.0
+    min_val, max_val = INTENSITY_RANGES[pet_class][status]
+    return max(0.0, min(100.0, (intensity - min_val) / (max_val - min_val) * 100))
 
 
 def main():
@@ -197,35 +168,39 @@ def main():
 
     stats = result["stats"]
 
-    if result["class"] not in RANGES:
-        API.SysMsg(f"[{result['class']}] {result['status']} - No ranges defined")
+    if result["class"] not in INTENSITY_RANGES:
+        API.SysMsg(f"[{result['class']}] {result['status']} - No intensity data")
         return
 
-    evaluation, avg = evaluate(stats, result["class"], result["status"], RANGES)
+    intensity = calculate_intensity(stats)
+    rating = calculate_rating(intensity, result["class"], result["status"])
 
-    avg_display = f"{avg:.1f}%"
-    stat_count = len([k for k in evaluation.keys() if "_res" not in k])
+    rating_display = f"{rating:.1f}%"
+    min_int, max_int = INTENSITY_RANGES[result["class"]][result["status"]]
 
-    if avg >= 70:
-        API.HeadMsg(f" NICE PET: {avg_display}", API.Player)
+    if rating >= 70:
+        API.HeadMsg(f" NICE PET: {rating_display}", API.Player)
 
     API.SysMsg(
-        f"[{result['class']}] {result['status']} - {avg_display} ({stat_count} stats)"
+        f"[{result['class']}] {result['status']} - {rating_display} (Intensity: {intensity:.0f} / {min_int}-{max_int})"
     )
 
     line1_parts = []
     for key, label in STATS_PRIMARY:
-        line1_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
+        val = stats.get(key, "N/A")
+        line1_parts.append(f"{label}: {val}")
     API.SysMsg(" | ".join(line1_parts))
 
     line2_parts = []
     for key, label in STATS_SECONDARY:
-        line2_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
+        val = stats.get(key, "N/A")
+        line2_parts.append(f"{label}: {val}")
     API.SysMsg(" | ".join(line2_parts))
 
     line3_parts = []
     for key, label in RESISTS:
-        line3_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
+        val = stats.get(key, "N/A")
+        line3_parts.append(f"{label}: {val}")
     API.SysMsg(" | ".join(line3_parts))
 
 
@@ -238,26 +213,45 @@ def monitor():
             result = parse_gump(html)
             if result:
                 stats = result["stats"]
-                evaluation, avg = evaluate(
-                    stats, result["class"], result["status"], RANGES
-                )
-                avg_display = f"{avg:.1f}%"
-                stat_count = len([k for k in evaluation.keys() if "_res" not in k])
-                API.SysMsg(
-                    f"[{result['class']}] {result['status']} - {avg_display} ({stat_count} stats)"
-                )
-                line1_parts = []
-                for key, label in STATS_PRIMARY:
-                    line1_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
-                API.SysMsg(" | ".join(line1_parts))
-                line2_parts = []
-                for key, label in STATS_SECONDARY:
-                    line2_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
-                API.SysMsg(" | ".join(line2_parts))
-                line3_parts = []
-                for key, label in RESISTS:
-                    line3_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
-                API.SysMsg(" | ".join(line3_parts))
+
+                if result["class"] not in INTENSITY_RANGES:
+                    API.SysMsg(
+                        f"[{result['class']}] {result['status']} - No intensity data"
+                    )
+                else:
+                    intensity = calculate_intensity(stats)
+                    rating = calculate_rating(
+                        intensity, result["class"], result["status"]
+                    )
+                    rating_display = f"{rating:.1f}%"
+                    min_int, max_int = INTENSITY_RANGES[result["class"]][
+                        result["status"]
+                    ]
+
+                    if rating >= 70:
+                        API.HeadMsg(f" NICE PET: {rating_display}", API.Player)
+
+                    API.SysMsg(
+                        f"[{result['class']}] {result['status']} - {rating_display} (Intensity: {intensity:.0f} / {min_int}-{max_int})"
+                    )
+
+                    line1_parts = []
+                    for key, label in STATS_PRIMARY:
+                        val = stats.get(key, "N/A")
+                        line1_parts.append(f"{label}: {val}")
+                    API.SysMsg(" | ".join(line1_parts))
+
+                    line2_parts = []
+                    for key, label in STATS_SECONDARY:
+                        val = stats.get(key, "N/A")
+                        line2_parts.append(f"{label}: {val}")
+                    API.SysMsg(" | ".join(line2_parts))
+
+                    line3_parts = []
+                    for key, label in RESISTS:
+                        val = stats.get(key, "N/A")
+                        line3_parts.append(f"{label}: {val}")
+                    API.SysMsg(" | ".join(line3_parts))
         API.Pause(0.2)
 
 
