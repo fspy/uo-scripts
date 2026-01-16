@@ -68,6 +68,11 @@ RESISTS = [
     ("energy_res", "Energy"),
 ]
 
+SOFT_CAPS = {
+    "cold_res": 75,
+    "energy_res": 75,
+}
+
 
 def parse_gump(html: str) -> Optional[dict]:
     basefont_matches = re.findall(BASEFONT_PATTERN, html, re.IGNORECASE)
@@ -152,6 +157,13 @@ def evaluate(
             percentile = max(
                 0, min(100, (val_int - min_val) / (max_val - min_val) * 100)
             )
+
+            soft_cap = SOFT_CAPS.get(key)
+            if soft_cap is not None and val_int > soft_cap:
+                over_amount = val_int - soft_cap
+                penalty = over_amount * 15
+                percentile = max(0, percentile - penalty)
+
             evaluation[key] = f"{val} ({percentile:.0f}%)"
             total_percentile += percentile
             count += 1
