@@ -69,8 +69,8 @@ RESISTS = [
 ]
 
 SOFT_CAPS = {
-    "cold_res": 75,
-    "energy_res": 75,
+    "cold_res": 70,
+    "energy_res": 70,
 }
 
 
