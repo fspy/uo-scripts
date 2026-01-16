@@ -80,7 +80,7 @@ def parse_gump(html: str) -> Optional[dict]:
         (i for i, m in enumerate(matches) if m.group(1).strip() == "Str"), -1
     )
 
-    if len(matches) < str_index + 18:
+    if str_index == -1 or len(matches) < str_index + 18:
         return None
 
     stat_matches = matches[str_index : str_index + 18]
