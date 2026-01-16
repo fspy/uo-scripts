@@ -1,5 +1,4 @@
 import re
-from datetime import datetime
 from typing import Optional, Tuple
 
 import API
@@ -175,14 +174,6 @@ def evaluate(
     return evaluation, avg_percentile
 
 
-def dump_gump(html: str) -> None:
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"pet_gump_{timestamp}.html"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(html)
-    API.SysMsg(f"Dumped gump to {filename}")
-
-
 def main():
     if API.HasGump(LORE_GUMP_ID):
         API.SysMsg("Closing existing gump...")
@@ -197,7 +188,6 @@ def main():
         return
 
     html = API.GetGumpContents(LORE_GUMP_ID)
-    dump_gump(html)
     result = parse_gump(html)
 
     if not result:
@@ -206,31 +196,35 @@ def main():
         return
 
     stats = result["stats"]
+
+    if result["class"] not in RANGES:
+        API.SysMsg(f"[{result['class']}] {result['status']} - No ranges defined")
+        return
+
     evaluation, avg = evaluate(stats, result["class"], result["status"], RANGES)
 
     avg_display = f"{avg:.1f}%"
     stat_count = len([k for k in evaluation.keys() if "_res" not in k])
 
+    if avg >= 70:
+        API.HeadMsg(f" NICE PET: {avg_display}", API.Player)
+
     API.SysMsg(
         f"[{result['class']}] {result['status']} - {avg_display} ({stat_count} stats)"
     )
 
-    stats_primary = STATS_PRIMARY
-    stats_secondary = STATS_SECONDARY
-    resists = RESISTS
-
     line1_parts = []
-    for key, label in stats_primary:
+    for key, label in STATS_PRIMARY:
         line1_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
     API.SysMsg(" | ".join(line1_parts))
 
     line2_parts = []
-    for key, label in stats_secondary:
+    for key, label in STATS_SECONDARY:
         line2_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
     API.SysMsg(" | ".join(line2_parts))
 
     line3_parts = []
-    for key, label in resists:
+    for key, label in RESISTS:
         line3_parts.append(f"{label}: {evaluation.get(key, 'N/A')}")
     API.SysMsg(" | ".join(line3_parts))
 
@@ -241,7 +235,6 @@ def monitor():
         if API.HasGump(LORE_GUMP_ID):
             API.Pause(0.3)
             html = API.GetGumpContents(LORE_GUMP_ID)
-            dump_gump(html)
             result = parse_gump(html)
             if result:
                 stats = result["stats"]
