@@ -112,9 +112,10 @@ SUPPORTED_PETS = {
 }
 
 
-def query_uocah_rating(stats: dict) -> Optional[float]:
+def query_uocah_rating(result: dict) -> Optional[float]:
     """Query uo-cah for intensity rating based on pet stats."""
-    creature_name = stats.get("class", "")
+    creature_name = result.get("class", "")
+    stats = result.get("stats", {})
     creature = SUPPORTED_PETS.get(creature_name)
 
     if not creature:
@@ -194,7 +195,7 @@ def main():
     pet_class = result["class"]
     pet_status = result["status"]
 
-    rating = query_uocah_rating(stats)
+    rating = query_uocah_rating(result)
 
     if rating is None:
         API.SysMsg("Could not get rating from uo-cah", 33)
@@ -239,7 +240,7 @@ def monitor():
                 pet_class = result["class"]
                 pet_status = result["status"]
 
-                rating = query_uocah_rating(stats)
+                rating = query_uocah_rating(result)
 
                 if rating is not None:
                     rating_display = f"{rating:.1f}%"
