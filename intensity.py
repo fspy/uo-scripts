@@ -161,7 +161,12 @@ def main():
         API.SysMsg("Analyzing open gump...")
 
     html = API.GetGumpContents(LORE_GUMP_ID)
+
+    API.SysMsg(f"DEBUG: html length = {len(html) if html else 0}")
+
     result = parse_gump(html)
+
+    API.SysMsg(f"DEBUG: result = {result}")
 
     if not result:
         API.SysMsg("Failed to parse gump", 33)
