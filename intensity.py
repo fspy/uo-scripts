@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from typing import Optional, Tuple
 
 import API
@@ -174,6 +175,14 @@ def evaluate(
     return evaluation, avg_percentile
 
 
+def dump_gump(html: str) -> None:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"pet_gump_{timestamp}.html"
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(html)
+    API.SysMsg(f"Dumped gump to {filename}")
+
+
 def main():
     if API.HasGump(LORE_GUMP_ID):
         API.SysMsg("Closing existing gump...")
@@ -188,6 +197,7 @@ def main():
         return
 
     html = API.GetGumpContents(LORE_GUMP_ID)
+    dump_gump(html)
     result = parse_gump(html)
 
     if not result:
@@ -231,6 +241,7 @@ def monitor():
         if API.HasGump(LORE_GUMP_ID):
             API.Pause(0.3)
             html = API.GetGumpContents(LORE_GUMP_ID)
+            dump_gump(html)
             result = parse_gump(html)
             if result:
                 stats = result["stats"]
