@@ -1,5 +1,6 @@
 import re
 from typing import Optional
+from urllib.parse import urlencode
 
 import API
 from _lib.pet_parser import LORE_GUMP_ID
@@ -156,6 +157,66 @@ def calculate_rating(intensity: float, pet_class: str, status: str) -> float:
     return max(0.0, min(100.0, (intensity - min_val) / (max_val - min_val) * 100))
 
 
+try:
+    from urllib.parse import urlencode
+    from urllib.request import urlopen
+
+    def query_uocah_rating(stats: dict) -> Optional[float]:
+        """Query uo-cah for intensity rating based on pet stats."""
+        creature_map = {
+            "CuSidhe": "Cu+Sidhe",
+        }
+
+        creature_name = stats.get("class", "CuSidhe")
+        creature = creature_map.get(creature_name, creature_name.replace(" ", "+"))
+
+        params = {
+            "creature": creature,
+            "hits": stats.get("hits", 0),
+            "stamina": stats.get("stam", 0),
+            "mana": stats.get("mana", 0),
+            "str": stats.get("str", 0),
+            "dex": stats.get("dex", 0),
+            "int": stats.get("int", 0),
+            "rateminimum": 1,
+            "physical": stats.get("phys_res", 0),
+            "fire": stats.get("fire_res", 0),
+            "cold": stats.get("cold_res", 0),
+            "poison": stats.get("poison_res", 0),
+            "energy": stats.get("energy_res", 0),
+            "target_physical": "--",
+            "target_fire": "--",
+            "target_cold": "--",
+            "target_poison": "--",
+            "target_energy": "--",
+            "wrestling": "",
+            "resistingspells": "",
+            "evalintel": "",
+            "tactics": "",
+            "magery": "",
+            "poisoning": "",
+            "mic": "fresh",
+        }
+
+        url = f"https://www.uo-cah.com/pet-intensity-calculator?{urlencode(params)}#freshresults"
+
+        try:
+            with urlopen(url, timeout=5) as response:
+                html = response.read().decode("utf-8")
+                rating_match = re.search(r"Rating:\s*(\d+(?:\.\d+)?)\s*%", html)
+                if rating_match:
+                    return float(rating_match.group(1))
+        except Exception:
+            pass
+
+        return None
+
+except ImportError:
+
+    def query_uocah_rating(stats: dict) -> Optional[float]:
+        return None
+
+
 def main():
     if API.HasGump(LORE_GUMP_ID):
         API.SysMsg("Closing existing gump...")
@@ -183,18 +244,26 @@ def main():
         API.SysMsg(f"[{result['class']}] {result['status']} - No intensity data")
         return
 
-    intensity = calculate_intensity(stats, result["status"])
-    rating = calculate_rating(intensity, result["class"], result["status"])
+    uocah_rating = query_uocah_rating(stats)
 
-    rating_display = f"{rating:.1f}%"
-    min_int, max_int = INTENSITY_RANGES[result["class"]][result["status"]]
+    if uocah_rating is not None:
+        rating = uocah_rating
+        rating_display = f"{rating:.1f}%"
+        intensity = None
+        API.SysMsg(
+            f"[{result['class']}] {result['status']} - {rating_display} (uo-cah)"
+        )
+    else:
+        intensity = calculate_intensity(stats, result["status"])
+        rating = calculate_rating(intensity, result["class"], result["status"])
+        rating_display = f"{rating:.1f}%"
+        min_int, max_int = INTENSITY_RANGES[result["class"]][result["status"]]
+        API.SysMsg(
+            f"[{result['class']}] {result['status']} - {rating_display} (Intensity: {intensity:.0f} / {min_int}-{max_int})"
+        )
 
     if rating >= 70:
         API.HeadMsg(f" NICE PET: {rating_display}", API.Player)
-
-    API.SysMsg(
-        f"[{result['class']}] {result['status']} - {rating_display} (Intensity: {intensity:.0f} / {min_int}-{max_int})"
-    )
 
     line1_parts = []
     for key, label in STATS_PRIMARY:
@@ -230,21 +299,30 @@ def monitor():
                         f"[{result['class']}] {result['status']} - No intensity data"
                     )
                 else:
-                    intensity = calculate_intensity(stats, result["status"])
-                    rating = calculate_rating(
-                        intensity, result["class"], result["status"]
-                    )
-                    rating_display = f"{rating:.1f}%"
-                    min_int, max_int = INTENSITY_RANGES[result["class"]][
-                        result["status"]
-                    ]
+                    uocah_rating = query_uocah_rating(stats)
+
+                    if uocah_rating is not None:
+                        rating = uocah_rating
+                        rating_display = f"{rating:.1f}%"
+                        intensity = None
+                        API.SysMsg(
+                            f"[{result['class']}] {result['status']} - {rating_display} (uo-cah)"
+                        )
+                    else:
+                        intensity = calculate_intensity(stats, result["status"])
+                        rating = calculate_rating(
+                            intensity, result["class"], result["status"]
+                        )
+                        rating_display = f"{rating:.1f}%"
+                        min_int, max_int = INTENSITY_RANGES[result["class"]][
+                            result["status"]
+                        ]
+                        API.SysMsg(
+                            f"[{result['class']}] {result['status']} - {rating_display} (Intensity: {intensity:.0f} / {min_int}-{max_int})"
+                        )
 
                     if rating >= 70:
                         API.HeadMsg(f" NICE PET: {rating_display}", API.Player)
-
-                    API.SysMsg(
-                        f"[{result['class']}] {result['status']} - {rating_display} (Intensity: {intensity:.0f} / {min_int}-{max_int})"
-                    )
 
                     line1_parts = []
                     for key, label in STATS_PRIMARY:
