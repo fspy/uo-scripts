@@ -132,14 +132,22 @@ def parse_gump(html: str) -> Optional[dict]:
     }
 
 
-def calculate_intensity(stats: dict) -> float:
+STAT_HALF_ON_TAME = {
+    "str": 2.0,
+    "hits": 2.0,
+    "dex": 2.0,
+    "stam": 2.0,
+}
+
+
+def calculate_intensity(stats: dict, pet_status: str) -> float:
     total = 0.0
     for key, weight in INTENSITY_WEIGHTS.items():
         if key in stats and stats[key]:
             try:
                 val = float(stats[key])
-                if key in STAT_MINIMUMS:
-                    val = max(val, STAT_MINIMUMS[key])
+                if pet_status == "Tamed" and key in STAT_HALF_ON_TAME:
+                    val = val * STAT_HALF_ON_TAME[key]
                 total += val * weight
             except (ValueError, TypeError):
                 pass
@@ -182,7 +190,7 @@ def main():
         API.SysMsg(f"[{result['class']}] {result['status']} - No intensity data")
         return
 
-    intensity = calculate_intensity(stats)
+    intensity = calculate_intensity(stats, result["status"])
     rating = calculate_rating(intensity, result["class"], result["status"])
 
     rating_display = f"{rating:.1f}%"
@@ -229,7 +237,7 @@ def monitor():
                         f"[{result['class']}] {result['status']} - No intensity data"
                     )
                 else:
-                    intensity = calculate_intensity(stats)
+                    intensity = calculate_intensity(stats, result["status"])
                     rating = calculate_rating(
                         intensity, result["class"], result["status"]
                     )
