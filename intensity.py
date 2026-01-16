@@ -114,6 +114,28 @@ SUPPORTED_PETS = {
 
 HALF_STAT_PETS = {"CuSidhe", "Cu Sidhe"}
 
+NAME_PREFIXES = {
+    "Uncommon",
+    "Rare",
+    "Epic",
+    "Legendary",
+    "Exquisite",
+    "Glacial",
+    "Frost",
+    "Infernal",
+    "Shadow",
+    "Ancient",
+    "Prime",
+}
+
+
+def clean_pet_name(name: str) -> str:
+    """Remove rarity prefixes from pet name."""
+    for prefix in NAME_PREFIXES:
+        if name.startswith(prefix + " "):
+            name = name[len(prefix) + 1 :]
+    return name.strip()
+
 
 def query_uocah_rating(result: dict) -> Optional[float]:
     """Query uo-cah for intensity rating based on pet stats."""
@@ -132,7 +154,11 @@ def query_uocah_rating(result: dict) -> Optional[float]:
             val = val // 2
         return max(125, val)
 
-    creature = SUPPORTED_PETS.get(creature_name)
+    # Clean rarity prefixes for uo-cah
+    clean_name = clean_pet_name(creature_name)
+    creature = SUPPORTED_PETS.get(
+        clean_name, SUPPORTED_PETS.get(creature_name, clean_name.replace(" ", "+"))
+    )
 
     if not creature:
         API.SysMsg(f"[{creature_name}] - Unsupported pet type")
@@ -153,9 +179,9 @@ def query_uocah_rating(result: dict) -> Optional[float]:
         "energy": stats.get("energy_res", 0),
         "target_physical": "--",
         "target_fire": "--",
-        "target_cold": "--",
+        "target_cold": "70",
         "target_poison": "--",
-        "target_energy": "--",
+        "target_energy": "75",
         "wrestling": "100",
         "resistingspells": "100",
         "evalintel": "",
@@ -176,7 +202,6 @@ def query_uocah_rating(result: dict) -> Optional[float]:
             )
             if rating_match:
                 rating = float(rating_match.group(1))
-                API.SysMsg(f"uo-cah: {rating:.1f}%")
                 return rating
             else:
                 API.SysMsg("uo-cah: Could not parse rating", 33)
@@ -194,7 +219,7 @@ def main():
     API.HeadMsg("Select an Animal", API.Player)
     API.UseSkill("Animal Lore")
 
-    if not API.WaitForGump(LORE_GUMP_ID, 30):
+    if not API.WaitForGump(LORE_GUMP_ID, 3):
         API.SysMsg("No gump opened", 33)
         API.Stop()
         return
@@ -207,8 +232,7 @@ def main():
         API.Stop()
         return
 
-    stats = result["stats"]
-    pet_class = result["class"]
+    pet_class = clean_pet_name(result["class"])
     pet_status = result["status"]
 
     rating = query_uocah_rating(result)
@@ -220,28 +244,8 @@ def main():
 
     rating_display = f"{rating:.1f}%"
 
-    if rating >= 70:
-        API.HeadMsg(f" NICE PET: {rating_display}", API.Player)
-
+    API.HeadMsg(f"Rating: {rating_display}", API.Player, 69 if rating >= 70 else 33)
     API.SysMsg(f"[{pet_class}] {pet_status} - {rating_display}")
-
-    line1_parts = []
-    for key, label in STATS_PRIMARY:
-        val = stats.get(key, "N/A")
-        line1_parts.append(f"{label}: {val}")
-    API.SysMsg(" | ".join(line1_parts))
-
-    line2_parts = []
-    for key, label in STATS_SECONDARY:
-        val = stats.get(key, "N/A")
-        line2_parts.append(f"{label}: {val}")
-    API.SysMsg(" | ".join(line2_parts))
-
-    line3_parts = []
-    for key, label in RESISTS:
-        val = stats.get(key, "N/A")
-        line3_parts.append(f"{label}: {val}")
-    API.SysMsg(" | ".join(line3_parts))
 
 
 main()
