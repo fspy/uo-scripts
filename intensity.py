@@ -114,6 +114,23 @@ SUPPORTED_PETS = {
 
 HALF_STAT_PETS = {"CuSidhe", "Cu Sidhe"}
 
+MAX_SPAWN_INTENSITY = {
+    "CuSidhe": {
+        "Wild": 5261,
+        "Tamed": 4966,
+    },
+}
+
+
+def calculate_rating(intensity: float, pet_class: str, status: str) -> float:
+    """Calculate rating as percentage of max spawn intensity."""
+    if pet_class not in MAX_SPAWN_INTENSITY:
+        return 0.0
+    if status not in MAX_SPAWN_INTENSITY[pet_class]:
+        return 0.0
+    max_intensity = MAX_SPAWN_INTENSITY[pet_class][status]
+    return min(100.0, (intensity / max_intensity) * 100)
+
 
 def query_uocah_rating(result: dict) -> Optional[float]:
     """Query uo-cah for intensity rating based on pet stats."""
@@ -130,7 +147,7 @@ def query_uocah_rating(result: dict) -> Optional[float]:
             and key in ("str", "hits", "dex", "stam")
         ):
             val = val // 2
-        return val
+        return max(125, val)
 
     creature = SUPPORTED_PETS.get(creature_name)
 
@@ -152,15 +169,15 @@ def query_uocah_rating(result: dict) -> Optional[float]:
         "cold": stats.get("cold_res", 0),
         "poison": stats.get("poison_res", 0),
         "energy": stats.get("energy_res", 0),
-        "target_physical": "--",
-        "target_fire": "--",
-        "target_cold": "--",
-        "target_poison": "--",
-        "target_energy": "--",
-        "wrestling": "",
-        "resistingspells": "",
+        # "target_physical": "--",
+        # "target_fire": "--",
+        # "target_cold": "--",
+        # "target_poison": "--",
+        # "target_energy": "--",
+        "wrestling": "100",
+        "resistingspells": "100",
         "evalintel": "",
-        "tactics": "",
+        "tactics": "100",
         "magery": "",
         "poisoning": "",
         "mic": "fresh",
@@ -168,18 +185,24 @@ def query_uocah_rating(result: dict) -> Optional[float]:
 
     url = f"https://www.uo-cah.com/pet-intensity-calculator?{urlencode(params)}#freshresults"
 
-    API.SysMsg(f"Querying uo-cah for {creature_name}...")
+    API.SysMsg(f"Querying uo-cah for {creature_name}...\nURL: {url}")
 
     try:
         with urlopen(url, timeout=10) as response:
             html = response.read().decode("utf-8")
-            rating_match = re.search(r"Rating: <strong>(.+?)%</strong>", html)
-            if rating_match:
-                rating = float(rating_match.group(1))
-                API.SysMsg(f"uo-cah response: {rating:.1f}%")
+            with open("uocah.html", "w") as f:
+                f.write(html)
+
+            intensity_match = re.search(
+                r"Intensity Value:\s*<strong>(\d+)</strong>", html
+            )
+            if intensity_match:
+                intensity = float(intensity_match.group(1))
+                rating = calculate_rating(intensity, creature_name, pet_status)
+                API.SysMsg(f"uo-cah: Intensity {intensity:.0f}, Rating {rating:.1f}%")
                 return rating
             else:
-                API.SysMsg("uo-cah: Could not parse rating", 33)
+                API.SysMsg("uo-cah: Could not parse intensity", 33)
     except Exception as e:
         API.SysMsg(f"uo-cah request failed: {e}", 33)
 
