@@ -103,6 +103,7 @@ def parse_gump(html: str) -> Optional[dict]:
         "class": animal_class,
         "status": animal_status,
         "stats": stats,
+        "halves_on_tame": animal_class in HALF_STAT_PETS,
     }
 
 
@@ -111,11 +112,26 @@ SUPPORTED_PETS = {
     "Cu Sidhe": "Cu+Sidhe",
 }
 
+HALF_STAT_PETS = {"CuSidhe", "Cu Sidhe"}
+
 
 def query_uocah_rating(result: dict) -> Optional[float]:
     """Query uo-cah for intensity rating based on pet stats."""
     creature_name = result.get("class", "")
     stats = result.get("stats", {})
+    pet_status = result.get("status", "")
+    halves_on_tame = result.get("halves_on_tame", False)
+
+    def get_val(key):
+        val = int(stats.get(key, 0))
+        if (
+            pet_status == "Wild"
+            and halves_on_tame
+            and key in ("str", "hits", "dex", "stam")
+        ):
+            val = val // 2
+        return val
+
     creature = SUPPORTED_PETS.get(creature_name)
 
     if not creature:
@@ -124,11 +140,11 @@ def query_uocah_rating(result: dict) -> Optional[float]:
 
     params = {
         "creature": creature,
-        "hits": stats.get("hits", 0),
-        "stamina": stats.get("stam", 0),
+        "hits": get_val("hits"),
+        "stamina": get_val("stam"),
         "mana": stats.get("mana", 0),
-        "str": stats.get("str", 0),
-        "dex": stats.get("dex", 0),
+        "str": get_val("str"),
+        "dex": get_val("dex"),
         "int": stats.get("int", 0),
         "rateminimum": 1,
         "physical": stats.get("phys_res", 0),
@@ -157,7 +173,7 @@ def query_uocah_rating(result: dict) -> Optional[float]:
     try:
         with urlopen(url, timeout=10) as response:
             html = response.read().decode("utf-8")
-            rating_match = re.search(r"Rating:\s*(\d+(?:\.\d+)?)\s*%", html)
+            rating_match = re.search(r"Rating: <strong>(.+?)%</strong>", html)
             if rating_match:
                 rating = float(rating_match.group(1))
                 API.SysMsg(f"uo-cah response: {rating:.1f}%")
@@ -226,48 +242,6 @@ def main():
         val = stats.get(key, "N/A")
         line3_parts.append(f"{label}: {val}")
     API.SysMsg(" | ".join(line3_parts))
-
-
-def monitor():
-    API.SysMsg("Pet monitor started - press Escape to stop")
-    while not API.StopRequested:
-        if API.HasGump(LORE_GUMP_ID):
-            API.Pause(0.3)
-            html = API.GetGumpContents(LORE_GUMP_ID)
-            result = parse_gump(html)
-            if result:
-                stats = result["stats"]
-                pet_class = result["class"]
-                pet_status = result["status"]
-
-                rating = query_uocah_rating(result)
-
-                if rating is not None:
-                    rating_display = f"{rating:.1f}%"
-
-                    if rating >= 70:
-                        API.HeadMsg(f" NICE PET: {rating_display}", API.Player)
-
-                    API.SysMsg(f"[{pet_class}] {pet_status} - {rating_display}")
-
-                    line1_parts = []
-                    for key, label in STATS_PRIMARY:
-                        val = stats.get(key, "N/A")
-                        line1_parts.append(f"{label}: {val}")
-                    API.SysMsg(" | ".join(line1_parts))
-
-                    line2_parts = []
-                    for key, label in STATS_SECONDARY:
-                        val = stats.get(key, "N/A")
-                        line2_parts.append(f"{label}: {val}")
-                    API.SysMsg(" | ".join(line2_parts))
-
-                    line3_parts = []
-                    for key, label in RESISTS:
-                        val = stats.get(key, "N/A")
-                        line3_parts.append(f"{label}: {val}")
-                    API.SysMsg(" | ".join(line3_parts))
-        API.Pause(0.2)
 
 
 main()
