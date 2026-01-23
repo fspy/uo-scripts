@@ -1,11 +1,21 @@
+import json
+import re
 import time
+from collections import defaultdict
+from pathlib import Path
 
 import API
 from _lib.items import drop_all_items_at_home
 from _lib.persistence import load_int, save_int
 from _lib.recovery import is_stuck, shutdown_cleanly
+from _lib.resource_tracker import log_mining_gather
 from _lib.runebook import Runebook, recall_with_retry, wait_for_travel
-from _lib.utils import dismount_if_mounted, stop_script, use_item_on_target
+from _lib.utils import (
+    count_items,
+    dismount_if_mounted,
+    stop_script,
+    use_item_on_target,
+)
 from _lib.weight import is_heavy, is_overweight, is_overweight_by
 
 # Mine using shovels only (stop script when out).
@@ -19,6 +29,7 @@ SMALL_ORE_TYPE = 0x19B7
 # Mining is stationary, so we can tolerate being overweight.
 # Start smelting once we reach (WeightMax + allowance).
 SMELT_OVERWEIGHT_ALLOWANCE = -30
+INGOT_DROP_THRESHOLD = 2000
 
 MINING_DELAY = 0.5
 SMELT_DELAY = 0.5
@@ -37,6 +48,7 @@ DEPLETED_MSGS = [
     "There is no metal here to mine.",
     "There is no ore here to mine.",
     "You cannot mine there.",
+    "You can't mine that.",
 ]
 
 # How long to wait after all 4 tiles are depleted.
@@ -236,6 +248,58 @@ def find_fire_beetle() -> int:
             return mob.Serial
 
     return 0
+
+
+def check_and_log_mining_gather(
+    offset_x: int, offset_y: int, runebook_index: int
+) -> None:
+    """Check journal for colored ore and log location.
+
+    Parses journal entries from the last 2 seconds for messages like:
+    "You dig some VERITE ore and put it in your backpack"
+    """
+    entries = API.GetJournalEntries(2.0)
+    if not entries:
+        return
+
+    for entry in entries:
+        text = getattr(entry, "Text", "")
+        if not text:
+            continue
+
+        text_lower = text.lower()
+        if (
+            "you dig some" in text_lower
+            and "ore and put it in your backpack" in text_lower
+        ):
+            match = re.search(
+                r"you dig some (\w+) ore and put it in your backpack",
+                text,
+                re.IGNORECASE,
+            )
+            if match:
+                material = match.group(1).lower()
+
+                if material == "iron":
+                    return
+
+                try:
+                    log_mining_gather(
+                        player_x=API.Player.X,
+                        player_y=API.Player.Y,
+                        player_z=API.Player.Z,
+                        offset_x=offset_x,
+                        offset_y=offset_y,
+                        runebook_index=runebook_index,
+                        material=material,
+                    )
+                    API.SysMsg(
+                        f"Logged {material} ore at {API.Player.X + offset_x}, {API.Player.Y + offset_y}",
+                        68,
+                    )
+                except Exception as e:
+                    API.SysMsg(f"Failed to log ore: {e}", 32)
+                break
 
 
 def wait_for_beetle(timeout: float = 15.0) -> int:
@@ -570,6 +634,9 @@ consecutive_failures = 0
 # Track apparent stuck state (no movement) for recovery
 stuck_checks = 0
 
+LOG_FILE = Path(__file__).parent.parent / "gathering" / "resource_log.json"
+ores = defaultdict(list)
+
 while not API.StopRequested:
     # If we haven't moved for a while, try to bail out safely.
     if is_stuck(timeout=120):
@@ -607,11 +674,11 @@ while not API.StopRequested:
         beetle = smelt_all_ore(beetle)
         consecutive_failures = 0  # Reset on successful smelt
 
-        # If we're still heavy but there's nothing left we can smelt,
+        # If we've reached the ingot drop threshold,
         # travel home to drop items (if travel is configured)
-        if is_overweight_by(SMELT_OVERWEIGHT_ALLOWANCE) and not find_smeltable_ore():
+        if count_items(INGOT_TYPE, API.Backpack) >= INGOT_DROP_THRESHOLD:
             if home_rune_serial and drop_container_serial:
-                API.SysMsg("Still heavy after smelting -> banking ingots at home")
+                API.SysMsg("Reached ingot drop threshold -> banking ingots at home")
 
                 # Travel home
                 if not recall_home(home_rune_serial):
@@ -632,7 +699,7 @@ while not API.StopRequested:
                 consecutive_failures = 0  # Reset on successful banking
 
                 if dropped == 0:
-                    API.SysMsg("No items to drop but still heavy; stopping")
+                    API.SysMsg("No items to drop but ingot threshold reached; stopping")
                     break
 
                 # Return to current mining spot
@@ -731,6 +798,17 @@ while not API.StopRequested:
         mine_once(shovel, x_off, y_off)
         consecutive_failures = 0  # Reset after successful mining action
 
+        ore_journal = API.GetJournalEntries(MINING_DELAY * 2)
+        if len(ore_journal) > 0:
+            for oj in ore_journal:
+                match = re.match(r"You dig some (?!iron )(.+?) ore", oj.Text)
+                if match:
+                    ore_type = match.group(1).lower()
+                    coord = (API.Player.X + x_off, API.Player.Y + y_off)
+                    if coord not in ores[ore_type]:
+                        ores[ore_type].append(coord)
+                    API.ClearJournal("$You dig some (.+) ore")
+
         if should_mark_depleted():
             depleted_offsets.add((x_off, y_off))
 
@@ -741,5 +819,8 @@ while not API.StopRequested:
         # Shouldn't happen, but prevents a tight loop.
         depleted_offsets.clear()
         API.Pause(ALL_DEPLETED_PAUSE)
+
+    with open(LOG_FILE, "w") as f:
+        json.dump(ores, f)
 
 API.SysMsg("Mining script finished")
