@@ -48,6 +48,7 @@ class JournalMonitor:
 
 patterns = {
     r"concentration is disturbed": ("* FIZZLE *", Hue.White),
+    r"you regain your focus": ("! FOCUS !", Hue.Cyan),
     r"attunement fades": ("- ATTUNEMENT -", Hue.Red),
     r"resists the effects of death ray": ("! DEATH RAY RESIST !", Hue.Yellow),
     r"honorable combat!": ("+ Honored +", Hue.Green),
@@ -58,8 +59,11 @@ patterns = {
     r"powerful magic, protecting": (r"Gift of Life", Hue.Green),
     r"fallen beast, a special (reward|artifact)": ("++ Artifact! ++", Hue.Magenta),
     r"notice the crest of minax on your fallen foe": ("++ Artifact! ++", Hue.Magenta),
+    r"reward for slaying the mighty paragon": ("++ Artifact! ++", Hue.Magenta),
+    r"notice the mark of an ice dragon": ("++ Artifact! ++", Hue.Cyan),
     r"respond immediately to the next blocked blow": ("^ Counter Attack ^", Hue.Orange),
     r"you feel that you might be able to": ("~ Evasion ~", Hue.Blue),
+    r"the world will save": ("> World Save <", Hue.Blue),
 }
 
 

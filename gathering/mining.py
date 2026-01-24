@@ -13,6 +13,7 @@ from _lib.runebook import Runebook, recall_with_retry, wait_for_travel
 from _lib.utils import (
     count_items,
     dismount_if_mounted,
+    p,
     stop_script,
     use_item_on_target,
 )
@@ -635,7 +636,17 @@ consecutive_failures = 0
 stuck_checks = 0
 
 LOG_FILE = Path(__file__).parent.parent / "gathering" / "resource_log.json"
-ores = defaultdict(list)
+
+if LOG_FILE.exists():
+    with open(LOG_FILE, "r") as f:
+        data = json.load(f)
+        loaded = {
+            material: [tuple(coord) for coord in coord_list]
+            for material, coord_list in data.items()
+        }
+        ores = defaultdict(list, loaded)
+else:
+    ores = defaultdict(list)
 
 while not API.StopRequested:
     # If we haven't moved for a while, try to bail out safely.
@@ -799,7 +810,7 @@ while not API.StopRequested:
         consecutive_failures = 0  # Reset after successful mining action
 
         ore_journal = API.GetJournalEntries(MINING_DELAY * 2)
-        if len(ore_journal) > 0:
+        if ore_journal:
             for oj in ore_journal:
                 match = re.match(r"You dig some (?!iron )(.+?) ore", oj.Text)
                 if match:
@@ -807,7 +818,8 @@ while not API.StopRequested:
                     coord = (API.Player.X + x_off, API.Player.Y + y_off)
                     if coord not in ores[ore_type]:
                         ores[ore_type].append(coord)
-                    API.ClearJournal("$You dig some (.+) ore")
+
+        API.ClearJournal("$You dig some (.+) ore")
 
         if should_mark_depleted():
             depleted_offsets.add((x_off, y_off))

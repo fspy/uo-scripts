@@ -2212,12 +2212,13 @@ def HasGump(ID: "int" = 1337) -> "int":
     """
     pass
 
-def ReplyGump(button: "int", gump: "int" = 1337) -> "bool":
+def ReplyGump(button: "int", gump: "int" = 1337, switches: "list[int]" = None) -> "bool":
     """
      Reply to a gump.
      Example:
      ```py
      API.ReplyGump(21)
+     API.ReplyGump(1, 0x555, [100])
      ```
     
     """
@@ -2702,6 +2703,16 @@ def GetAllFriends() -> "list":
      for friend in friends:
          API.FindMobile(friend)
      ```
+    
+    """
+    pass
+
+def GetPartyMemberSerials() -> "list":
+    """
+     Gets a list of serials for all current party members, excluding yourself.
+    
+    
+     Note that members may not always have an associated Mobile.
     
     """
     pass

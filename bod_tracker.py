@@ -49,7 +49,7 @@ BOD_GUMP_ID = 0x9BADE6EA  # Small BOD gump
 LARGE_BOD_GUMP_ID = 0xBE0DAD1E  # Large BOD gump
 CONTEXT_MENU_BOD_INFO = 1  # "Bulk Order Info" context menu entry
 ACCEPT_BUTTON = 1  # OK button on BOD gump
-RETRIGGER_DELAY = 0.5  # Wait 0.5s between accept and re-trigger (for saves)
+RETRIGGER_DELAY = 0.1  # Wait 0.5s between accept and re-trigger (for saves)
 READY_CHECK_INTERVAL = 60
 READY_REMINDER_INTERVAL = 300
 STORAGE_KEY = "BODTimers"
@@ -657,7 +657,7 @@ def main():
     """Main script loop."""
     # Create and show status gump
     status_gump = BODStatusGump()
-    status_gump.create()
+    status_gump._create_collapsed()
 
     # State tracking
     current_npc_serial = None

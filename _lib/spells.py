@@ -28,6 +28,21 @@ class Spell:
         self.base_cast_time = base_cast_time
         self.mana_cost = mana_cost
 
+    @property
+    def cost_lmc(self):
+        return self.mana_cost * (API.Player.LowerManaCost / 100.0)
+
+    def cast(self, target=None):
+        if API.Player.Mana < self.cost_lmc:
+            return
+
+        API.CastSpell(self.name)
+        if not target:
+            return
+
+        API.WaitForTarget()
+        API.Target(target)  # pyright: ignore
+
 
 SPELL_CURE = Spell("Cure", 0.75, 6)
 SPELL_ARCH_CURE = Spell("Arch Cure", 1.25, 11)

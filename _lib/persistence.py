@@ -148,7 +148,7 @@ def load_json(key: str, default=None, scope=None):
 
     try:
         return json.loads(raw)
-    except (ValueError, TypeError, json.JSONDecodeError):
+    except (ValueError, TypeError):
         return default
 
 

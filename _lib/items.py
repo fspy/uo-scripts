@@ -45,7 +45,9 @@ def move_item_robust(serial, dest, amount, max_retries=5):
     return False
 
 
-def drop_items_to_container(container_serial, item_types, source=None):
+def drop_items_to_container(
+    container_serial: int, item_types: "list[int]", source=None
+):
     """
     Move all items of specified types to a container.
 

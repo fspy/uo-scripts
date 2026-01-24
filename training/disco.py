@@ -41,10 +41,8 @@ while True:
             API.Target(t)  # pyright:ignore
             API.Pause(0.5)
 
-            if API.InJournal("already in discord"):
-                break
-
-            if API.InJournal("too far away"):
+            if API.InJournalAny(["already in discord", "too far away"]):
+                API.Pause(1)
                 break
 
             if API.InJournal("You attempt to disrupt"):
@@ -55,10 +53,10 @@ while True:
                 API.Pause(7)
                 break
 
-    API.UseSkill("Invisibility")
+    API.CastSpell("Invisibility")
     API.WaitForTarget()
     API.TargetSelf()
-    API.Pause(7)
+    API.Pause(30)
 
     if API.InJournal("What instrument"):
         API.Target(instrument)  # pyright: ignore

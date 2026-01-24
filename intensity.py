@@ -3,9 +3,10 @@ from typing import Optional
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-from _lib.pet_parser import LORE_GUMP_ID
-
 import API
+from _lib.utils import p
+
+LORE_GUMP_ID = 0x772051E9
 
 BASEFONT_PATTERN = r"<BASEFONT[^>]*>([^<]*)</BASEFONT>"
 STAT_RE = re.compile(
@@ -135,9 +136,9 @@ def query_uocah_rating(result: dict) -> Optional[float]:
 
     # Clean rarity prefixes for uo-cah
     clean_name = clean_pet_name(creature_name)
-    creature = SUPPORTED_PETS.get(
-        clean_name, SUPPORTED_PETS.get(creature_name, clean_name.replace(" ", "+"))
-    )
+    creature = SUPPORTED_PETS.get(clean_name, SUPPORTED_PETS.get(creature_name))
+
+    p(creature)
 
     if not creature:
         API.SysMsg(f"[{creature_name}] - Unsupported pet type")
@@ -193,8 +194,8 @@ def main():
         API.SysMsg("Closing existing gump...")
         API.CloseGumps()
 
-    API.HeadMsg("Select an Animal", API.Player)
     API.UseSkill("Animal Lore")
+    API.HeadMsg("Select an Animal", API.Player)
 
     if not API.WaitForGump(LORE_GUMP_ID, 3):
         API.SysMsg("No gump opened", 33)

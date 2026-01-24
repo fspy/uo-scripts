@@ -14,6 +14,8 @@ try:
 except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
+from _lib.persistence import load_int, save_int
+
 
 class Hue:
     Black = 1
@@ -28,8 +30,37 @@ class Hue:
     White = 1150
 
 
-def print(m, h=Hue.White):
+def p(m, h=Hue.White):
     API.SysMsg(str(m), h)
+
+
+def toggle_mount():
+    if API.Player.Mount:
+        API.Dismount()
+    else:
+        mount = load_int("mount")
+        if not mount:
+            API.HeadMsg("Target Mount", Hue.Orange)
+            target = API.RequestTarget()
+            if not target:
+                API.HeadMsg("Invalid Target", Hue.Red)
+                return
+            save_int("mount", target)
+            mount = target
+
+        API.Mount(mount)
+
+
+def get_mastery():
+    book = API.FindType(0x225A, API.Backpack, hue=0)
+    if not book:
+        p("no book of masteries!", Hue.Red)
+        return
+    props = API.ItemNameAndProps(book, True)
+    if not props or not props.startswith("Book Of Masteries"):
+        p("unable to retrieve item data", Hue.Orange)
+        return
+    return props.split("\n")[2].replace(" Mastery", "").strip()
 
 
 def chebyshev_distance(x1: int, y1: int, x2: int, y2: int) -> int:

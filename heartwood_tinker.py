@@ -1,172 +1,197 @@
 import random
 import re
+from typing import Optional
 
 import API
+from _lib import persistence
 from _lib.items import move_item_robust
 from _lib.utils import count_items, p
 
-DEFAULT_PAUSE = 0.65
-QUEST_NAME_REGEX = re.compile(r"Quest Offer (.+) Description", re.I)
 
-p("Target Beetle!")
-beetle_serial = API.RequestTarget()
+class HeartwoodTinker:
+    QUEST_GUMP = 0x4C4C6DB0
+    CRAFT_GUMP = 0x38920ABD
+    TINKER_KIT = 0x1EB8
+    INGOT_GRAPHIC = 0x1BF2
+    BACKPACK_GRAPHIC = 0x0E75
+    RECIPE_GRAPHIC = 0x2831
+    DEFAULT_PAUSE = 0.65
 
+    QUEST_NAME_REGEX = re.compile(r"Quest Offer (.+) Description", re.I)
 
-npc_serial = 0x31899
-quest_gump = 0x4C4C6DB0
-craft_gump = 0x38920ABD
-tinker_kit = 0x1EB8
+    QUESTS = {
+        "Necessity's Mother": (15, 23, 10, TINKER_KIT),
+    }
 
+    def __init__(self):
+        self.beetle_serial = None
+        self.npc_serial = None
 
-quests = {
-    # name, (category, item, amount, item_id)
-    "Necessity's Mother": (15, 23, 10, tinker_kit),
-}
+    def main(self):
+        self._setup_serials()
+        while not API.StopRequested:
+            self._run_cycle()
 
+    def _setup_serials(self):
+        self.beetle_serial = persistence.setup_target(
+            "HeartwoodTinker:beetle_serial", "Target Beetle!"
+        )
+        self.npc_serial = persistence.setup_target(
+            "HeartwoodTinker:npc_serial", "Target Tinker NPC!"
+        )
 
-def get_quest():
-    attempts = 35
-    while attempts > 0:
-        attempts -= 1
-        gump_contents = None
+    def _run_cycle(self):
+        if API.Player.Weight >= API.Player.WeightMax - 20:
+            p("weight limit reached")
+            API.Stop()
+            return
 
-        API.UseObject(npc_serial)
-        API.WaitForGump(quest_gump)
-        if not API.HasGump(quest_gump):
-            return None
+        if API.Contents(API.Backpack) > 110:
+            p("backpack full")
+            API.Stop()
+            return
 
-        gump_contents = API.GetGumpContents(quest_gump)
-        while not gump_contents:
-            API.Pause(0.3)
+        if not API.FindType(self.INGOT_GRAPHIC, API.Backpack, hue=0, minamount=100):
+            if not self._restock_ingots():
+                p("not enough ingots and can't restock")
+                API.Stop()
+                return
+            API.Pause(self.DEFAULT_PAUSE)
 
-        match = QUEST_NAME_REGEX.match(gump_contents)
-        if not match:
+        quest_name = self._get_quest()
+        if not quest_name:
+            API.Pause(self.DEFAULT_PAUSE)
+            return
+
+        category, item, amount, item_id = self.QUESTS[quest_name]
+        self._make_items(category, item, amount, item_id)
+        self._toggle_quest(item_id, amount)
+        self._turn_in()
+
+        API.Pause(self.DEFAULT_PAUSE)
+        self._find_recipes()
+
+    def _get_quest(self) -> Optional[str]:
+        attempts = 35
+        while attempts > 0:
             attempts -= 1
-            continue
+            gump_contents = None
 
-        if match.group(1) in quests.keys():
-            quest_name = match.group(1)
-            API.ReplyGump(4, quest_gump)
-            return quest_name
+            API.UseObject(self.npc_serial)  # type:ignore
+            API.WaitForGump(self.QUEST_GUMP)
+            if not API.HasGump(self.QUEST_GUMP):
+                return None
 
-        API.CloseGump(quest_gump)
-        API.Pause(DEFAULT_PAUSE * 2)
+            gump_contents = API.GetGumpContents(self.QUEST_GUMP)
+            while not gump_contents:
+                API.Pause(0.3)
 
-    p("unable to get quest, exceeded number of attempts", 36)
-    API.Stop()
+            match = self.QUEST_NAME_REGEX.match(gump_contents)
+            if not match:
+                continue
+
+            if match.group(1) in self.QUESTS:
+                quest_name = match.group(1)
+                API.ReplyGump(4, self.QUEST_GUMP)
+                return quest_name
+
+            API.CloseGump(self.QUEST_GUMP)
+            API.Pause(self.DEFAULT_PAUSE)
+
+        p("unable to get quest, exceeded number of attempts", 36)
+        API.Stop()
+
+    def _use_tool(self, attempts: int = 20) -> None:
+        if API.HasGump(self.CRAFT_GUMP):
+            return
+
+        if not API.FindType(self.TINKER_KIT, API.Backpack):
+            p("no tinker kits in backpack")
+            return
+
+        if attempts <= 0:
+            p("failed to open tinker gump")
+            return
+
+        API.UseType(self.TINKER_KIT, 0, API.Player.Backpack)
+        API.WaitForGump(self.CRAFT_GUMP)
+        self._use_tool(attempts - 1)
+
+    def _action(self, gump: int, button: int) -> None:
+        API.ReplyGump(button, gump)
+        API.WaitForGump(gump)
+
+    def _make_items(self, category: int, item: int, amount: int, item_id: int) -> None:
+        self._use_tool()
+
+        self._action(self.CRAFT_GUMP, category)
+        self._action(self.CRAFT_GUMP, item)
+
+        while amount + 1 > count_items(item_id, API.Backpack):
+            self._use_tool()
+            self._action(self.CRAFT_GUMP, 21)  # make last
+
+    def _toggle_quest(self, item_id: int, amount: int) -> None:
+        API.ContextMenu(API.Player, 7)
+        items = API.FindTypeAll(item_id, API.Backpack, hue=0)
+
+        count = 0
+        while count < amount:
+            API.WaitForTarget(timeout=3)
+            API.Target(items[count])  # pyright:ignore
+            while not API.InJournal("You set the item to Quest Item status", True):
+                API.Pause(0.05)
+            count += 1
+
+        API.CancelTarget()
+        API.Pause(self.DEFAULT_PAUSE)
+
+    def _turn_in(self) -> None:
+        API.UseObject(self.npc_serial)  # type:ignore
+        API.WaitForGump(self.QUEST_GUMP)
+        if not API.HasGump(self.QUEST_GUMP):
+            API.Pause(self.DEFAULT_PAUSE)
+            return self._turn_in()
+        self._action(self.QUEST_GUMP, 8)
+        API.ReplyGump(5, self.QUEST_GUMP)
+
+    def _restock_ingots(self) -> bool:
+        beetle = API.FindMobile(self.beetle_serial)  # type:ignore
+        if not beetle or not getattr(beetle, "Backpack", None):
+            return False
+
+        API.UseObject(beetle.Backpack)
+        API.Pause(1.0)
+
+        ingots = API.FindType(self.INGOT_GRAPHIC, beetle.Backpack, hue=0)
+        if not ingots:
+            return False
+
+        amount = max(1, 300 - count_items(self.INGOT_GRAPHIC, API.Backpack))
+        move_item_robust(ingots, API.Backpack, amount)
+
+        return True
+
+    def _find_recipes(self) -> None:
+        for backpack in API.FindTypeAll(self.BACKPACK_GRAPHIC, API.Backpack):
+            if backpack.Serial == API.Backpack:
+                continue
+
+            API.UseObject(backpack)
+            API.Pause(self.DEFAULT_PAUSE)
+            for recipe in API.FindTypeAll(self.RECIPE_GRAPHIC, backpack):
+                move_item_robust(recipe, self.beetle_serial, 1)
+
+            pos = self._drop_pos()
+            API.MoveItem(backpack, 4294967295, 1, pos[0], pos[1])
+            API.Pause(self.DEFAULT_PAUSE)
+
+    def _drop_pos(self) -> "tuple[int, int]":
+        player_x, player_y = API.Player.X, API.Player.Y
+        offsets = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
+        dx, dy = random.choice(offsets)
+        return (player_x + dx, player_y + dy)
 
 
-def use_tool():
-    if not API.HasGump(craft_gump):
-        API.UseType(tinker_kit, 0, API.Player.Backpack)
-        API.WaitForGump(craft_gump, 5)
-        use_tool()
-
-
-def action(gump, button):
-    API.ReplyGump(button, gump)
-    API.WaitForGump(gump)
-
-
-def make_items(category, item, amount, item_id):
-    use_tool()
-
-    action(craft_gump, category)
-    action(craft_gump, item)
-
-    while amount + 1 > count_items(item_id, API.Backpack):
-        use_tool()
-        action(craft_gump, 21)  # make last
-
-
-def toggle_quest(id, amount):
-    API.ContextMenu(API.Player, 7)
-    items = API.FindTypeAll(id, API.Backpack, hue=0)
-
-    count = 0
-    while count < amount:
-        API.WaitForTarget(timeout=3)
-        API.Target(items[count])  # pyright:ignore
-        while not API.InJournal("You set the item to Quest Item status", True):
-            API.Pause(0.05)
-        count += 1
-
-    API.CancelTarget()
-    API.Pause(0.6)
-
-
-def turn_in():
-    API.UseObject(npc_serial)
-    API.WaitForGump(quest_gump)
-    if not API.HasGump(quest_gump):
-        API.Pause(DEFAULT_PAUSE)
-        return turn_in()
-    action(quest_gump, 8)
-    API.ReplyGump(5, quest_gump)
-
-
-def restock_ingots():
-    if not beetle_serial:
-        return
-
-    beetle = API.FindMobile(beetle_serial)
-    if not beetle or not getattr(beetle, "Backpack", None):
-        return
-
-    API.UseObject(beetle.Backpack)
-    API.Pause(1.0)
-
-    ingots = API.FindType(0x1BF2, beetle.Backpack, hue=0)
-    if not ingots:
-        return
-
-    amount = max(1, 300 - count_items(0x1BF2, API.Backpack))
-    move_item_robust(ingots, API.Backpack, amount)
-
-
-def drop_pos():
-    player = (API.Player.X, API.Player.Y)
-    pos = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
-    return tuple(map(sum, zip(player, random.choice(pos))))
-
-
-def find_recipes():
-    if not beetle_serial:
-        return
-
-    for backpack in API.FindTypeAll(0x0E75, API.Backpack):
-        if backpack.Serial == API.Backpack:
-            continue
-
-        API.UseObject(backpack)
-        API.Pause(DEFAULT_PAUSE)
-        for recipe in API.FindTypeAll(0x2831, backpack):
-            move_item_robust(recipe, beetle_serial, 1)
-
-        pos = drop_pos()
-        API.MoveItem(backpack, 4294967295, 1, pos[0], pos[1])
-        API.Pause(DEFAULT_PAUSE)
-
-
-while (
-    API.Player.Weight < API.Player.WeightMax - 20
-    and API.Contents(API.Backpack) < 110
-    and not API.StopRequested
-):
-    if not API.FindType(0x1BF2, API.Backpack, hue=0, minamount=100):
-        restock_ingots()
-        API.Pause(DEFAULT_PAUSE)
-
-    quest_name = get_quest()
-    if not quest_name:
-        API.Pause(DEFAULT_PAUSE)
-        continue
-
-    category, item, amount, item_id = quests[quest_name]
-    # make_items(category, item, amount, item_id)
-    make_items(*quests[quest_name])
-    toggle_quest(item_id, amount)
-    turn_in()
-
-    API.Pause(DEFAULT_PAUSE)
-    find_recipes()
+hwt = HeartwoodTinker()
+hwt.main()
