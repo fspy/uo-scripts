@@ -13,7 +13,6 @@ from _lib.runebook import Runebook, recall_with_retry, wait_for_travel
 from _lib.utils import (
     count_items,
     dismount_if_mounted,
-    p,
     stop_script,
     use_item_on_target,
 )
@@ -73,6 +72,7 @@ BONUS_MINING_ITEMS = [
     0x3197,  # Fire Ruby
     0x3198,  # Blue Diamond
     0x4B4B,  # Cracked Lava Rock
+    0x4B4F,  # Cracked Lava Rock
     0x5732,  # Crystalline Blackrock
 ]
 DROP_ITEM_TYPES = [INGOT_TYPE] + BONUS_MINING_ITEMS

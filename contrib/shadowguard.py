@@ -930,6 +930,15 @@ def handle_orchard():
 
 
 def handle_bar():
+    # bottle = f['bottle'].get('Nearest')
+    # if not bottle:
+    #     return
+    # Items.UseItem(bottle)
+    # Target.WaitForTarget(500)
+    # while Target.HasTarget():
+    #     mob = f['pirate'].get('Nearest')
+    #     if mob:
+    #         Target.TargetExecute(mob)
     bottles_used = 0
     while not API.InJournal("You have bested this tower"):
         # These would be defined elsewhere in your script
@@ -938,35 +947,19 @@ def handle_bar():
 
         # --- SCAVENGER SYSTEM ---
         bottle_on_ground = API.FindType(0x099B, range=2)
-        if bottle_on_ground:
-            # CORRECTED: Access API.Backpack as a property, without ()
-            API.MoveItem(bottle_on_ground.Serial, API.Backpack)
-            API.Pause(0.7)
-
-        # --- COMBAT SYSTEM ---
-        hostiles = API.NearestMobiles([API.Notoriety.Enemy, API.Notoriety.Murderer], 10)
-        if not hostiles:
-            API.Pause(0.5)
+        if not bottle_on_ground:
             continue
 
-        # CORRECTED: Access API.Backpack as a property, without ()
-        bottle_in_pack = API.FindType(0x099B, API.Backpack)
-
-        if not bottle_in_pack:
-            API.Pause(1)
-            continue
-
-        # Use the bottle from the backpack for combat
-        API.UseObject(bottle_in_pack.Serial)
-        if API.WaitForTarget(timeout=1.5):
+        API.UseObject(bottle_on_ground)
+        API.WaitForTarget(timeout=0.5)
+        while API.HasTarget():
             target = API.NearestMobile(
                 [API.Notoriety.Enemy, API.Notoriety.Murderer], 10
             )
             if target:
                 API.Target(target.Serial)
                 bottles_used += 1
-                API.Pause(0.6)
-        API.Pause(0.5)
+        API.Pause(0.2)
 
     return True
 

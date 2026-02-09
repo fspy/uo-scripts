@@ -35,6 +35,7 @@ class JournalMonitor:
         while not API.StopRequested:
             entries = API.GetJournalEntries(2)
             if not entries:
+                API.Pause(0.3)
                 continue
             for entry in entries:
                 if self.last_timestamp is None or entry.Time > self.last_timestamp:
@@ -43,7 +44,7 @@ class JournalMonitor:
                         display, hue = match
                         API.HeadMsg(display, API.Player.Serial, hue)
                     self.last_timestamp = entry.Time
-            API.Pause(0.05)
+            API.Pause(0.3)
 
 
 patterns = {
@@ -51,6 +52,7 @@ patterns = {
     r"you regain your focus": ("! FOCUS !", Hue.Cyan),
     r"attunement fades": ("- ATTUNEMENT -", Hue.Red),
     r"resists the effects of death ray": ("! DEATH RAY RESIST !", Hue.Yellow),
+    r"disturbs the focus necessary": ("! DEATH RAY INTERRUPT !", Hue.Yellow),
     r"honorable combat!": ("+ Honored +", Hue.Green),
     r"You are at peace.": ("+ Mana 100% +", Hue.Cyan),
     r"enter a meditative trance.": ("~ Meditating ~", Hue.Cyan),
@@ -59,7 +61,9 @@ patterns = {
     r"powerful magic, protecting": (r"Gift of Life", Hue.Green),
     r"fallen beast, a special (reward|artifact)": ("++ Artifact! ++", Hue.Magenta),
     r"notice the crest of minax on your fallen foe": ("++ Artifact! ++", Hue.Magenta),
+    r"recover an artifact bearing the crest": ("++ Artifact! ++", Hue.Magenta),
     r"reward for slaying the mighty paragon": ("++ Artifact! ++", Hue.Magenta),
+    r"the mark of demonic forces": ("++ Hyth Arti! ++", Hue.Red),
     r"notice the mark of an ice dragon": ("++ Artifact! ++", Hue.Cyan),
     r"respond immediately to the next blocked blow": ("^ Counter Attack ^", Hue.Orange),
     r"you feel that you might be able to": ("~ Evasion ~", Hue.Blue),

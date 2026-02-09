@@ -49,7 +49,7 @@ def _cutAndDropFish():
 
 
 def rel(x, y):
-    return API.Player.X - x, API.Player.Y - y
+    return x - API.Player.X, y - API.Player.Y
 
 
 def fish(x, y):
@@ -87,9 +87,11 @@ def mass_fish():
 
 def single_fish():
     t = API.RequestAnyTarget()
+    x, y = rel(t.X, t.Y)
     while True:
         API.UseObject(pole)
         API.WaitForTarget()
+        # API.TargetLandRel(x, y)
         API.Target(t.X, t.Y, t.Z, t.Graphic)
         API.Pause(1)
 
@@ -97,5 +99,6 @@ def single_fish():
             break
 
 
-mass_fish()
+# mass_fish()
+single_fish()
 os.system("mpv /usr/share/sounds/ocean/stereo/battery-low.oga")

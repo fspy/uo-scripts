@@ -357,6 +357,17 @@ class PyGameObject:
     IsDestroyed: bool = None
     __class__: str = None
 
+    def SetOutlineColor(self, htmlColor: "str") -> None:
+        """
+         Set an objects outline color using html hex colors.
+         Example:
+         ```py
+         API.Player.SetOutlineColor("#105510")
+         ```
+        
+        """
+        pass
+
     def SetHue(self, hue: "int") -> None:
         """
          Set the hue of a game object.
@@ -717,6 +728,13 @@ class PyItem(PyEntity):
     MatchingHighlightName: str = None
     MatchesHighlight: bool = None
 
+    def GetItemData(self) -> "Any":
+        """
+         Get the items ItemData
+        
+        """
+        pass
+
     def GetContainerGump(self) -> "PyBaseControl":
         """
          If this item is a container ( item.IsContainer ) and is open, this will return the grid container or container gump for it.
@@ -731,6 +749,41 @@ class PyItem(PyEntity):
         
         """
         pass
+
+class PyItemData:
+    ""
+    Flags = None
+    Weight: int = None
+    Layer: int = None
+    Count: int = None
+    AnimID: int = None
+    Hue: int = None
+    LightIndex: int = None
+    Height: int = None
+    Name: str = None
+    IsAnimated: bool = None
+    IsBridge: bool = None
+    IsImpassable: bool = None
+    IsSurface: bool = None
+    IsWearable: bool = None
+    IsInternal: bool = None
+    IsBackground: bool = None
+    IsNoDiagonal: bool = None
+    IsWet: bool = None
+    IsFoliage: bool = None
+    IsRoof: bool = None
+    IsTranslucent: bool = None
+    IsPartialHue: bool = None
+    IsStackable: bool = None
+    IsTransparent: bool = None
+    IsContainer: bool = None
+    IsDoor: bool = None
+    IsWall: bool = None
+    IsLight: bool = None
+    IsNoShoot: bool = None
+    IsWeapon: bool = None
+    IsMultiMovable: bool = None
+    IsWindow: bool = None
 
 class PyJournalEntry:
     ""

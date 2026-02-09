@@ -75,5 +75,7 @@ def select_heal_target():
 
 target_serial, spell = select_heal_target()
 if target_serial and spell:
-    API.PreTarget(target_serial, "beneficial")
+    # API.PreTarget(target_serial, "beneficial")
     API.CastSpell(spell)
+    API.WaitForTarget("beneficial", timeout=2)
+    API.Target(target_serial)

@@ -12,7 +12,7 @@ import time
 import API
 from _lib.spells import calculate_full_spell_delay, calculate_recovery_time
 
-SKILL_NAME = "Mysticism"
+SKILL_NAME = "Magery"
 
 # Healing config (None to disable)
 HEAL_SPELL = (

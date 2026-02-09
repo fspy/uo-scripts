@@ -170,7 +170,7 @@ def main_loop():
         pets = find_my_pets(MAX_PET_RANGE)
 
         for pet in pets:
-            if pet.IsDead:
+            if pet.IsDead or API.Player.IsPoisoned:
                 continue
 
             if pet.IsPoisoned:

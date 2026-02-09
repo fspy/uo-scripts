@@ -30,8 +30,12 @@ class Hue:
     White = 1150
 
 
-def p(m, h=Hue.White):
-    API.SysMsg(str(m), h)
+def p(msg, hue=Hue.White):
+    API.SysMsg(str(msg), hue)
+
+
+def h(msg, serial=API.Player, hue=Hue.White):
+    API.HeadMsg(str(msg), serial, hue)
 
 
 def toggle_mount():
