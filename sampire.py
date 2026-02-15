@@ -1,221 +1,289 @@
 import time
 
 import API
-from _lib.utils import Hue, h, p
-
-enemy_of_one = True
-divine_fury = False
-consecrate_weapon = True
-momentum_strike = True
-
-counter_attack = True
-evasion = 0.5
-confidence = False
-remove_curse = ("Blood Oath",)
-
-honor_targets = False
-onslaught = True
-trapped_box = 0x40358F00
-default_pause = 0.2
-
-MEGA_AGGRO = True
+from _lib.utils import NOTORIETY_ENEMY, Hue, h
 
 
-def mobs_list(maxDistance=8):
-    return API.NearestMobiles(
-        [
-            API.Notoriety.Criminal,
-            API.Notoriety.Enemy,
-            API.Notoriety.Gray,
-            API.Notoriety.Murderer,
-        ],  # pyright:ignore
-        maxDistance,
-    )
+class Sampire:
+    """Sampire combat script with timer-based defensive and onslaught logic."""
 
+    # Configuration
+    enemy_of_one = True
+    divine_fury = False
+    consecrate_weapon = True
+    momentum_strike = True
+    counter_attack = True
+    evasion_threshold = 0.9
+    confidence_threshold = False
+    remove_curse = ("Blood Oath",)
+    honor_targets = True
+    onslaught = True
+    trapped_box = 0x40358F00
+    default_pause = 0.2
+    MEGA_AGGRO = True
 
-def weapon_name():
-    weapon = API.FindLayer("TwoHanded") or API.FindLayer("OneHanded")
-    if not weapon:
-        return ""
-    props = API.ItemNameAndProps(weapon.Serial, True).split("\n")
-    return props[0].strip().lower()
+    # Cooldowns (seconds)
+    EVASION_COOLDOWN = 20
+    EVASION_DURATION = 8
+    ONSLAUGHT_DEBUFF_DURATION = 6
+    ONSLAUGHT_CAST_COOLDOWN = 6
 
+    # Mana costs
+    mana_costs = {
+        "Enemy of One": 20,
+        "Divine Fury": 10,
+        "Consecrate Weapon": 10,
+        "Momentum Strike": 10,
+        "Counter Attack": 5,
+        "Evasion": 10,
+        "Confidence": 10,
+        "Armor Ignore": 30,
+        "Double Strike": 30,
+        "Whirlwind Attack": 15,
+        "Onslaught": 20,
+    }
 
-def mana_check(spell):
-    cost = mana_costs[spell]
-    return API.Player.Mana >= cost * (API.Player.LowerManaCost / 100.0)
+    def __init__(self):
+        """Initialize state timers and tracking."""
+        self.evasion_cast_timer = 0
+        self.onslaught_hit_timer = time.time()
+        self.onslaught_cast_timer = 0
+        self.apple_timer = time.time()
+        self.honored_targets = []
 
+    def run(self):
+        """Main combat loop."""
+        while not API.StopRequested:
+            if API.Player.IsDead or API.Player.IsHidden:
+                API.Pause(self.default_pause)
+                continue
 
-mana_costs = {
-    "Enemy of One": 20,
-    "Divine Fury": 10,
-    "Consecrate Weapon": 10,
-    "Momentum Strike": 10,
-    "Counter Attack": 5,
-    "Evasion": 10,
-    "Confidence": 10,
-    "Armor Ignore": 30,
-    "Double Strike": 30,
-    "Whirlwind Attack": 15,
-    "Onslaught": 20,
-}
+            enemies = self.get_enemies()
+            if not enemies:
+                API.Pause(self.default_pause)
+                continue
 
+            self.handle_status_effects()
+            self.honor_target(enemies[0])
 
-def decurse():
-    if not remove_curse:
-        return
+            if self.MEGA_AGGRO:
+                self.aggro_all(enemies)
 
-    global apple_timer
-    for curse in remove_curse:
-        if not API.BuffExists(curse):
-            continue
+            self.combat_loop(enemies[0])
 
-        if (
-            API.FindType(0x2FD8, API.Backpack, hue=1160)
-            and time.time() - apple_timer > 30
-        ):
-            API.UseObject(API.Found)
+            if len(self.honored_targets) > 20:
+                self.honored_targets = self.honored_targets[-20:]
+
+    def get_enemies(self, max_distance=8):
+        """Get list of hostile mobiles."""
+        return API.NearestMobiles(NOTORIETY_ENEMY, max_distance)
+
+    def handle_status_effects(self):
+        """Handle trapped box and curse removal."""
+        self.handle_paralyze()
+        self.handle_curse()
+
+    def handle_paralyze(self):
+        """Use trapped box if paralyzed."""
+        if not self.trapped_box:
             return
 
-        retries = 3
-        while retries:
-            API.CastSpell("Remove Curse")
-            if API.WaitForTarget("beneficial"):
-                API.TargetSelf()
-                API.Pause(default_pause)
-            retries -= 1
+        if API.FindItem(self.trapped_box) and API.BuffExists("Paralyze"):
+            API.UseObject(API.Found, True)
+            API.Pause(self.default_pause)
 
+    def handle_curse(self):
+        """Remove curses with apples or spell."""
+        if not self.remove_curse:
+            return
 
-def paralyze():
-    if not trapped_box:
-        return
+        for curse in self.remove_curse:
+            if not API.BuffExists(curse):
+                continue
 
-    if API.FindItem(trapped_box) and API.BuffExists("Paralyze"):
-        API.UseObject(API.Found, True)
-        API.Pause(default_pause)
+            if (
+                API.FindType(0x2FD8, API.Backpack, hue=1160)
+                and time.time() - self.apple_timer > 30
+            ):
+                API.UseObject(API.Found)
+                return
 
+            retries = 3
+            while retries:
+                API.CastSpell("Remove Curse")
+                if API.WaitForTarget("beneficial"):
+                    API.TargetSelf()
+                    API.Pause(self.default_pause)
+                retries -= 1
 
-def honor(enemy):
-    global current
+    def honor_target(self, enemy):
+        """Honor target if enabled."""
+        if not self.honor_targets or enemy.Serial in self.honored_targets:
+            return
 
-    if honor_targets and enemy.Serial not in current:
         API.Virtue("Honor")
         API.WaitForTarget(timeout=1)
-        API.Target(enemy)  # pyright:ignore
-        API.Pause(default_pause)
+        API.Target(enemy)  # type: ignore
+        API.Pause(self.default_pause)
+
         if API.InJournalAny(["Honorable Combat", "cannot honor this monster"], True):
-            current.append(enemy.Serial)
+            self.honored_targets.append(enemy.Serial)
 
+    def aggro_all(self, enemies):
+        """Attack all enemies for MEGA_AGGRO mode."""
+        for enemy in enemies:
+            if enemy.Serial not in self.honored_targets:
+                self.honored_targets.append(enemy.Serial)
+                API.Attack(enemy)
+                API.Pause(0.05)
 
-def fighting(focus, targets):
-    global onslaught_timer
-    API.Attack(focus)
+    def combat_loop(self, focus):
+        """Combat loop for a single target."""
+        while API.FindMobile(focus) and focus.Distance < 2:
+            self.handle_status_effects()
+            self.apply_buffs()
 
-    buffs = [  # spell name, enabled, buff name
-        ("Enemy of One", enemy_of_one, None),
-        ("Divine Fury", divine_fury, None),
-        ("Consecrate Weapon", consecrate_weapon, "Consecrate"),
-    ]
+            hp_ratio = API.Player.Hits / API.Player.HitsMax
+            self.handle_defensives(hp_ratio)
 
-    for spell_name, enabled, buff_name in buffs:
-        buff_name = buff_name or spell_name
-        if enabled and not API.BuffExists(buff_name) and mana_check(spell_name):
-            API.CastSpell(spell_name)
-            API.Pause(default_pause)
+            targets = len(self.get_enemies(1))
+            weapon = self.get_weapon_info()
+            is_double_axe = "double axe" in weapon
 
-    has_defensive = any(
-        API.BuffExists(defensive)
-        for defensive in ["Counter Attack", "Evasion", "Confidence"]
-    )
-    if not has_defensive:
-        hp_ratio = API.Player.Hits / API.Player.HitsMax
-        if confidence and hp_ratio < confidence and mana_check("Confidence"):
-            API.CastSpell("Confidence")
-        elif evasion and hp_ratio < evasion and mana_check("Evasion"):
+            if targets > 2:
+                self.handle_aoe(is_double_axe)
+            elif targets == 2:
+                self.handle_momentum_strike()
+            else:
+                self.handle_single_target(is_double_axe, weapon)
+
+            API.Attack(focus)
+            API.Pause(self.default_pause)
+
+        API.CancelTarget()
+
+    def apply_buffs(self):
+        """Apply combat buffs if not already active."""
+        buffs = [
+            ("Enemy of One", self.enemy_of_one, None),
+            ("Divine Fury", self.divine_fury, None),
+            ("Consecrate Weapon", self.consecrate_weapon, "Consecrate"),
+        ]
+
+        for spell_name, enabled, buff_name in buffs:
+            buff_name = buff_name or spell_name
+            if (
+                enabled
+                and not API.BuffExists(buff_name)
+                and self.mana_check(spell_name)
+            ):
+                API.CastSpell(spell_name)
+                API.Pause(self.default_pause)
+
+    def handle_defensives(self, hp_ratio):
+        """Cast defensive abilities based on health."""
+        # Only cast if no defensive is currently active
+        active_defensives = ["Counter Attack", "Evasion", "Confidence"]
+        if any(API.BuffExists(d) for d in active_defensives):
+            return
+
+        # Try Evasion first (highest priority, 20s cooldown)
+        if (
+            self.evasion_threshold
+            and hp_ratio < self.evasion_threshold
+            and time.time() - self.evasion_cast_timer >= self.EVASION_COOLDOWN
+            and self.mana_check("Evasion")
+        ):
             API.CastSpell("Evasion")
-        elif counter_attack and mana_check("Counter Attack"):
+            self.evasion_cast_timer = time.time()
+            return
+
+        # Try Confidence (no cooldown)
+        if (
+            self.confidence_threshold
+            and hp_ratio < self.confidence_threshold
+            and self.mana_check("Confidence")
+        ):
+            API.CastSpell("Confidence")
+            return
+
+        # Fallback to Counter Attack
+        if self.counter_attack and self.mana_check("Counter Attack"):
             API.CastSpell("Counter Attack")
 
-    weapon = weapon_name()
-    is_double_axe = "double axe" in weapon
-
-    if targets > 2:
+    def handle_aoe(self, is_double_axe):
+        """Handle 3+ targets with Whirlwind or Momentum Strike."""
         if is_double_axe:
-            if not API.SecondaryAbilityActive() and mana_check("Whirlwind Attack"):
+            if not API.SecondaryAbilityActive() and self.mana_check("Whirlwind Attack"):
                 API.ToggleAbility("Secondary")
         elif (
-            momentum_strike
+            self.momentum_strike
             and not API.BuffExists("Momentum Strike")
-            and mana_check("Momentum Strike")
+            and self.mana_check("Momentum Strike")
         ):
             API.CastSpell("Momentum Strike")
 
-    elif targets == 2:
+    def handle_momentum_strike(self):
+        """Handle 2 targets with Momentum Strike."""
         if (
-            momentum_strike
+            self.momentum_strike
             and not API.BuffExists("Momentum Strike")
-            and mana_check("Momentum Strike")
+            and self.mana_check("Momentum Strike")
         ):
             API.CastSpell("Momentum Strike")
 
-    else:
-        if is_double_axe:
+    def handle_single_target(self, is_double_axe, weapon):
+        """Handle single target combat with Onslaught and Double Strike."""
+        # Check for Onslaught journal message to update hit timer
+        if API.InJournal("deliver an onslaught of sword strikes"):
+            self.onslaught_hit_timer = time.time()
+            API.ClearJournal()
+
+        if not is_double_axe:
+            # Handle bladed staff Armor Ignore
+            if "bladed staff" in weapon and not API.PrimaryAbilityActive():
+                if self.mana_check("Armor Ignore"):
+                    API.ToggleAbility("Primary")
+            return
+
+        # Check if debuff is active (6s window)
+        debuff_active = (
+            time.time() - self.onslaught_hit_timer <= self.ONSLAUGHT_DEBUFF_DURATION
+        )
+
+        if debuff_active:
+            # Enable Double Strike during debuff window
+            if not API.PrimaryAbilityActive() and self.mana_check("Double Strike"):
+                API.ToggleAbility("Primary")
+        else:
+            # Debuff expired, cast Onslaught (with cooldown to prevent spam)
             if (
-                onslaught
-                and time.time() - onslaught_timer > 3
-                and mana_check("Onslaught")
+                self.onslaught
+                and time.time() - self.onslaught_cast_timer
+                >= self.ONSLAUGHT_CAST_COOLDOWN
+                and self.mana_check("Onslaught")
             ):
-                onslaught_timer = time.time()
+                self.onslaught_cast_timer = time.time()
                 API.CastSpell("Onslaught")
 
-            elif (
-                not API.PrimaryAbilityActive()
-                and mana_check("Double Strike")
-                and time.time() - onslaught_timer <= 3
-            ):
-                API.ToggleAbility("Primary")
+    def get_weapon_info(self):
+        """Get equipped weapon name."""
+        weapon = API.FindLayer("TwoHanded") or API.FindLayer("OneHanded")
+        if not weapon:
+            return ""
+        props = API.ItemNameAndProps(weapon.Serial, True).split("\n")
+        return props[0].strip().lower()
 
-        elif (
-            "bladed staff" in weapon
-            and not API.PrimaryAbilityActive()
-            and mana_check("Armor Ignore")
-        ):
-            API.ToggleAbility("Primary")
-
-    if API.InJournal("deliver an onslaught of sword strikes"):
-        onslaught_timer = time.time()
-        API.ClearJournal()
+    def mana_check(self, spell):
+        """Check if player has enough mana for spell."""
+        cost = self.mana_costs.get(spell, 0)
+        return API.Player.Mana >= cost * (API.Player.LowerManaCost / 100.0)
 
 
-current = []
-onslaught_timer = time.time()
-apple_timer = time.time()
-
-while not API.StopRequested:
-    if API.Player.IsDead or API.Player.IsHidden:
-        API.Pause(default_pause)
-        continue
-
-    enemies = mobs_list()
-    if len(enemies) == 0:
-        API.Pause(default_pause)
-        continue
-
-    paralyze()
-    decurse()
-    honor(enemies[0])
-
-    if MEGA_AGGRO:
-        for e in enemies:
-            if e.Serial not in current:
-                API.Attack(e)
-                current.append(e.Serial)
-                API.Pause(default_pause)
-
-    while API.FindMobile(enemies[0]) and enemies[0].Distance < 2:
-        fighting(enemies[0], len(mobs_list(1)))
-        API.Pause(default_pause)
-
-    API.CancelTarget()
-    if len(current) > 20:
-        current = current[-20:]
+# Run the script
+try:
+    h("Attack: Loaded!", hue=Hue.Green)
+    sampire = Sampire()
+    sampire.run()
+except SystemError as _:
+    h("Attack: Stopped", hue=Hue.Gray)

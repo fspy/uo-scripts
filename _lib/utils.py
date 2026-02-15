@@ -14,7 +14,22 @@ try:
 except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
+from typing import List, cast
+
 from _lib.persistence import load_int, save_int
+
+NOTORIETY_FRIENDLY = cast(
+    List[API.Notoriety], [API.Notoriety.Ally, API.Notoriety.Innocent]
+)
+NOTORIETY_ENEMY = cast(
+    List[API.Notoriety],
+    [
+        API.Notoriety.Enemy,
+        API.Notoriety.Gray,
+        API.Notoriety.Murderer,
+        API.Notoriety.Criminal,
+    ],
+)
 
 
 class Hue:
@@ -44,10 +59,10 @@ def toggle_mount():
     else:
         mount = load_int("mount")
         if not mount:
-            API.HeadMsg("Target Mount", Hue.Orange)
+            h("Target Mount", hue=Hue.Orange)
             target = API.RequestTarget()
             if not target:
-                API.HeadMsg("Invalid Target", Hue.Red)
+                h("Invalid Target", hue=Hue.Red)
                 return
             save_int("mount", target)
             mount = target

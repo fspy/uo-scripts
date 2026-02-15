@@ -2,7 +2,7 @@
 import time
 
 import API
-from _lib.utils import p
+from _lib.utils import h, p
 
 
 def spell_toggle(spell):
@@ -15,12 +15,13 @@ def spell_toggle(spell):
 
 
 def hiding():
-    while API.GetSkill("Hiding").Base < API.GetSkill("Hiding").Cap:
+    while API.GetSkill("Hiding").Value < API.GetSkill("Hiding").Cap:
         API.UseSkill("Hiding")
         API.Pause(1)
 
 
 def chest_check():
+    """Looks for specific chest graphics and hues on target."""
     chest_graphics = {0x0E40, 0x0E41}
     chest_hues = {0, 1109}  # , 1150, 2219, 2207}
     container = API.RequestTarget(10)
@@ -30,14 +31,13 @@ def chest_check():
         chests = filter(lambda c: c.Hue in chest_hues, chests)
         for chest in chests:
             API.MoveItem(chest, API.Backpack, 1)
-            # API.HeadMsg(f"{chest.Hue}", chest.Serial, chest.Hue)
-            # API.HeadMsg(f"{hex(chest.Graphic)}", chest.Serial)
             API.Pause(0.65)
 
         API.Pause(0.65)
 
 
 def auto_coown():
+    """Monitors for Set Permission Gump and sets to Co-Owner."""
     while not API.StopRequested:
         if API.HasGump(0x29B6C49):
             p("set permission to co-owner!")
@@ -46,28 +46,32 @@ def auto_coown():
 
 
 def grab_horned_kit():
+    """Tries to pick Horned Runic Kit from Tailoring BOD menu."""
     API.ContextMenu(0xC1269, 3)
     API.WaitForGump(0x69DA8520)
     API.ReplyGump(222, 0x69DA8520)
 
 
 def grab_copper_hammer():
+    """Tries to pick Copper Hammer from Blacksmithy BOD menu."""
     API.ContextMenu(0xC1068, 3)
     API.WaitForGump(0x69DA8520)
     API.ReplyGump(223, 0x69DA8520)
 
 
 def grab_bronze_hammer():
+    """Tries to pick Bronze Hammer from Blacksmithy BOD menu."""
     API.ContextMenu(0xC1068, 3)
     API.WaitForGump(0x69DA8520)
     API.ReplyGump(225, 0x69DA8520)
 
 
 def shadowjump():
+    """Jumps around with Shadowjump (Ninjitsu)."""
     direction = -1
     while True:
         if API.Player.Mana < 8:
-            API.HeadMsg("Swapping!", API.Player)
+            h("Swapping!", API.Player)
             direction *= -1
             while API.Player.ManaDiff > 0:
                 API.Pause(0.1)
@@ -77,11 +81,12 @@ def shadowjump():
         API.TargetLandRel(direction, 0)
 
 
-def steal():
+def steal(serial):
+    """Steals item with serial from Pack Animal, create "stealing" Organizer agent."""
     while API.GetSkill("Stealing").Value < API.GetSkill("Stealing").Cap:
         API.UseSkill("Stealing")
         if API.WaitForTarget(timeout=0.5):
-            API.Target(API.FindItem(0x40021F9D))
+            API.Target(API.FindItem(serial))
             API.Pause(1)
 
         if API.InJournal("successfully steal the item", True):
@@ -91,6 +96,7 @@ def steal():
 
 
 def poisoning():
+    """Tries to poison selected target (suitable weapon)."""
     weapon = API.RequestTarget()
     while API.GetSkill("Poisoning").Value < API.GetSkill("Poisoning").Cap:
         if not API.FindType(0x0F0A, API.Backpack):
@@ -103,7 +109,8 @@ def poisoning():
         API.Pause(10)
 
 
-def mine_stuff():
+def mine_niter():
+    """Mine niter deposits until they disappear."""
     pickaxe = API.FindType(0x0E86, API.Backpack)
 
     def find_niter():
@@ -221,15 +228,108 @@ def show_runebook_runes(rb_serial):
 
 
 def last_object_target():
-    last = API.LastTargetSerial
+    """Repeatedly uses object on target."""
+    h("Select Object")
+    obj = API.RequestTarget()
+    h("Select Target")
     tar = API.RequestTarget()
-    while tar:
-        API.UseObject(tar)
+    while tar and obj:
+        API.UseObject(obj)
         API.WaitForTarget()
-        API.Target(last)
+        API.Target(tar)
         API.Pause(0.05)
 
 
-rb = 0x403C2DB3
-show_runebook_runes(rb)
+def arms_lore():
+    """Uses Arms Lore on an item until capped."""
+    h("Select Item")
+    i = API.RequestTarget()
+    while API.GetSkill("Arms Lore").Value < API.GetSkill("Arms Lore").Cap:
+        API.UseSkill("Arms Lore")
+        API.WaitForTarget()
+        API.Target(i)
+        API.Pause(0.85)
+
+
+def item_id():
+    """Uses Item Identification on an item until capped."""
+    h("Select Item")
+    i = API.RequestTarget()
+    while (
+        API.GetSkill("Item Identification").Value
+        < API.GetSkill("Item Identification").Cap
+    ):
+        API.UseSkill("Item Identification")
+        API.WaitForTarget()
+        API.Target(i)
+        API.Pause(0.85)
+
+
+def taste_id():
+    """Uses Taste Identification on a food item until capped."""
+    h("Select Food Item")
+    i = API.RequestTarget()
+    while (
+        API.GetSkill("Taste Identification").Value
+        < API.GetSkill("Taste Identification").Cap
+    ):
+        API.UseSkill("Taste Identification")
+        API.WaitForTarget()
+        API.Target(i)
+        API.Pause(0.85)
+
+
+def detect_hidden():
+    """Looks around for hidden elements until capped."""
+    while API.GetSkill("Detect Hidden").Value < API.GetSkill("Detect Hidden").Cap:
+        API.UseSkill("Detect Hidden")
+        API.WaitForTarget()
+        API.TargetSelf()
+        API.Pause(0.85)
+
+
+def beg():
+    """Begs NPC until Begging is capped."""
+    h("Select NPC")
+    npc = API.RequestTarget()
+    while API.GetSkill("Begging").Value < API.GetSkill("Begging").Cap:
+        API.UseSkill("Begging")
+        API.WaitForTarget(timeout=1)
+        API.Target(npc)
+        API.Pause(1)
+
+
+def serpents_nest():
+    """Lure nearby snakes to a Serpent's Nest."""
+    while True:
+        nest_nearby = API.GetItemsOnGround(10, 0x2233) or []
+        if len(nest_nearby) > 0:
+            h("nest nearby!", API.Player, 1153)
+        nearby_snakes = API.GetAllMobiles(0x005C, 10) + API.GetAllMobiles(0x0015, 10)
+
+        if len(nest_nearby) == 0 or len(nearby_snakes) == 0:
+            API.Pause(1)
+            continue
+
+        API.UseType(0x2805, 391, API.Backpack, True)
+        API.WaitForTarget(timeout=1)
+        API.Target(nearby_snakes[0])
+        API.WaitForTarget(timeout=1)
+        API.Target(nest_nearby[0])
+
+        API.Pause(0.3)
+        if API.InJournal("animal walks where it was instructed", True):
+            API.Pause(15)
+
+
+# rb = 0x403C2DB3
+# show_runebook_runes(rb)
+
 # spell_toggle("Combat Training")
+
+# arms_lore(0x405681A0)
+# item_id(0x405681A0)
+# beg(0x00031898)
+
+# auto_coown()
+# hiding()

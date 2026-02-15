@@ -197,7 +197,7 @@ def main():
     craftable = [b for b in bods if b.can_craft()]
     if craftable:
         p(f"\n{len(craftable)} BOD(s) can be auto-crafted.", Hue.Cyan)
-        p("To craft: Run with target (will ask for resource box)", Hue.White)
+        craft_bods(bods)
 
 
 # Run main if executed directly

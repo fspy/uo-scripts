@@ -8,7 +8,6 @@ import API
 from _lib.items import drop_all_items_at_home
 from _lib.persistence import load_int, save_int
 from _lib.recovery import is_stuck, shutdown_cleanly
-from _lib.resource_tracker import log_mining_gather
 from _lib.runebook import Runebook, recall_with_retry, wait_for_travel
 from _lib.utils import (
     count_items,
@@ -249,58 +248,6 @@ def find_fire_beetle() -> int:
             return mob.Serial
 
     return 0
-
-
-def check_and_log_mining_gather(
-    offset_x: int, offset_y: int, runebook_index: int
-) -> None:
-    """Check journal for colored ore and log location.
-
-    Parses journal entries from the last 2 seconds for messages like:
-    "You dig some VERITE ore and put it in your backpack"
-    """
-    entries = API.GetJournalEntries(2.0)
-    if not entries:
-        return
-
-    for entry in entries:
-        text = getattr(entry, "Text", "")
-        if not text:
-            continue
-
-        text_lower = text.lower()
-        if (
-            "you dig some" in text_lower
-            and "ore and put it in your backpack" in text_lower
-        ):
-            match = re.search(
-                r"you dig some (\w+) ore and put it in your backpack",
-                text,
-                re.IGNORECASE,
-            )
-            if match:
-                material = match.group(1).lower()
-
-                if material == "iron":
-                    return
-
-                try:
-                    log_mining_gather(
-                        player_x=API.Player.X,
-                        player_y=API.Player.Y,
-                        player_z=API.Player.Z,
-                        offset_x=offset_x,
-                        offset_y=offset_y,
-                        runebook_index=runebook_index,
-                        material=material,
-                    )
-                    API.SysMsg(
-                        f"Logged {material} ore at {API.Player.X + offset_x}, {API.Player.Y + offset_y}",
-                        68,
-                    )
-                except Exception as e:
-                    API.SysMsg(f"Failed to log ore: {e}", 32)
-                break
 
 
 def wait_for_beetle(timeout: float = 15.0) -> int:

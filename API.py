@@ -6,6 +6,23 @@ class Buff:
     Type = None
     Title: str = None
 
+class PyLand(PyGameObject):
+    ""
+    __class__: str = None
+
+class PyMulti(PyGameObject):
+    ""
+    __class__: str = None
+
+class PyProfile:
+    ""
+    CharacterName: str = None
+    ServerName: str = None
+    LootBagSerial: int = None
+    FavoriteBagSerial: int = None
+    MoveItemDelay: int = None
+    AutoLootEnabled: bool = None
+
 class PyAlphaBlendControl(PyBaseControl):
     ""
     Hue: int = None
@@ -800,10 +817,6 @@ class PyLabel(PyBaseControl):
     Text: str = None
     Hue: int = None
 
-class PyLand(PyGameObject):
-    ""
-    __class__: str = None
-
 class PyMenuItem:
     ""
     Index: int = None
@@ -860,10 +873,6 @@ class PyMobile(PyEntity):
         
         """
         pass
-
-class PyMulti(PyGameObject):
-    ""
-    __class__: str = None
 
 class PyNiceButton(PyBaseControl):
     ""
@@ -1011,15 +1020,6 @@ class PyPlayer(PyMobile):
     InWarMode: bool = None
     __class__: str = None
 
-class PyProfile:
-    ""
-    CharacterName: str = None
-    ServerName: str = None
-    LootBagSerial: int = None
-    FavoriteBagSerial: int = None
-    MoveItemDelay: int = None
-    AutoLootEnabled: bool = None
-
 class PyRadioButton(PyCheckbox):
     ""
     GroupIndex: int = None
@@ -1070,22 +1070,6 @@ class PyStatic(PyGameObject):
     Name: str = None
     __class__: str = None
 
-class PyTextBox(PyBaseControl):
-    ""
-    Text: str = None
-    Hue: int = None
-    Font: str = None
-    FontSize: float = None
-    MultiLine: bool = None
-
-    def SetText(self, text: "str") -> None:
-        pass
-
-class PyTiledGumpPic(PyBaseControl):
-    ""
-    Graphic: int = None
-    Hue: int = None
-
 class PyTTFTextInputField(PyBaseControl):
     ""
     Text: str = None
@@ -1106,7 +1090,33 @@ class PyTTFTextInputField(PyBaseControl):
     def UpdateSize(self, width: "int", height: "int") -> None:
         pass
 
+class PyTextBox(PyBaseControl):
+    ""
+    Text: str = None
+    Hue: int = None
+    Font: str = None
+    FontSize: float = None
+    MultiLine: bool = None
+
+    def SetText(self, text: "str") -> None:
+        pass
+
+class PyTiledGumpPic(PyBaseControl):
+    ""
+    Graphic: int = None
+    Hue: int = None
+
+class PySoundEntry:
+    ""
+    ID: int = None
+    X: int = None
+    Y: int = None
+    Time: datetime = None
+
 JournalEntries = None
+SoundEntries = None
+ScriptName: str = None
+ScriptPath: str = None
 Backpack: int = None
 Player: PyPlayer = None
 Bank: int = None
@@ -1596,7 +1606,7 @@ def Msg(message: "str") -> None:
      Say a message outloud.
      Example:
      ```py
-     API.Say("Hello friend!")
+     API.Msg("Hello friend!")
      ```
     
     """
@@ -2442,6 +2452,43 @@ def InJournal(msg: "str", clearMatches: "bool" = False) -> "bool":
      ```py
      if API.InJournal("You have been slain"):
        API.SysMsg("You have been slain!")
+     ```
+    
+    """
+    pass
+
+def ClearSoundLog() -> None:
+    """
+     Clear your sound log (This is specific for each script).
+     Example:
+     ```py
+     API.ClearSoundLog()
+     ```
+    
+    """
+    pass
+
+def CheckSoundLog(idx: "int") -> "Any":
+    """
+     Check if the sound log contains a given sound and retrieves it.
+     Example:
+     ```py
+     if API.CheckSoundLog(0x13E):
+       API.SysMsg("Chopped wood!")
+     ```
+    
+    """
+    pass
+
+def GetSoundLog(seconds: "float") -> "list":
+    """
+     Get all the sound logs of the last X seconds.
+     Example:
+     ```py
+     list = API.GetSoundLog(30)
+     if list:
+       for entry in list:
+         entry.ID # Do something with this
      ```
     
     """

@@ -1,5 +1,9 @@
+"""Mysticism Healing Bot"""
+
+import time
+
 import API
-from _lib.utils import p
+from _lib.utils import NOTORIETY_ENEMY, NOTORIETY_FRIENDLY
 
 HEALTH_THRESHOLD = 0.8
 
@@ -13,20 +17,14 @@ def hits_pct(mobile):
 def get_target(range=10):
     damaged = sorted(
         filter(
-            lambda x: hits_pct(x) <= HEALTH_THRESHOLD,
-            list(
-                API.NearestMobiles(
-                    notoriety=[API.Notoriety.Ally, API.Notoriety.Innocent],  # pyright:ignore
-                    maxDistance=range,
-                )
-            )
-            + [API.Player],
+            lambda x: hits_pct(x) <= HEALTH_THRESHOLD and x.HasLineOfSightFrom(),
+            list(API.NearestMobiles(NOTORIETY_FRIENDLY, range)) + [API.Player],
         ),
         key=hits_pct,
     )
 
     if len(damaged) > 0:
-        return damaged.pop()
+        return damaged[0]
 
     return None
 
@@ -42,16 +40,25 @@ def get_spell(t):
 
 
 def main():
+    follow_serial = 0x00006528
+    last_peace = time.time()
+
     while not API.Player.IsDead:
-        t = None
-        API.CancelTarget()
+        follow = API.FindMobile(follow_serial)
+        if follow and follow.Distance < 6:
+            API.AutoFollow(follow)
 
-        try:
-            t = get_target()
-        except Exception as e:
-            p(f"e: {e}")
-            continue
+        enemies = API.NearestMobiles(NOTORIETY_ENEMY, 10)
+        if len(enemies) > 0 and time.time() - last_peace > 10:
+            API.UseSkill("Peacemaking")
+            API.WaitForTarget()
+            if len(enemies) == 1:
+                API.Target(enemies[0])  # pyright:ignore
+            else:
+                API.TargetSelf()
+            last_peace = time.time()
 
+        t = get_target()
         s = get_spell(t)
 
         if not (t and s):
@@ -60,7 +67,6 @@ def main():
 
         API.CastSpell(s)
         if API.WaitForTarget("beneficial"):
-            API.HeadMsg(f"Healing {t.Name}!", t)
             API.Target(t)  # pyright:ignore
 
         API.Pause(0.1)

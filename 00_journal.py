@@ -1,7 +1,7 @@
 import re
 
 import API
-from _lib.utils import Hue
+from _lib.utils import Hue, h, p
 
 
 class JournalMonitor:
@@ -22,9 +22,11 @@ class JournalMonitor:
             if match.lastindex:
                 display = re.sub(
                     r"\\(\d+)",
-                    lambda m: match.group(int(m.group(1)))
-                    if int(m.group(1)) <= match.lastindex
-                    else m.group(0),
+                    lambda m: (
+                        match.group(int(m.group(1)))
+                        if int(m.group(1)) <= match.lastindex
+                        else m.group(0)
+                    ),
                     display,
                 )
 
@@ -42,7 +44,7 @@ class JournalMonitor:
                     match = self.check_entry(entry)
                     if match:
                         display, hue = match
-                        API.HeadMsg(display, API.Player.Serial, hue)
+                        h(display, API.Player, hue)
                     self.last_timestamp = entry.Time
             API.Pause(0.3)
 
@@ -74,4 +76,8 @@ patterns = {
 monitor = JournalMonitor()
 for regex, (display, hue) in patterns.items():
     monitor.add_pattern(regex, display, hue)
-monitor.run()
+
+try:
+    monitor.run()
+except SystemError as _:
+    p("JournalMonitor: interrupted", hue=Hue.Red)

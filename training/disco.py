@@ -1,16 +1,10 @@
-from typing import List, cast
-
 import API
+from _lib.utils import NOTORIETY_ENEMY, h
 
 MaxDistance = 12
 ProvokeDelay = 11
 DiscordDelay = 7
 Instruments = [0xE9E, 0x2805, 0xE9C, 0xEB3, 0xEB1, 0x0EB2, 0x0E9D]
-
-NOTO = cast(
-    List[API.Notoriety],
-    [API.Notoriety.Gray, API.Notoriety.Criminal, API.Notoriety.Enemy],
-)
 
 
 def FindInstrument():
@@ -27,7 +21,7 @@ while True:
         API.SysMsg("No instrument found in backpack.", 32)
         break
 
-    targets = API.GetAllMobiles(notoriety=NOTO, distance=10)
+    targets = API.GetAllMobiles(notoriety=NOTORIETY_ENEMY, distance=10)
     if len(targets) < 1:
         API.Pause(1)
         continue
@@ -35,7 +29,7 @@ while True:
     for t in targets:
         while True:
             API.ClearJournal()
-            API.HeadMsg("Disco!", t)
+            h("Disco!", t)
             API.UseSkill("Discordance")
             API.WaitForTarget()
             API.Target(t)  # pyright:ignore

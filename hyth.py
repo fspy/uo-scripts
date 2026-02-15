@@ -1,25 +1,17 @@
 import API
-from _lib.utils import h, p
+from _lib.utils import NOTORIETY_ENEMY, NOTORIETY_FRIENDLY, h, p
 
 RANGE = 16
 
 
 def find_baddies():
-    mobs = API.NearestMobiles(
-        [
-            API.Notoriety.Criminal,
-            API.Notoriety.Enemy,
-            API.Notoriety.Gray,
-            API.Notoriety.Murderer,
-        ],  # pyright:ignore
-        RANGE,
-    )
+    mobs = API.NearestMobiles(NOTORIETY_ENEMY, RANGE)
 
     return filter(lambda m: m.HasLineOfSightFrom(), mobs)
 
 
 def has_players_nearby():
-    mobs = API.NearestMobiles([API.Notoriety.Ally, API.Notoriety.Innocent], RANGE)
+    mobs = API.NearestMobiles(NOTORIETY_FRIENDLY, RANGE)
     filtered = filter(
         lambda player: player.Serial == API.Player.Serial or not player.IsRenamable,
         mobs,

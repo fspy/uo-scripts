@@ -11,6 +11,8 @@ try:
 except (ImportError, NameError):
     pass  # API is injected at runtime by Legion engine
 
+from _lib.utils import h
+
 
 def move_item_robust(serial, dest, amount, max_retries=5):
     """
@@ -33,7 +35,7 @@ def move_item_robust(serial, dest, amount, max_retries=5):
         # Check for "you must wait"
         if API.InJournalAny(["you must wait"]):
             if attempt < max_retries - 1:
-                API.HeadMsg("Waiting...", API.Player.Serial, 946)
+                h("Waiting...", API.Player, 946)
                 continue
             else:
                 # Final attempt failed

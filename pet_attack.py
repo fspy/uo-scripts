@@ -1,23 +1,14 @@
-from typing import List, cast
-
 import API
-from _lib.utils import p
+from _lib.utils import NOTORIETY_ENEMY, NOTORIETY_FRIENDLY, Hue, h
 
 blacklist = ["a rising colossus"]
 
-target = API.NearestMobile(
-    cast(
-        List[API.Notoriety],
-        [
-            API.Notoriety.Criminal,
-            API.Notoriety.Enemy,
-            API.Notoriety.Gray,
-            API.Notoriety.Murderer,
-        ],
-    ),
-    10,
-)
+target = API.NearestMobile(NOTORIETY_ENEMY, 10)
+pet = [mob for mob in API.NearestMobiles(NOTORIETY_FRIENDLY, 12) if mob.IsRenamable]
+if len(pet) == 0:
+    API.Stop()
 
+pet = pet[0]
 if target and target.HasLineOfSightFrom() and target.Name not in blacklist:
     if target.HitsDiff == 0:
         API.Virtue("Honor")
@@ -29,10 +20,10 @@ if target and target.HasLineOfSightFrom() and target.Name not in blacklist:
         while API.Player.Mount:
             API.Pause(0.05)
 
-    pet = API.NearestMobile(cast(List[API.Notoriety], [API.Notoriety.Ally]))
-    if pet:
-        API.ContextMenu(pet.Serial, 1)
-        if API.WaitForTarget(timeout=0.5):
-            API.Target(target)  # pyright:ignore
-            p(f"Attacking {target.Name}")
-            API.HeadMsg("I'm so dead!", target)
+    API.ContextMenu(pet.Serial, 1)
+    if API.WaitForTarget(timeout=0.5):
+        API.Target(target)  # pyright:ignore
+        h("ATTACKING", target, Hue.Red)
+
+else:
+    API.ContextMenu(pet.Serial, 1)

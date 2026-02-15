@@ -10,6 +10,7 @@ from _lib.utils import (
     chebyshev_distance,
     count_items,
     dismount_if_mounted,
+    h,
     stop_script,
     use_item_on_target,
 )
@@ -295,12 +296,12 @@ def wait_for_pack(state, timeout=30):
     if is_pack_in_range(state):
         return True
 
-    API.HeadMsg("Waiting for pack...", API.Player.Serial, 946)
+    h("Waiting for pack...", API.Player, 946)
 
     deadline = time.time() + timeout
     while time.time() < deadline and not API.StopRequested:
         if is_pack_in_range(state):
-            API.HeadMsg("Pack is back!", API.Player.Serial, 62)
+            h("Pack is back!", API.Player, 62)
             return True
         API.Pause(1.0)
 
@@ -319,15 +320,15 @@ def warn_weight(state):
     state.last_warn_time = now
 
     if is_overweight():
-        API.HeadMsg(
+        h(
             f"OVERWEIGHT! {API.Player.Weight}/{API.Player.WeightMax}",
-            API.Player.Serial,
+            API.Player,
             32,
         )
     else:
-        API.HeadMsg(
+        h(
             f"Heavy! {API.Player.Weight}/{API.Player.WeightMax}",
-            API.Player.Serial,
+            API.Player,
             946,
         )
 
@@ -901,7 +902,7 @@ def deposit_routine(state):
         return False
 
     # 4. Cast Recall to runebook (go home)
-    API.HeadMsg("Recalling home...", API.Player.Serial, 946)
+    h("Recalling home...", API.Player, 946)
     if not recall_with_retry(
         state.runebook_serial,
         max_retries=MAX_TRAVEL_RETRIES,
@@ -912,14 +913,14 @@ def deposit_routine(state):
         return False
 
     # 5. Pathfind to drop chest and dump items
-    API.HeadMsg("Depositing...", API.Player.Serial, 946)
+    h("Depositing...", API.Player, 946)
     all_items = [0x1BD7] + bonus_lumberjack_items
     drop_all_items_at_home(
         state.drop_chest_serial, all_items, [API.Backpack, state.pack_serial]
     )
 
     # 6. Cast Recall to marked rune (return to lumber spot)
-    API.HeadMsg("Recalling back...", API.Player.Serial, 946)
+    h("Recalling back...", API.Player, 946)
     if not recall_with_retry(
         state.rune_serial,
         max_retries=MAX_TRAVEL_RETRIES,
@@ -933,7 +934,7 @@ def deposit_routine(state):
     API.UseObject(state.pack_serial)
     API.Pause(1.0)
 
-    API.HeadMsg("Deposit complete!", API.Player.Serial, 62)
+    h("Deposit complete!", API.Player, 62)
     return True
 
 
@@ -1052,7 +1053,7 @@ def main():
             if is_heavy(buffer=60):
                 if not is_pack_in_range(state):
                     if not wait_for_pack(state, timeout=30):
-                        API.HeadMsg("Pack still away...", API.Player.Serial, 32)
+                        h("Pack still away...", API.Player, 32)
                         API.Pause(1.0)
                         continue
 

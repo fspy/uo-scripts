@@ -1,15 +1,9 @@
-from typing import List, cast
-
 import API
+from _lib.utils import NOTORIETY_ENEMY, h
 
 MaxDistance = 7
 ProvokeDelay = 11
 Instruments = [0xE9E, 0x2805, 0xE9C, 0xEB3, 0xEB1, 0x0EB2, 0x0E9D]
-
-NOTO = cast(
-    List[API.Notoriety],
-    [API.Notoriety.Gray, API.Notoriety.Criminal, API.Notoriety.Enemy],
-)
 
 
 def FindInstrument():
@@ -26,21 +20,21 @@ while True:
         API.SysMsg("No instrument found in backpack.", 32)
         break
 
-    target1 = API.NearestMobile(NOTO, MaxDistance)
+    target1 = API.NearestMobile(NOTORIETY_ENEMY, MaxDistance)
     if not target1:
         API.SysMsg("No valid targets found.", 32)
         break
 
-    API.HeadMsg("Target 1", target1)
+    h("Target 1", target1)
     API.IgnoreObject(target1)
 
-    target2 = API.NearestMobile(NOTO, MaxDistance)
+    target2 = API.NearestMobile(NOTORIETY_ENEMY, MaxDistance)
     if not target2:
         API.SysMsg("No valid targets found.", 32)
         break
 
     API.IgnoreObject(target2)
-    API.HeadMsg("Target 2", target2)
+    h("Target 2", target2)
 
     API.UseSkill("Provocation")
     API.WaitForTarget()

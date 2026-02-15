@@ -18,10 +18,6 @@ import API
 from _lib.persistence import load_int, save_int
 from _lib.utils import Hue, h, p
 
-# ============================================================================
-# CONFIGURATION
-# ============================================================================
-
 HOME = {"x": 378, "y": 1377, "z": 27, "map": 4}
 LUNA_EAST = {"x": 996, "y": 520, "z": -50, "map": 3}
 LUNA_WEST = {"x": 984, "y": 520, "z": -50, "map": 3}
@@ -64,17 +60,12 @@ RETRY_DELAY = 2.0
 LAST_RUN_KEY = "BODLastRun"
 
 
-# ============================================================================
-# DAILY RUN GUARD
-# ============================================================================
-
-
 def check_daily_run_guard():
     """Check if 18 hours have passed since last run. Exit if not ready."""
     last_run = load_int(LAST_RUN_KEY, default=0, scope=API.PersistentVar.Char)
 
     if last_run == 0:
-        return  # First run ever
+        return
 
     elapsed = time.time() - last_run
     if elapsed < EIGHTEEN_HOURS:
@@ -89,11 +80,6 @@ def save_last_run():
     """Save current timestamp as last successful run."""
     save_int(LAST_RUN_KEY, int(time.time()), scope=API.PersistentVar.Char)
     p("BOD collection complete. Next run available in 18 hours.", Hue.Green)
-
-
-# ============================================================================
-# LOCATION & TRAVEL
-# ============================================================================
 
 
 def is_at_location(loc, range=15):
@@ -135,12 +121,10 @@ def wait_for_arrival(loc, range=3, timeout=8.0):
     while time.time() < deadline:
         if is_at_location(loc, range=range):
             return True
-        # Also check if we're still pathfinding
         if API.Pathfinding():
             API.Pause(0.2)
         else:
-            # Pathfinding stopped, check if we're close enough
-            if is_at_location(loc, range=range * 2):  # More lenient check
+            if is_at_location(loc, range=range * 2):
                 return True
             API.Pause(0.1)
     return is_at_location(loc, range=range * 2)
@@ -168,8 +152,6 @@ def travel_home_to_luna():
 
 def travel_to_location(loc):
     """Walk to a specific location within Luna."""
-    old_pos = (API.Player.X, API.Player.Y)
-
     for attempt in range(1, RETRY_ATTEMPTS + 1):
         p(f"Walking to location (attempt {attempt}/{RETRY_ATTEMPTS})...")
         API.Pathfind(loc["x"], loc["y"], loc["z"], distance=0, timeout=10)
@@ -230,7 +212,6 @@ def recall_home():
             p("Arrived home.", Hue.Green)
             return True
 
-        # Check for failure messages
         if API.InJournalAny(["fizzle", "blocked", "not powerful enough", "too heavy"]):
             p("Recall failed - retrying...", Hue.Orange)
 
@@ -239,11 +220,6 @@ def recall_home():
 
     p("Failed to recall home.", Hue.Red)
     return False
-
-
-# ============================================================================
-# NPC DETECTION & BOD COLLECTION
-# ============================================================================
 
 
 def get_trained_skills():
@@ -261,7 +237,7 @@ def find_profession_npcs(trained_skills):
     for npc in npcs:
         try:
             npc_name = API.ItemNameAndProps(npc, True).split("\n")[0]
-        except:
+        except Exception as _:
             continue
 
         match = re.match(r".+The\s([^\s]+)$", npc_name)
@@ -299,18 +275,16 @@ def request_bod_from_npc(npc_serial):
     API.ContextMenu(npc_serial, CONTEXT_MENU_BOD_INFO)
     API.Pause(0.3)
 
-    # Check for cooldown message first
     if API.InJournal("offer may be available in about", True):
-        return False  # On cooldown, done for today
+        return False
 
-    # Wait for gump to appear
     deadline = time.time() + 3.0
     while time.time() < deadline:
         if accept_bod_gump():
-            return True  # Successfully accepted
+            return True
         API.Pause(0.1)
 
-    return None  # No response/error
+    return None
 
 
 def collect_from_profession(profession, npc_serial, pending):
@@ -318,24 +292,20 @@ def collect_from_profession(profession, npc_serial, pending):
     if profession not in pending:
         return False
 
-    # Accept any pending BOD gump first
     if accept_bod_gump():
         p(f"Accepted pending {profession} BOD", Hue.Green)
 
-    # Keep requesting BODs until we get cooldown message (max 3)
     bods_collected = 0
-    max_attempts = 5  # Safety limit
+    max_attempts = 5
 
-    for attempt in range(max_attempts):
+    for _ in range(max_attempts):
         result = request_bod_from_npc(npc_serial)
 
         if result is True:
             bods_collected += 1
             p(f"Collected {profession} BOD #{bods_collected}", Hue.Green)
-            # Small delay between requests
             API.Pause(0.1)
         elif result is False:
-            # On cooldown - done with this profession
             if bods_collected > 0:
                 p(f"{profession} complete: {bods_collected} BODs collected", Hue.Green)
             else:
@@ -343,7 +313,6 @@ def collect_from_profession(profession, npc_serial, pending):
             pending.remove(profession)
             return True
         else:
-            # Error - stop trying this profession
             p(
                 f"Failed to get {profession} BOD after {bods_collected} collected",
                 Hue.Red,
@@ -352,7 +321,6 @@ def collect_from_profession(profession, npc_serial, pending):
                 pending.remove(profession)
             return None
 
-    # Hit safety limit
     if bods_collected > 0:
         p(
             f"{profession} complete: {bods_collected} BODs collected (hit max attempts)",
@@ -360,11 +328,6 @@ def collect_from_profession(profession, npc_serial, pending):
         )
         pending.remove(profession)
     return True
-
-
-# ============================================================================
-# BOD STORAGE
-# ============================================================================
 
 
 def find_container():
@@ -384,7 +347,6 @@ def drop_bods():
         p("Home container not found!", Hue.Red)
         return False
 
-    # Check if we have any BODs
     if not API.FindType(0x2258, API.Backpack):
         p("No BODs to store.", Hue.Orange)
         return True
@@ -399,29 +361,20 @@ def drop_bods():
     return True
 
 
-# ============================================================================
-# MAIN SCRIPT
-# ============================================================================
-
-
 def main():
     """Main BOD collection routine."""
     p("Starting BOD collection...", Hue.Cyan)
 
-    # Check daily cooldown
     check_daily_run_guard()
 
-    # Get skills this character actually has
     trained_skills = get_trained_skills()
     if not trained_skills:
         p("No trained profession skills found!", Hue.Red)
         return
 
-    # Track which professions we're still waiting to collect from
     pending = set(trained_skills.keys())
     p(f"Collecting BODs for: {', '.join(sorted(pending))}")
 
-    # Determine starting location and travel if needed
     location = detect_location()
     p(f"Current location: {location}")
 
@@ -429,14 +382,12 @@ def main():
         if not travel_home_to_luna():
             p("Failed to reach Luna. Aborting.", Hue.Red)
             return
-        # After "Luna Mint", we need to walk to the East bank area
         p("Walking to Luna East bank...")
         if not travel_to_location(LUNA_EAST):
             p("Failed to reach Luna East. Aborting.", Hue.Red)
             return
         location = "luna_east"
     elif location == "unknown":
-        # Try to pathfind to Luna East if we're somewhere in Luna
         p("Attempting to reach Luna East...")
         if travel_to_location(LUNA_EAST):
             location = "luna_east"
@@ -444,9 +395,7 @@ def main():
             p("Unknown location. Please start at home or Luna.", Hue.Red)
             return
 
-    # Main collection loop
     while pending and not API.StopRequested:
-        # Find NPCs for remaining professions only
         remaining_skills = {k: v for k, v in trained_skills.items() if k in pending}
         npcs = find_profession_npcs(remaining_skills)
 
@@ -461,13 +410,11 @@ def main():
         else:
             p("No profession NPCs found nearby.", Hue.Orange)
 
-        # Decide next action
         if not pending:
             p("All professions collected!", Hue.Green)
             break
 
         if location == "luna_east":
-            # Move to west side
             if not travel_east_to_west():
                 p(
                     "Failed to reach Luna West. Continuing with what we have...",
@@ -476,21 +423,17 @@ def main():
                 break
             location = "luna_west"
         elif location == "luna_west":
-            # Done with both locations
             p("Finished scanning Luna.", Hue.Cyan)
             break
 
-    # Report results
     if pending:
         p(f"Could not collect from: {', '.join(sorted(pending))}", Hue.Orange)
 
-    # Recall home and store BODs
     if recall_home():
-        # Pathfind to exact home location where containers are
         p("Walking to home storage location...")
         if travel_to_location(HOME):
             drop_bods()
-            if not pending:  # Only save timestamp if we got everything
+            if not pending:
                 save_last_run()
             h("All done!", hue=Hue.Cyan)
         else:

@@ -1,81 +1,62 @@
+"""Smart heal, targets player and any pets, cures poison if necessary, recasts if fizzled."""
+
 import API
-from _lib.spells import detect_poison_level, detect_self_poison_level
-
-heal_pet_threshold = 0.9
+from _lib.utils import NOTORIETY_FRIENDLY
 
 
-def p(m, c=1150):
-    API.SysMsg(m, c)
+def _pets_by_health(range=10):
+    mobiles = API.NearestMobiles(NOTORIETY_FRIENDLY, range)
+    pets = [m for m in mobiles if m.IsRenamable and not m.IsDead]
+    pets.sort(key=lambda m: m.HitsDiff)
+    return pets
 
 
-if API.HasTarget("beneficial"):
-    API.Stop()
-elif API.HasTarget("any"):
-    API.CancelTarget()
+def _check_casting():
+    API.ClearJournal()
+    while not API.HasTarget():
+        if API.InJournal("Your concentration is disturbed", True):
+            return True
+        API.Pause(0.05)
+    return False
 
 
-def health_percent(mobile) -> float:
-    if mobile.HitsMax <= 0:
-        return 1.0
-    return mobile.Hits / mobile.HitsMax
+def _cast(spell, target=API.Player):
+    if API.HasTarget():
+        API.CancelTarget()
+    API.CastSpell(spell)
+    if _check_casting():
+        _cast(spell, target)
+    else:
+        API.Target(target)  # pyright:ignore
 
 
-def find_my_pets(max_distance=10):
-    return sorted(
-        [
-            m
-            for m in API.NearestMobiles(
-                [
-                    API.Notoriety.Innocent,
-                    API.Notoriety.Ally,
-                    API.Notoriety.Gray,
-                ],
-                max_distance,
-            )
-            if m.IsRenamable and not m.IsDead
-        ],
-        key=health_percent,
-    )
-
-
-def get_player_heal_spell():
+def _get_player_spell():
     if API.Player.IsPoisoned:
-        if detect_self_poison_level() > 3:
-            return "Arch Cure"
-        return "Cure"
-    if API.Player.HitsDiff > 15:
+        return "Arch Cure"
+    elif API.Player.HitsDiff > 18:
         return "Greater Heal"
     elif API.Player.HitsDiff > 4:
         return "Heal"
     return None
 
 
-def get_pet_heal_spell(pet, threshold=0.7):
+def _get_pet_spell(pet):
     if pet.IsPoisoned:
-        if detect_poison_level(pet.Name) > 3:
-            return "Arch Cure"
-        return "Cure"
-    if health_percent(pet) < threshold:
+        return "Arch Cure"
+    elif pet.HitsDiff > 4:
         return "Greater Heal"
     return None
 
 
-def select_heal_target():
-    spell = get_player_heal_spell()
+def run():
+    spell = _get_player_spell()
     if spell:
-        return API.Player.Serial, spell
+        return _cast(spell)
 
-    for pet in find_my_pets():
-        spell = get_pet_heal_spell(pet, heal_pet_threshold)
+    for pet in _pets_by_health():
+        spell = _get_pet_spell(pet)
         if spell:
-            return pet.Serial, spell
-
-    return None, None
+            return _cast(spell, pet)
 
 
-target_serial, spell = select_heal_target()
-if target_serial and spell:
-    # API.PreTarget(target_serial, "beneficial")
-    API.CastSpell(spell)
-    API.WaitForTarget("beneficial", timeout=2)
-    API.Target(target_serial)
+run()
