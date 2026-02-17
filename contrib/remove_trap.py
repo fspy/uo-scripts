@@ -17,13 +17,13 @@
 
 # Translated to TazUO Iron Python/GUI by Daennabis. Most of the code remains the same with minor changes for python.
 
-import API
 import re
+import sys  # for debug
 
 # import os #This is leftover from the unknown solution importer
 import time
-import sys  # for debug
 
+import API
 
 #######################################################################
 #                         USER OPTIONS                                #

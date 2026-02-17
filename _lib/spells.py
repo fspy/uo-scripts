@@ -201,21 +201,3 @@ def cast_spell_on_target(
     recovery = calculate_recovery_time(base_recovery=base_recovery, fcr_cap=fcr_cap)
     API.Pause(recovery)
     return True
-
-
-def detect_poison_level(target_name: str) -> int:
-    for pattern, level in POISON_PATTERNS:
-        if API.InJournal(f"{target_name} {pattern}"):
-            API.SysMsg(f"curing level {level} poison", 53)
-            return level
-
-    return 0
-
-
-def detect_self_poison_level() -> int:
-    for pattern, level in SELF_POISON_PATTERNS:
-        if API.InJournal(pattern):
-            API.SysMsg(f"curing level {level} poison", 53)
-            return level
-
-    return 0

@@ -18,7 +18,7 @@ import API
 from _lib.persistence import load_int, save_int
 from _lib.utils import Hue, h, p
 
-HOME = {"x": 378, "y": 1377, "z": 27, "map": 4}
+HOME = {"x": 1616, "y": 729, "z": 13, "map": 0}
 LUNA_EAST = {"x": 996, "y": 520, "z": -50, "map": 3}
 LUNA_WEST = {"x": 984, "y": 520, "z": -50, "map": 3}
 

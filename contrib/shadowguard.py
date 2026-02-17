@@ -825,7 +825,7 @@ def update_active_gump():
         }
         if active_gump_name in update_map:
             update_map[active_gump_name]()
-    except Exception as e:
+    except Exception:
         # API.SysMsg(f"Gump update error for {active_gump_name}: {e}", 33) # Optional: for debugging
         pass
 
@@ -1013,8 +1013,10 @@ def handle_armory():
                 if available_armor:
                     closest_armor = min(
                         available_armor,
-                        key=lambda a: abs(safe_get_coords(a)[0] - API.Player.X)
-                        + abs(safe_get_coords(a)[1] - API.Player.Y),
+                        key=lambda a: (
+                            abs(safe_get_coords(a)[0] - API.Player.X)
+                            + abs(safe_get_coords(a)[1] - API.Player.Y)
+                        ),
                     )
                     API.UseObject(purified.Serial)
                     if API.WaitForTarget(timeout=1.0):

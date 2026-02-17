@@ -39,137 +39,6 @@ class PyAlphaBlendControl(PyBaseControl):
         """
         pass
 
-class PyBaseControl:
-    ""
-    CanMove: bool = None
-    IsVisible: bool = None
-    IsDisposed: bool = None
-
-    def Add(self, childControl: "Any") -> None:
-        """
-         Adds a child control to this control. Works with gumps too (gump.Add(control)).
-         Used in python API
-        
-        """
-        pass
-
-    def GetX(self) -> "int":
-        """
-         Returns the control's X position.
-         Used in python API
-        
-        """
-        pass
-
-    def GetY(self) -> "int":
-        """
-         Returns the control's Y position.
-         Used in python API
-        
-        """
-        pass
-
-    def SetX(self, x: "int") -> "PyBaseControl":
-        """
-         Sets the control's X position.
-         Used in python API
-        
-        """
-        pass
-
-    def SetY(self, y: "int") -> "PyBaseControl":
-        """
-         Sets the control's Y position.
-         Used in python API
-        
-        """
-        pass
-
-    def SetPos(self, x: "int", y: "int") -> "PyBaseControl":
-        """
-         Sets the control's X and Y positions.
-         Used in python API
-        
-        """
-        pass
-
-    def GetWidth(self) -> "int":
-        pass
-
-    def GetHeight(self) -> "int":
-        pass
-
-    def SetWidth(self, width: "int") -> "PyBaseControl":
-        """
-         Sets the control's width.
-         Used in python API
-        
-        """
-        pass
-
-    def SetHeight(self, height: "int") -> "PyBaseControl":
-        """
-         Sets the control's height.
-         Used in python API
-        
-        """
-        pass
-
-    def SetRect(self, x: "int", y: "int", width: "int", height: "int") -> "PyBaseControl":
-        """
-         Sets the control's position and size in one operation.
-         Used in python API
-        
-        """
-        pass
-
-    def CenterXInViewPort(self) -> "PyBaseControl":
-        """
-         Centers a GUMP horizontally in the viewport. Only works on Gump instances.
-         Used in python API
-        
-        """
-        pass
-
-    def CenterYInViewPort(self) -> "PyBaseControl":
-        """
-         Centers a GUMP vertically in the viewport. Only works on Gump instances.
-         Used in python API
-        
-        """
-        pass
-
-    def GetAlpha(self) -> "float":
-        """
-         Returns the control's Alpha value.
-         Used in python API
-        
-        """
-        pass
-
-    def SetAlpha(self, alpha: "float") -> "PyBaseControl":
-        """
-         Sets the control's Alpha value.
-         Used in python API
-        
-        """
-        pass
-
-    def Clear(self) -> "PyBaseControl":
-        """
-         Clears all child controls from this control.
-         Used in python API
-        
-        """
-        pass
-
-    def Dispose(self) -> None:
-        """
-         Close/Destroy the control
-        
-        """
-        pass
-
 class PyBaseGump(PyBaseControl, IPyGump):
     ""
     IsDisposed: bool = None
@@ -860,6 +729,11 @@ class PyMobile(PyEntity):
     IsRenamable: bool = None
     IsHuman: bool = None
     IsYellowHits: bool = None
+    IsHidden: bool = None
+    IsGargoyle: bool = None
+    IsMounted: bool = None
+    IsDrivingBoat: bool = None
+    IsRunning: bool = None
     Notoriety: Notoriety = None
     InWarMode: bool = None
     Backpack: PyItem = None
@@ -1112,6 +986,137 @@ class PySoundEntry:
     X: int = None
     Y: int = None
     Time: datetime = None
+
+class PyBaseControl:
+    ""
+    CanMove: bool = None
+    IsVisible: bool = None
+    IsDisposed: bool = None
+
+    def Add(self, childControl: "Any") -> None:
+        """
+         Adds a child control to this control. Works with gumps too (gump.Add(control)).
+         Used in python API
+        
+        """
+        pass
+
+    def GetX(self) -> "int":
+        """
+         Returns the control's X position.
+         Used in python API
+        
+        """
+        pass
+
+    def GetY(self) -> "int":
+        """
+         Returns the control's Y position.
+         Used in python API
+        
+        """
+        pass
+
+    def SetX(self, x: "int") -> "PyBaseControl":
+        """
+         Sets the control's X position.
+         Used in python API
+        
+        """
+        pass
+
+    def SetY(self, y: "int") -> "PyBaseControl":
+        """
+         Sets the control's Y position.
+         Used in python API
+        
+        """
+        pass
+
+    def SetPos(self, x: "int", y: "int") -> "PyBaseControl":
+        """
+         Sets the control's X and Y positions.
+         Used in python API
+        
+        """
+        pass
+
+    def GetWidth(self) -> "int":
+        pass
+
+    def GetHeight(self) -> "int":
+        pass
+
+    def SetWidth(self, width: "int") -> "PyBaseControl":
+        """
+         Sets the control's width.
+         Used in python API
+        
+        """
+        pass
+
+    def SetHeight(self, height: "int") -> "PyBaseControl":
+        """
+         Sets the control's height.
+         Used in python API
+        
+        """
+        pass
+
+    def SetRect(self, x: "int", y: "int", width: "int", height: "int") -> "PyBaseControl":
+        """
+         Sets the control's position and size in one operation.
+         Used in python API
+        
+        """
+        pass
+
+    def CenterXInViewPort(self) -> "PyBaseControl":
+        """
+         Centers a GUMP horizontally in the viewport. Only works on Gump instances.
+         Used in python API
+        
+        """
+        pass
+
+    def CenterYInViewPort(self) -> "PyBaseControl":
+        """
+         Centers a GUMP vertically in the viewport. Only works on Gump instances.
+         Used in python API
+        
+        """
+        pass
+
+    def GetAlpha(self) -> "float":
+        """
+         Returns the control's Alpha value.
+         Used in python API
+        
+        """
+        pass
+
+    def SetAlpha(self, alpha: "float") -> "PyBaseControl":
+        """
+         Sets the control's Alpha value.
+         Used in python API
+        
+        """
+        pass
+
+    def Clear(self) -> "PyBaseControl":
+        """
+         Clears all child controls from this control.
+         Used in python API
+        
+        """
+        pass
+
+    def Dispose(self) -> None:
+        """
+         Close/Destroy the control
+        
+        """
+        pass
 
 JournalEntries = None
 SoundEntries = None
@@ -1470,6 +1475,27 @@ def MoveItemOffset(serial: "int", amt: "int" = 0, x: "int" = 0, y: "int" = 0, z:
        API.MoveItemOffset(item, 0, 1, 0, 0)
        API.Pause(0.75)
      ```
+    
+    """
+    pass
+
+def PickUpToCursor(serial: "int" = 0, amt: "int" = 0) -> None:
+    """
+     Picks up an item from the game world and places it onto the mouse cursor.
+    
+    """
+    pass
+
+def DropFromCursor(serial: "int" = 0, x: "int" = 1337, y: "int" = 1337, z: "int" = sbyte.MaxValue, container: "int" = 1337) -> None:
+    """
+     Drops an item currently held by the mouse cursor into a container or on the ground at a specified position.
+    
+    """
+    pass
+
+def GetHeldItem() -> "int":
+    """
+     Retrieves data of the currently held item on the game cursor.
     
     """
     pass

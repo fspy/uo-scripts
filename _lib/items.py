@@ -136,3 +136,32 @@ def drop_all_items_at_home(container_serial, item_types, extra_sources=None):
     API.Pause(1.5)
 
     return total_dropped
+
+
+def chest_check(container_serial=None):
+    """
+    Move specific chest types from a container to backpack.
+
+    Looks for wooden/metal chests with specific hues and moves them to backpack.
+    Useful for looting storage containers.
+
+    Args:
+        container_serial: Source container. If None, prompts user to target.
+    """
+    if container_serial is None:
+        h("Select container to check", API.Player, 946)
+        container_serial = API.RequestTarget()
+        if not container_serial:
+            return
+
+    chest_graphics = {0x0E40, 0x0E41}  # Wooden/Metal chests
+    chest_hues = {0, 1109}  # Default and specific hues
+
+    for cg in chest_graphics:
+        chests = API.FindTypeAll(cg, container_serial)
+        chests = filter(lambda c: c.Hue in chest_hues, chests)
+        for chest in chests:
+            API.MoveItem(chest, API.Backpack, 1)
+            API.Pause(0.65)
+
+        API.Pause(0.65)

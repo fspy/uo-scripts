@@ -9,7 +9,7 @@ if len(pet) == 0:
     API.Stop()
 
 pet = pet[0]
-if target and target.HasLineOfSightFrom() and target.Name not in blacklist:
+if target and target.HasLineOfSightFrom(API.Player) and target.Name not in blacklist:
     if target.HitsDiff == 0:
         API.Virtue("Honor")
         if API.WaitForTarget(timeout=0.5):

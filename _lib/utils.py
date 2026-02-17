@@ -70,18 +70,6 @@ def toggle_mount():
         API.Mount(mount)
 
 
-def get_mastery():
-    book = API.FindType(0x225A, API.Backpack, hue=0)
-    if not book:
-        p("no book of masteries!", Hue.Red)
-        return
-    props = API.ItemNameAndProps(book, True)
-    if not props or not props.startswith("Book Of Masteries"):
-        p("unable to retrieve item data", Hue.Orange)
-        return
-    return props.split("\n")[2].replace(" Mastery", "").strip()
-
-
 def chebyshev_distance(x1: int, y1: int, x2: int, y2: int) -> int:
     """
     Calculate Chebyshev distance (max of x/y deltas).

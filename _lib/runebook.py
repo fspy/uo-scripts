@@ -67,11 +67,6 @@ class Runebook:
         API.UseObject(self.serial)
         return API.WaitForGump(RUNEBOOK_GUMP_ID, timeout)
 
-    def close(self) -> None:
-        """Close the runebook gump if open."""
-        if API.HasGump(RUNEBOOK_GUMP_ID):
-            API.CloseGump(RUNEBOOK_GUMP_ID)
-
     def recall_to_index(self, index: int) -> bool:
         """
         Recall to rune at index (0-15).
@@ -222,3 +217,107 @@ def recall_with_retry(
         if attempt < max_retries:
             API.Pause(retry_delay)
     return False
+
+
+def show_runebook_runes(rb_serial=None):
+    """
+    Display a gump with buttons for each rune in a runebook.
+    Clicking a button recalls to that rune.
+
+    Args:
+        rb_serial: The runebook item serial. If None, prompts user to target.
+    """
+    if rb_serial is None:
+        API.SysMsg("Target the runebook", 946)
+        rb_serial = API.RequestTarget()
+        if not rb_serial:
+            API.SysMsg("No target selected", 33)
+            return
+
+    def open_runebook(timeout=2.0):
+        """Open runebook and wait for gump, returns True if successful."""
+        if not API.HasGump(0x59):
+            API.UseObject(rb_serial, True)
+            start = time.time()
+            while not API.HasGump(0x59) and time.time() - start < timeout:
+                API.Pause(0.1)
+        return API.HasGump(0x59)
+
+    # Shared state for callback communication
+    clicked_rune = [None]
+
+    def make_callback(rune_index):
+        def callback():
+            clicked_rune[0] = rune_index
+
+        return callback
+
+    # Open the runebook gump initially
+    if not open_runebook():
+        API.SysMsg("Failed to open runebook gump", 33)
+        return
+
+    # Count runes by counting "default" in gump contents
+    gump_content = API.GetGumpContents(0x59)
+    num_runes = gump_content.count("default")
+
+    if num_runes == 0:
+        API.SysMsg("No runes found in runebook", 33)
+        return
+
+    API.SysMsg(f"Found {num_runes} runes in runebook", 946)
+
+    # Create a gump with buttons for each rune
+    button_height = 30
+    button_spacing = 5
+    gump_width = 200
+    gump_height = 60 + (num_runes * (button_height + button_spacing))
+
+    g = API.CreateGump()
+    g.SetRect(100, 100, gump_width, gump_height)
+
+    # Add title label
+    title = API.CreateGumpLabel(f"Runebook - {num_runes} Runes", hue=53)
+    title.SetPos(10, 10)
+    g.Add(title)
+
+    # Create a button for each rune with click callbacks
+    rune_buttons = []
+    for i in range(num_runes):
+        btn = API.CreateSimpleButton(f"Rune {i + 1}", gump_width - 20, button_height)
+        btn.SetPos(10, 40 + (i * (button_height + button_spacing)))
+        API.AddControlOnClick(btn, make_callback(i))
+        g.Add(btn)
+        rune_buttons.append(btn)
+
+    API.AddGump(g)
+
+    # Track last selected button for highlighting
+    last_selected_idx = [None]
+
+    # Wait for button clicks using callbacks
+    while not API.StopRequested:
+        API.ProcessCallbacks()
+        if clicked_rune[0] is not None:
+            rune_idx = clicked_rune[0]
+            clicked_rune[0] = None  # Reset
+
+            # Clear previous highlight
+            if last_selected_idx[0] is not None:
+                rune_buttons[last_selected_idx[0]].ClearBackgroundColor()
+
+            # Highlight this button (green background)
+            rune_buttons[rune_idx].SetBackgroundColor(0, 150, 0, 200)
+            last_selected_idx[0] = rune_idx
+
+            API.SysMsg(f"Recalling to rune {rune_idx + 1}...", 946)
+
+            # Make sure runebook gump is open before recalling
+            if not open_runebook():
+                API.SysMsg("Failed to reopen runebook gump", 33)
+                continue
+
+            # Recall button formula: 50 + rune_index
+            API.ReplyGump(50 + rune_idx, 0x59)
+            API.Pause(0.5)
+        API.Pause(0.1)
