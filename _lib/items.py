@@ -1,25 +1,16 @@
-"""Shared item moving utilities for Legion scripts.
-
-Note: API module is injected by Legion engine at runtime as a global.
-Import is wrapped in try/except for type hints in editors.
-"""
+"""Shared item moving utilities for Legion scripts."""
 
 # pyright: basic
-# Try to import API for type hints, but don't fail if unavailable
 try:
     import API
 except (ImportError, NameError):
-    pass  # API is injected at runtime by Legion engine
+    pass
 
 from _lib.utils import h
 
 
 def move_item_robust(serial, dest, amount, max_retries=5):
-    """
-    Move item with retry logic for 'you must wait' messages.
-    Uses adaptive delays starting at 0.6s and increasing by 0.1s per retry, capped at 1.5s.
-    Returns True if move succeeded (or no error detected), False if failed after retries.
-    """
+    """Move item with retry logic for 'you must wait' messages."""
     base_delay = 0.6
     max_delay = 1.5
     delay_increment = 0.1
@@ -28,20 +19,16 @@ def move_item_robust(serial, dest, amount, max_retries=5):
         API.ClearJournal()
         API.MoveItem(serial, dest, amt=amount)
 
-        # Incremental delay: 0.6s, 0.7s, 0.8s, ..., capped at 1.5s
         current_delay = min(base_delay + (attempt * delay_increment), max_delay)
         API.Pause(current_delay)
 
-        # Check for "you must wait"
         if API.InJournalAny(["you must wait"]):
             if attempt < max_retries - 1:
                 h("Waiting...", API.Player, 946)
                 continue
             else:
-                # Final attempt failed
                 return False
 
-        # Success or no "must wait" message - move on
         return True
 
     return False
@@ -50,16 +37,7 @@ def move_item_robust(serial, dest, amount, max_retries=5):
 def drop_items_to_container(
     container_serial: int, item_types: "list[int]", source=None
 ):
-    """
-    Move all items of specified types to a container.
-
-    Args:
-        container_serial: Destination container serial
-        item_types: List of item graphic IDs to move
-        source: Source container (defaults to API.Backpack)
-
-    Returns: count of item stacks dropped
-    """
+    """Move all items of specified types to a container. Returns count dropped."""
     if source is None:
         source = API.Backpack
 
@@ -79,50 +57,27 @@ def drop_items_to_container(
 
 
 def find_salvage_bag():
-    """
-    Find a salvage bag in the player's backpack.
-
-    Salvage bags have graphic 0x0E76 and contain "salvage bag" in their name.
-
-    Returns:
-        Salvage bag item serial, or None if not found
-    """
+    """Find a salvage bag in the player's backpack."""
     bags = API.FindTypeAll(0x0E76, API.Player.Backpack) or []
     for bag in bags:
-        # Check if the item has "salvage bag" in its name
         if bag.Name and "salvage bag" in bag.Name.lower():
             return bag.Serial
     return None
 
 
 def drop_all_items_at_home(container_serial, item_types, extra_sources=None):
-    """
-    Pathfind to container, open it, and drop items from backpack and optional extra sources.
-    Adds delay at end for server to update weight.
-
-    Args:
-        container_serial: Destination container serial
-        item_types: List of item graphic IDs to move
-        extra_sources: Optional list of additional source container serials (e.g., pack animal)
-
-    Returns: total count of item stacks dropped
-    """
-    # Pathfind to container
+    """Pathfind to container, open it, and drop items from backpack."""
     chest = API.FindItem(container_serial)
     if chest:
         API.Pathfind(chest.X, chest.Y, chest.Z, distance=1, wait=True, timeout=10)
         API.Pause(0.5)
 
-    # Open container
     API.UseObject(container_serial)
     API.Pause(1.0)
 
     total_dropped = 0
-
-    # Drop from backpack
     total_dropped += drop_items_to_container(container_serial, item_types, API.Backpack)
 
-    # Drop from extra sources (e.g., pack animal)
     if extra_sources:
         for source_serial in extra_sources:
             total_dropped += drop_items_to_container(
@@ -132,30 +87,20 @@ def drop_all_items_at_home(container_serial, item_types, extra_sources=None):
     if total_dropped > 0:
         API.SysMsg(f"Dropped {total_dropped} item stacks in storage")
 
-    # Wait for server to update weight after dropping items
     API.Pause(1.5)
-
     return total_dropped
 
 
 def chest_check(container_serial=None):
-    """
-    Move specific chest types from a container to backpack.
-
-    Looks for wooden/metal chests with specific hues and moves them to backpack.
-    Useful for looting storage containers.
-
-    Args:
-        container_serial: Source container. If None, prompts user to target.
-    """
+    """Move specific chest types from a container to backpack."""
     if container_serial is None:
         h("Select container to check", API.Player, 946)
         container_serial = API.RequestTarget()
         if not container_serial:
             return
 
-    chest_graphics = {0x0E40, 0x0E41}  # Wooden/Metal chests
-    chest_hues = {0, 1109}  # Default and specific hues
+    chest_graphics = {0x0E40, 0x0E41}
+    chest_hues = {0, 1109}
 
     for cg in chest_graphics:
         chests = API.FindTypeAll(cg, container_serial)

@@ -1,39 +1,24 @@
-"""Shared runebook interaction and travel utilities for Legion scripts.
-
-Provides:
-- Runebook class for gump-based recall to specific rune indices
-- Travel utility functions (wait for travel, cast-and-target recall)
-
-Based on button formula from PlayTazUO/PublicLegionScripts RunebookRecaller.py
-
-Note: API module is injected by Legion engine at runtime as a global.
-Import is wrapped in try/except for type hints in editors.
-"""
+"""Shared runebook interaction and travel utilities for Legion scripts."""
 
 # pyright: basic
 import time
 
-# Try to import API for type hints, but don't fail if unavailable
 try:
     import API
 except (ImportError, NameError):
-    pass  # API is injected at runtime by Legion engine
+    pass
 
-# Runebook constants
 RUNEBOOK_GRAPHIC = 0x22C5
 RUNEBOOK_GUMP_ID = 0x59
 
-# Button formula: recall_button = base + (rune_index * stride)
-# Tested on this shard: recall button for rune N = 50 + N
+# Button formula: recall_button = 50 + rune_index
 RECALL_BUTTON_BASE = 50
 RECALL_BUTTON_STRIDE = 1
 
-# Sacred Journey assumed to be offset by 1 (needs verification)
+# Sacred Journey: 6 + (rune_index * 6)
 SJ_BUTTON_BASE = 6
 SJ_BUTTON_STRIDE = 6
 
-# Travel failure detection messages
-# Note: There are no reliable success messages - only check for failures and position change
 TRAVEL_FAIL_MSGS = [
     "You have not yet recovered",
     "Spell fizzles",
@@ -46,130 +31,65 @@ class Runebook:
     """Interact with a runebook via its gump."""
 
     def __init__(self, serial: int):
-        """
-        Initialize a Runebook wrapper.
-
-        Args:
-            serial: The runebook item serial
-        """
         self.serial = serial
 
     def open(self, timeout: float = 2.0) -> bool:
-        """
-        Open the runebook gump.
-
-        Args:
-            timeout: How long to wait for gump to appear
-
-        Returns:
-            True if gump opened successfully
-        """
+        """Open the runebook gump."""
         API.UseObject(self.serial)
         return API.WaitForGump(RUNEBOOK_GUMP_ID, timeout)
 
     def recall_to_index(self, index: int) -> bool:
-        """
-        Recall to rune at index (0-15).
-        Opens gump if needed, clicks recall button.
-
-        Args:
-            index: Rune index (0-15)
-
-        Returns:
-            True if button was clicked (not if travel succeeded)
-        """
+        """Recall to rune at index (0-15). Returns True if button clicked."""
         if index < 0 or index > 15:
             API.SysMsg(f"Invalid rune index: {index}", 32)
             return False
 
-        # Open gump if not already open
         if not API.HasGump(RUNEBOOK_GUMP_ID):
             if not self.open():
                 API.SysMsg("Failed to open runebook", 32)
                 return False
 
-        # Calculate and click recall button
         button_id = RECALL_BUTTON_BASE + (index * RECALL_BUTTON_STRIDE)
         result = API.ReplyGump(button_id, RUNEBOOK_GUMP_ID)
-
-        # Give server time to process
         API.Pause(0.5)
         return result
 
     def sacred_journey_to_index(self, index: int) -> bool:
-        """
-        Sacred Journey (Chivalry) to rune at index (0-15).
-
-        Args:
-            index: Rune index (0-15)
-
-        Returns:
-            True if button was clicked (not if travel succeeded)
-        """
+        """Sacred Journey to rune at index (0-15). Returns True if button clicked."""
         if index < 0 or index > 15:
             API.SysMsg(f"Invalid rune index: {index}", 32)
             return False
 
-        # Open gump if not already open
         if not API.HasGump(RUNEBOOK_GUMP_ID):
             if not self.open():
                 API.SysMsg("Failed to open runebook", 32)
                 return False
 
-        # Calculate and click Sacred Journey button
         button_id = SJ_BUTTON_BASE + (index * SJ_BUTTON_STRIDE)
         result = API.ReplyGump(button_id, RUNEBOOK_GUMP_ID)
-
-        # Give server time to process
         API.Pause(0.5)
         return result
 
 
 def wait_for_travel(timeout: float = 5.0) -> bool:
-    """
-    Wait for recall/SJ travel to complete.
-    Monitors journal for failure messages and position changes.
-
-    Note: There are no reliable success messages for travel spells.
-    Success is detected by position change. Failure is detected by
-    journal messages (fizzle, encumbered, blocked, etc.).
-
-    Args:
-        timeout: Maximum time to wait for travel
-
-    Returns:
-        True if position changed (travel succeeded), False if failed or timeout
-    """
+    """Wait for travel to complete. Returns True if position changed."""
     start_pos = (API.Player.X, API.Player.Y)
     deadline = time.time() + timeout
 
     while time.time() < deadline and not API.StopRequested:
-        # Check for failure messages (fizzle, encumbered, blocked, etc.)
         if API.InJournalAny(TRAVEL_FAIL_MSGS):
             return False
 
-        # Check if position changed significantly
         if abs(API.Player.X - start_pos[0]) > 5 or abs(API.Player.Y - start_pos[1]) > 5:
             return True
 
         API.Pause(0.1)
 
-    # Timeout - position didn't change
     return False
 
 
 def recall_and_target(target_serial: int, use_sacred_journey: bool = False) -> bool:
-    """
-    Cast Recall or Sacred Journey spell and target an item (rune/runebook).
-    Used for simple "go home" type travel where we just target the item.
-
-    Args:
-        target_serial: Serial of the rune or runebook to target
-        use_sacred_journey: If True, use Sacred Journey (Chivalry), else Recall (Magery)
-
-    Returns:
-        True if travel succeeded
-    """
+    """Cast Recall/Sacred Journey and target an item. Returns True if travel succeeded."""
     spell = "Sacred Journey" if use_sacred_journey else "Recall"
 
     API.ClearJournal()
@@ -189,27 +109,7 @@ def recall_with_retry(
     retry_delay: float = 2.0,
     use_sacred_journey: bool = False,
 ) -> bool:
-    """
-    Recall with automatic retry on failure.
-
-    Attempts recall/sacred journey multiple times, waiting between attempts
-    for cooldowns to expire or recover from fizzles/interrupts.
-
-    Args:
-        target_serial: Serial of rune/runebook to target
-        max_retries: Maximum number of attempts (default 3)
-        retry_delay: Seconds to wait between retries (default 2.0)
-        use_sacred_journey: Use Sacred Journey instead of Recall (default False)
-
-    Returns:
-        True if travel succeeded, False if all attempts failed
-
-    Example:
-        if recall_with_retry(home_rune.Serial, max_retries=5, retry_delay=3.0):
-            API.SysMsg("Made it home!")
-        else:
-            API.SysMsg("Failed to recall home", 32)
-    """
+    """Recall with automatic retry on failure."""
     for attempt in range(1, max_retries + 1):
         API.ClearJournal()
         if recall_and_target(target_serial, use_sacred_journey):
@@ -220,13 +120,7 @@ def recall_with_retry(
 
 
 def show_runebook_runes(rb_serial=None):
-    """
-    Display a gump with buttons for each rune in a runebook.
-    Clicking a button recalls to that rune.
-
-    Args:
-        rb_serial: The runebook item serial. If None, prompts user to target.
-    """
+    """Display a gump with buttons for each rune in a runebook."""
     if rb_serial is None:
         API.SysMsg("Target the runebook", 946)
         rb_serial = API.RequestTarget()
@@ -235,7 +129,6 @@ def show_runebook_runes(rb_serial=None):
             return
 
     def open_runebook(timeout=2.0):
-        """Open runebook and wait for gump, returns True if successful."""
         if not API.HasGump(0x59):
             API.UseObject(rb_serial, True)
             start = time.time()
@@ -243,7 +136,6 @@ def show_runebook_runes(rb_serial=None):
                 API.Pause(0.1)
         return API.HasGump(0x59)
 
-    # Shared state for callback communication
     clicked_rune = [None]
 
     def make_callback(rune_index):
@@ -252,12 +144,10 @@ def show_runebook_runes(rb_serial=None):
 
         return callback
 
-    # Open the runebook gump initially
     if not open_runebook():
         API.SysMsg("Failed to open runebook gump", 33)
         return
 
-    # Count runes by counting "default" in gump contents
     gump_content = API.GetGumpContents(0x59)
     num_runes = gump_content.count("default")
 
@@ -267,7 +157,6 @@ def show_runebook_runes(rb_serial=None):
 
     API.SysMsg(f"Found {num_runes} runes in runebook", 946)
 
-    # Create a gump with buttons for each rune
     button_height = 30
     button_spacing = 5
     gump_width = 200
@@ -276,12 +165,10 @@ def show_runebook_runes(rb_serial=None):
     g = API.CreateGump()
     g.SetRect(100, 100, gump_width, gump_height)
 
-    # Add title label
     title = API.CreateGumpLabel(f"Runebook - {num_runes} Runes", hue=53)
     title.SetPos(10, 10)
     g.Add(title)
 
-    # Create a button for each rune with click callbacks
     rune_buttons = []
     for i in range(num_runes):
         btn = API.CreateSimpleButton(f"Rune {i + 1}", gump_width - 20, button_height)
@@ -292,32 +179,26 @@ def show_runebook_runes(rb_serial=None):
 
     API.AddGump(g)
 
-    # Track last selected button for highlighting
     last_selected_idx = [None]
 
-    # Wait for button clicks using callbacks
     while not API.StopRequested:
         API.ProcessCallbacks()
         if clicked_rune[0] is not None:
             rune_idx = clicked_rune[0]
-            clicked_rune[0] = None  # Reset
+            clicked_rune[0] = None
 
-            # Clear previous highlight
             if last_selected_idx[0] is not None:
                 rune_buttons[last_selected_idx[0]].ClearBackgroundColor()
 
-            # Highlight this button (green background)
             rune_buttons[rune_idx].SetBackgroundColor(0, 150, 0, 200)
             last_selected_idx[0] = rune_idx
 
             API.SysMsg(f"Recalling to rune {rune_idx + 1}...", 946)
 
-            # Make sure runebook gump is open before recalling
             if not open_runebook():
                 API.SysMsg("Failed to reopen runebook gump", 33)
                 continue
 
-            # Recall button formula: 50 + rune_index
             API.ReplyGump(50 + rune_idx, 0x59)
             API.Pause(0.5)
         API.Pause(0.1)
