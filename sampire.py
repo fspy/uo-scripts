@@ -16,7 +16,7 @@ class Sampire:
     evasion_threshold = 0.9
     confidence_threshold = False
     remove_curse = ("Blood Oath",)
-    honor_targets = True
+    honor_targets = False
     onslaught = True
     trapped_box = 0x40358F00
     default_pause = 0.2

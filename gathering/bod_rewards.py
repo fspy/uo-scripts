@@ -19,6 +19,12 @@ REWARDS = {
         "desc": "Powder of Fortifying",
         "cost": 450,
     },
+    "shadow_hammer": {
+        "prof": "Blacksmith",
+        "btn": 217,
+        "desc": "Shadow Runic Hammer",
+        "cost": 550,
+    },
     "copper_hammer": {
         "prof": "Blacksmith",
         "btn": 223,
@@ -156,6 +162,37 @@ def get_rewards_for_profession(profession):
     return sorted(filtered, key=lambda x: x[1]["cost"])
 
 
+def make_refresh_callback(profession):
+    def callback():
+        refresh_points(profession)
+
+    return callback
+
+
+def refresh_points(profession):
+    """Refresh points from NPC and update gump."""
+    global current_npcs, gump_instance
+
+    if profession not in current_npcs:
+        return
+
+    data = current_npcs[profession]
+    serial = data["serial"]
+
+    p(f"Refreshing {profession} points...", Hue.Cyan)
+
+    new_points = query_points(serial)
+    if new_points > 0:
+        data["points"] = new_points
+        save_cached_points(profession, new_points)
+        p(f"{profession}: {new_points:,} points", Hue.Green)
+
+        hide_gump()
+        create_reward_gump()
+    else:
+        p(f"Failed to refresh {profession} points", Hue.Red)
+
+
 def make_reward_callback(reward_key, profession):
     def callback():
         claim_reward(reward_key, profession)
@@ -202,6 +239,12 @@ def create_reward_gump():
         header.SetX(10)
         header.SetY(y_offset)
         g.Add(header)
+
+        refresh_btn = API.CreateSimpleButton("R", 20, 20)
+        refresh_btn.SetX(GUMP_WIDTH - 35)
+        refresh_btn.SetY(y_offset)
+        g.Add(refresh_btn)
+        API.AddControlOnClick(refresh_btn, make_refresh_callback(profession))
 
         y_offset += SECTION_HEADER_HEIGHT
 

@@ -80,6 +80,8 @@ def drop_all_items_at_home(container_serial, item_types, extra_sources=None):
 
     if extra_sources:
         for source_serial in extra_sources:
+            API.UseObject(source_serial)
+            API.Pause(0.5)
             total_dropped += drop_items_to_container(
                 container_serial, item_types, source_serial
             )

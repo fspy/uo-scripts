@@ -1,8 +1,7 @@
 import re
 
-from _lib.crafting import CRAFTING_DB, BODCrafter
-
 import API
+from _lib.crafting import CRAFTING_DB, BODCrafter
 from _lib.utils import Hue, p
 
 
@@ -23,6 +22,7 @@ class BOD:
         self.quantity = 0
         self.item_name = None
         self.completed = 0
+        self.is_large = False
         self._parse()
 
     def _parse(self):
@@ -49,7 +49,17 @@ class BOD:
 
         for line in lines:
             lower = line.lower()
-            if "must be made with" in lower and "ingots" in lower:
+            if "large bulk order" in lower:
+                self.is_large = True
+            elif "small bulk order" in lower:
+                self.is_large = False
+            # Debug: show what we detected
+            if "bulk order" in lower:
+                p(
+                    f"[DEBUG] Bulk Order line: '{line}' -> is_large={self.is_large}",
+                    Hue.White,
+                )
+            elif "must be made with" in lower and "ingots" in lower:
                 material_line = line
             elif "must be exceptional" in lower:
                 exceptional_line = line
@@ -106,14 +116,14 @@ class BOD:
         if not self.item_name or not self.profession:
             return None
         prof_db = CRAFTING_DB.get(self.profession, {})
-        return prof_db.get(self.item_name)
+        return prof_db.get(self.item_name.lower())
 
     def can_craft(self):
         """Return True if this BOD can be auto-crafted."""
         if not self.item_name or not self.profession:
             return False
         prof_db = CRAFTING_DB.get(self.profession, {})
-        return self.item_name in prof_db and not self.is_complete()
+        return self.item_name.lower() in prof_db and not self.is_complete()
 
     def __str__(self):
         status = (
@@ -131,13 +141,23 @@ class BOD:
 def find_bods_in_backpack():
     """Find and parse all BODs in player backpack."""
     bods = []
-    bod_graphics = [0x2258, 0x2259]  # Small and Large BODs
+    bod_graphic = 0x2258  # Small BODs only
 
-    for graphic in bod_graphics:
-        for bod_item in API.FindTypeAll(graphic, API.Backpack) or []:
-            bod = BOD(bod_item)
-            if bod.item_name:  # Only add if parsing succeeded
-                bods.append(bod)
+    for bod_item in API.FindTypeAll(bod_graphic, API.Backpack) or []:
+        bod = BOD(bod_item)
+        if bod.item_name:
+            # Skip large BODs - only process small
+            if bod.is_large:
+                p(f"[DEBUG] Skipping large BOD: {bod.item_name}", Hue.Yellow)
+                continue
+            # Skip completed BODs
+            if bod.completed >= bod.quantity:
+                p(
+                    f"[DEBUG] Skipping completed: {bod.item_name} ({bod.completed}/{bod.quantity})",
+                    Hue.Yellow,
+                )
+                continue
+            bods.append(bod)
 
     return bods
 

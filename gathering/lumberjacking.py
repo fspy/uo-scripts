@@ -825,7 +825,10 @@ def harvest_tree(state, tree):
             # Use regex pattern to handle apostrophe variations (straight ' vs curly ')
             if API.InJournalAny(["$[Cc]an.t use an axe", "cannot use an axe on that"]):
                 graphic = getattr(tree, "Graphic", None)
-                if graphic:
+                if graphic is not None:
+                    graphic = int(
+                        graphic
+                    )  # Convert to native Python int for JSON serialization
                     if graphic in tree_graphics:
                         tree_graphics.remove(graphic)
                     state.bad_graphics.add(graphic)

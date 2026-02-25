@@ -72,7 +72,7 @@ class HeartwoodTinker:
         self._find_recipes()
 
     def _get_quest(self) -> Optional[str]:
-        attempts = 35
+        attempts = 100
         while attempts > 0:
             attempts -= 1
             gump_contents = None

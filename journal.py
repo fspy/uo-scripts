@@ -37,7 +37,7 @@ class JournalMonitor:
         while not API.StopRequested:
             entries = API.GetJournalEntries(2)
             if not entries:
-                API.Pause(0.3)
+                API.Pause(0.1)
                 continue
             for entry in entries:
                 if self.last_timestamp is None or entry.Time > self.last_timestamp:
@@ -46,7 +46,7 @@ class JournalMonitor:
                         display, hue = match
                         h(display, API.Player, hue)
                     self.last_timestamp = entry.Time
-            API.Pause(0.3)
+            API.Pause(0.1)
 
 
 patterns = {

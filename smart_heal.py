@@ -4,6 +4,14 @@ import API
 from _lib.utils import NOTORIETY_FRIENDLY
 
 
+def _orange_petals():
+    petals = API.FindType(0x1021, API.Backpack, hue=43)
+    if not petals:
+        return
+    if not API.BuffExists("Poison Immunity"):
+        API.UseObject(petals)
+
+
 def _pets_by_health(range=10):
     mobiles = API.NearestMobiles(NOTORIETY_FRIENDLY, range)
     pets = [m for m in mobiles if m.IsRenamable and not m.IsDead]
@@ -43,12 +51,14 @@ def _get_player_spell():
 def _get_pet_spell(pet):
     if pet.IsPoisoned:
         return "Arch Cure"
-    elif pet.HitsDiff > 4:
+    elif pet.HitsDiff > 1:
         return "Greater Heal"
     return None
 
 
 def run():
+    _orange_petals()
+
     spell = _get_player_spell()
     if spell:
         return _cast(spell)

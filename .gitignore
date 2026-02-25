@@ -23,3 +23,5 @@ Thumbs.db
 
 recorded_script_*.py
 API.py
+bin/
+obj/
