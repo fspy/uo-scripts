@@ -88,6 +88,7 @@ class ApiItem(ApiEntity):
     Opened: bool = None
     Container: int = None
     RootContainer: int = None
+    OnGround: bool = None
     RootEntity: ApiEntity = None
     __class__: str = None
     IsCorpse: bool = None
@@ -213,6 +214,7 @@ class ApiPlayer(ApiMobile):
     X: int = None
     Y: int = None
     Z: int = None
+    Position: ApiPoint3D = None
     Strength: int = None
     Dexterity: int = None
     Intelligence: int = None
@@ -269,15 +271,6 @@ class ApiPlayer(ApiMobile):
     IsWalking: bool = None
     InWarMode: bool = None
     __class__: str = None
-
-class ApiPoint3D:
-    ""
-    X: int = None
-    Y: int = None
-    Z: int = None
-
-    def ToString(self) -> "str":
-        pass
 
 class ApiSoundEntry:
     ""
@@ -2263,13 +2256,14 @@ def HasGump(ID: "int" = 1337) -> "int":
     """
     pass
 
-def ReplyGump(button: "int", gump: "int" = 1337, switches: "list[int]" = None) -> "bool":
+def ReplyGump(button: "int", gump: "int" = 1337, switches: "list[int]" = None, entries: "list[Any]" = None) -> "bool":
     """
      Reply to a gump.
      Example:
      ```py
      API.ReplyGump(21)
      API.ReplyGump(1, 0x555, [100])
+     API.ReplyGump(1, 0x555, [100], [(0, "text input")])
      ```
     
     """

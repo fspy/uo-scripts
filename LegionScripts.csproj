@@ -29,7 +29,7 @@
 
   <!-- Include all scripts for IntelliSense (build errors are normal) -->
   <ItemGroup>
-    <Compile Include="**/*.cs" />
+    <Compile Include="**/*.cs"/>
   </ItemGroup>
 
   <!-- Common imports for all scripts -->
