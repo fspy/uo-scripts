@@ -1,6 +1,7 @@
 """BOD Reward Claiming - monitors nearby profession NPCs and shows claimable rewards."""
 
 import re
+from typing import cast
 
 import API
 from _lib.persistence import load_int, save_int
@@ -101,13 +102,17 @@ def find_nearby_profession_npcs():
 
 def load_cached_points(profession):
     return load_int(
-        f"{POINTS_KEY_PREFIX}{profession}", default=0, scope=API.PersistentVar.Char
+        f"{POINTS_KEY_PREFIX}{profession}",
+        default=0,
+        scope=cast(API.PersistentVar, API.PersistentVar.Char),
     )
 
 
 def save_cached_points(profession, points):
     save_int(
-        f"{POINTS_KEY_PREFIX}{profession}", max(0, points), scope=API.PersistentVar.Char
+        f"{POINTS_KEY_PREFIX}{profession}",
+        max(0, points),
+        scope=cast(API.PersistentVar, API.PersistentVar.Char),
     )
 
 

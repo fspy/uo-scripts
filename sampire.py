@@ -8,6 +8,7 @@ class Sampire:
     """Sampire combat script with timer-based defensive and onslaught logic."""
 
     # Configuration
+    basher = True
     enemy_of_one = True
     divine_fury = False
     consecrate_weapon = True
@@ -41,6 +42,7 @@ class Sampire:
         "Double Strike": 30,
         "Whirlwind Attack": 15,
         "Onslaught": 20,
+        "Shield Bash": 35,
     }
 
     def __init__(self):
@@ -123,7 +125,7 @@ class Sampire:
 
         API.Virtue("Honor")
         API.WaitForTarget(timeout=1)
-        API.Target(enemy)  # type: ignore
+        API.Target(enemy)  # pyright: ignore
         API.Pause(self.default_pause)
 
         if API.InJournalAny(["Honorable Combat", "cannot honor this monster"], True):
@@ -147,15 +149,19 @@ class Sampire:
             self.handle_defensives(hp_ratio)
 
             targets = len(self.get_enemies(1))
-            weapon = self.get_weapon_info()
-            is_double_axe = "double axe" in weapon
+            abilities = list(API.CurrentAbilityNames())
+            has_whirlwind = "Whirlwind Attack" in abilities
+            has_double_strike = "Double Strike" in abilities
+            has_armor_ignore = "ArmorIgnore" in abilities
 
             if targets > 2:
-                self.handle_aoe(is_double_axe)
+                self.handle_aoe(abilities, has_whirlwind)
             elif targets == 2:
                 self.handle_momentum_strike()
             else:
-                self.handle_single_target(is_double_axe, weapon)
+                self.handle_single_target(
+                    abilities, has_double_strike, has_armor_ignore
+                )
 
             API.Attack(focus)
             API.Pause(self.default_pause)
@@ -182,12 +188,13 @@ class Sampire:
 
     def handle_defensives(self, hp_ratio):
         """Cast defensive abilities based on health."""
-        # Only cast if no defensive is currently active
+        if self.basher:
+            return
+
         active_defensives = ["Counter Attack", "Evasion", "Confidence"]
         if any(API.BuffExists(d) for d in active_defensives):
             return
 
-        # Try Evasion first (highest priority, 20s cooldown)
         if (
             self.evasion_threshold
             and hp_ratio < self.evasion_threshold
@@ -198,7 +205,6 @@ class Sampire:
             self.evasion_cast_timer = time.time()
             return
 
-        # Try Confidence (no cooldown)
         if (
             self.confidence_threshold
             and hp_ratio < self.confidence_threshold
@@ -207,13 +213,16 @@ class Sampire:
             API.CastSpell("Confidence")
             return
 
-        # Fallback to Counter Attack
         if self.counter_attack and self.mana_check("Counter Attack"):
             API.CastSpell("Counter Attack")
 
-    def handle_aoe(self, is_double_axe):
+    def handle_aoe(self, abilities, has_whirlwind):
         """Handle 3+ targets with Whirlwind or Momentum Strike."""
-        if is_double_axe:
+        if self.basher:
+            self._toggle_ability(abilities, "Whirlwind Attack")
+            return
+
+        if has_whirlwind:
             if not API.SecondaryAbilityActive() and self.mana_check("Whirlwind Attack"):
                 API.ToggleAbility("Secondary")
         elif (
@@ -225,6 +234,9 @@ class Sampire:
 
     def handle_momentum_strike(self):
         """Handle 2 targets with Momentum Strike."""
+        if self.basher:
+            return
+
         if (
             self.momentum_strike
             and not API.BuffExists("Momentum Strike")
@@ -232,47 +244,52 @@ class Sampire:
         ):
             API.CastSpell("Momentum Strike")
 
-    def handle_single_target(self, is_double_axe, weapon):
+    def handle_single_target(self, abilities, has_double_strike, has_armor_ignore):
         """Handle single target combat with Onslaught and Double Strike."""
-        # Check for Onslaught journal message to update hit timer
         if API.InJournal("deliver an onslaught of sword strikes"):
             self.onslaught_hit_timer = time.time()
             API.ClearJournal()
 
-        if not is_double_axe:
-            # Handle bladed staff Armor Ignore
-            if "bladed staff" in weapon and not API.PrimaryAbilityActive():
-                if self.mana_check("Armor Ignore"):
-                    API.ToggleAbility("Primary")
+        if self.basher:
+            if not API.BuffExists("Shield Bash") and self.mana_check("Shield Bash"):
+                API.CastSpell("Shield Bash")
+                return
+
+            if API.BuffExists("Shield Bash"):
+                self._toggle_ability(abilities, "ArmorIgnore")
             return
 
-        # Check if debuff is active (6s window)
-        debuff_active = (
-            time.time() - self.onslaught_hit_timer <= self.ONSLAUGHT_DEBUFF_DURATION
-        )
+        if has_double_strike:
+            debuff_active = (
+                time.time() - self.onslaught_hit_timer <= self.ONSLAUGHT_DEBUFF_DURATION
+            )
 
-        if debuff_active:
-            # Enable Double Strike during debuff window
-            if not API.PrimaryAbilityActive() and self.mana_check("Double Strike"):
+            if debuff_active:
+                if not API.PrimaryAbilityActive() and self.mana_check("Double Strike"):
+                    API.ToggleAbility("Primary")
+            else:
+                if (
+                    self.onslaught
+                    and time.time() - self.onslaught_cast_timer
+                    >= self.ONSLAUGHT_CAST_COOLDOWN
+                    and self.mana_check("Onslaught")
+                ):
+                    self.onslaught_cast_timer = time.time()
+                    API.CastSpell("Onslaught")
+        elif has_armor_ignore:
+            if not API.PrimaryAbilityActive() and self.mana_check("Armor Ignore"):
                 API.ToggleAbility("Primary")
-        else:
-            # Debuff expired, cast Onslaught (with cooldown to prevent spam)
-            if (
-                self.onslaught
-                and time.time() - self.onslaught_cast_timer
-                >= self.ONSLAUGHT_CAST_COOLDOWN
-                and self.mana_check("Onslaught")
-            ):
-                self.onslaught_cast_timer = time.time()
-                API.CastSpell("Onslaught")
 
-    def get_weapon_info(self):
-        """Get equipped weapon name."""
-        weapon = API.FindLayer("TwoHanded") or API.FindLayer("OneHanded")
-        if not weapon:
-            return ""
-        props = API.ItemNameAndProps(weapon.Serial, True).split("\n")
-        return props[0].strip().lower()
+    _SLOT = {0: "Primary", 1: "Secondary"}
+    _CHECK = {0: API.PrimaryAbilityActive, 1: API.SecondaryAbilityActive}
+
+    def _toggle_ability(self, abilities, ability_name):
+        if ability_name not in abilities:
+            return
+
+        idx = abilities.index(ability_name)
+        if not self._CHECK[idx]() and self.mana_check(ability_name):
+            API.ToggleAbility(self._SLOT[idx])
 
     def mana_check(self, spell):
         """Check if player has enough mana for spell."""

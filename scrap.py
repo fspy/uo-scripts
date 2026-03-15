@@ -9,8 +9,16 @@ Usage:
 
 # pyright: reportCallIssue=false
 
+import json
+import random
+import re
+import threading
+import time
+from collections import defaultdict
+from typing import cast
+
 import API
-from _lib.utils import Hue, h, p
+from _lib.utils import NOTORIETY_ENEMY, NOTORIETY_FRIENDLY, Hue, h, p, play_audio
 
 
 def serpents_nest():
@@ -51,94 +59,274 @@ def serpents_nest():
 # thing.Destroy()
 
 
-def idoc_scanner():
-    import json
-    import os
-    import re
-    from datetime import datetime
+def move_resource(res=100):
+    what = API.FindItem(API.RequestTarget())
+    where = API.RequestTarget()
+    while API.HasGump(0x23D0F169):
+        API.ReplyGump(res, 0x23D0F169)
+        API.WaitForGump(0x23D0F169)
+        i = API.FindType(what.Graphic, API.Backpack)
+        if i and API.Player.Weight > 500:
+            API.QueueMoveItem(i, where, i.Amount)
+            while API.IsProcessingMoveQueue():
+                API.Pause(0.01)
+            API.Pause(0.01)
 
-    IDOC_FILE = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "idoc_houses.json"
-    )
-    idoc_re = re.compile(r"condition: this structure is (.+).", re.I)
+        API.Pause(0.01)
 
-    def load_known_houses():
-        if not os.path.exists(IDOC_FILE):
-            return set(), []
+
+def dump_container():
+    cont = API.FindItem(API.RequestTarget())
+    if not cont:
+        API.Stop()
+
+    API.UseObject(cont)
+    API.Pause(0.663)
+
+    def container_data():
         try:
-            with open(IDOC_FILE, "r") as f:
-                houses = json.load(f)
-            serials = {h["serial"] for h in houses}
-            return serials, houses
+            with open("containers.json", "r") as f:
+                data = json.load(f)
+                return data
         except (ValueError, IOError):
-            return set(), []
+            return defaultdict(list)
 
-    def save_houses(houses):
-        with open(IDOC_FILE, "w") as f:
-            json.dump(houses, f, indent=2)
+    data = container_data()
+    data[str(cont.Serial)] = sorted([item.Name for item in API.ItemsInContainer(cont)])
 
-    known_serials, houses_list = load_known_houses()
+    with open("containers.json", "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def afk_farming():
+    last_close_mobs = 0
 
     while not API.StopRequested:
-        ground = API.GetItemsOnGround(24)
-        if not ground:
-            continue
+        people = [
+            m
+            for m in API.NearestMobiles(
+                NOTORIETY_FRIENDLY + [cast(API.Notoriety, API.Notoriety.Invulnerable)],
+                24,
+            )
+            if not (m.IsRenamable or m.Serial == API.Player.Serial)
+        ]
+        close_mobs = [
+            m
+            for m in API.NearestMobiles(NOTORIETY_ENEMY, 8)
+            if not m.HasLineOfSightFrom(API.Player)
+        ]
 
-        house_signs = [s for s in ground if s.Name.lower() == "a house sign"]
+        if not people and not close_mobs:
+            API.Pause(0.1)
+            return
 
-        for sign in house_signs:
-            data = API.ItemNameAndProps(sign, True)
-            match = idoc_re.search(data)
-            if not match:
-                continue
+        close_people = [m for m in people if m.Distance <= 12]
+        low_hp = (
+            (API.Player.Hits / API.Player.HitsMax) < 0.9
+            if API.Player.HitsMax
+            else False
+        )
 
-            condition = match.group(1).lower()
-            if condition not in ("greatly worn", "in danger of collapsing"):
-                continue
+        if close_people:
+            h(f"People are nearby!\n{', '.join(z.Name for z in people)}")
+            thread = threading.Thread(
+                target=play_audio,
+                args=("/usr/share/sounds/ocean/stereo/phone-incoming-call.oga",),
+                daemon=True,
+            )
+            thread.start()
+            wiggle()
 
-            now = datetime.now().isoformat()
-            serial = int(sign.Serial)
-            x = int(sign.X)
-            y = int(sign.Y)
-            m = int(API.GetMap())
+        if close_mobs and (time.time() - last_close_mobs) > 2:
+            h(f"No Line of Sight!\n{', '.join(z.Name for z in close_mobs)}")
+            thread = threading.Thread(
+                target=play_audio,
+                args=("/usr/share/sounds/ocean/stereo/bell.oga",),
+                daemon=True,
+            )
+            thread.start()
+            last_close_mobs = time.time()
 
-            if serial not in known_serials:
-                houses_list.append(
-                    {
-                        "serial": serial,
-                        "condition": condition,
-                        "x": x,
-                        "y": y,
-                        "map": m,
-                        "first_seen_at": now,
-                        "last_seen_at": now,
-                    }
+        if low_hp:
+            h("Low HP!", hue=Hue.Red)
+            thread = threading.Thread(
+                target=play_audio,
+                args=("/usr/share/sounds/ocean/stereo/dialog-warning.oga",),
+                daemon=True,
+            )
+            thread.start()
+
+        API.Pause(0.1)
+
+
+def wiggle():
+    for _ in range(10):
+        API.Walk(
+            random.choice(
+                (
+                    "north",
+                    "south",
+                    "east",
+                    "west",
+                    "northeast",
+                    "northwest",
+                    "southeast",
+                    "southwest",
                 )
-                known_serials.add(serial)
-                save_houses(houses_list)
-            else:
-                for house in houses_list:
-                    if house["serial"] == serial:
-                        house["last_seen_at"] = now
-                        house["condition"] = condition
-                        save_houses(houses_list)
-                        break
-
-            API.IgnoreObject(serial)
-            h(f"{condition.title()}: 0x{sign.Serial:X}", sign, Hue.Yellow)
-
-        API.Pause(1)
+            )
+        )
+        API.Pause(0.1)
 
 
-def destroy_corpses():
-    c = API.NearestCorpse()
-    while c:
-        c.Destroy()
-        c = API.NearestCorpse()
+def honesty():
+    items = API.GetItemsOnGround(24)
+    if not items:
+        return
+
+    for i, item in enumerate(items):
+        tooltip = API.ItemNameAndProps(item)
+
+        if "Lost Item" in tooltip:
+            API.HeadMsg("Lost Item!", API.Player)
+            API.TrackingArrow(item.X, item.Y, i)
+
+            while item.Distance > 2:
+                API.Pathfind(item.X, item.Y, item.Z, 1, True)
+                API.Pause(0.1)
+
+            API.MoveItem(item, API.Backpack)
+            API.TrackingArrow(-1, -1, i)
+
+    API.Pause(0.1)
 
 
-# destroy_corpses()
-if API.HasGump(0xB9D680BB):
-    data = API.GetGumpContents(0xB9D680BB)
-    p(data)
-idoc_scanner()
+def skill_jewelry_finder(min=30):
+    for item in API.ItemsInContainer(API.RequestTarget(), recursive=True):
+        sum = 0
+        for prop in item.NameAndProps(True).split("\n"):
+            match = re.match(r"(?:.+) \+(\d+)$", prop)
+            if match:
+                sum += int(match.group(1))
+
+        if sum > min:
+            p(f"{item.Name} +{sum}")
+            yield item
+
+    p("Done!")
+
+
+def color_paperdoll(hue=0x4000):
+    LAYERS = [
+        "OneHanded",
+        "TwoHanded",
+        "Shoes",
+        "Pants",
+        "Shirt",
+        "Helmet",
+        "Gloves",
+        "Ring",
+        "Talisman",
+        "Necklace",
+        "Hair",
+        "Waist",
+        "Torso",
+        "Bracelet",
+        "Face",
+        "Beard",
+        "Tunic",
+        "Earrings",
+        "Arms",
+        "Cloak",
+        "Backpack",
+        "Robe",
+        "Skirt",
+        "Legs",
+        "Mount",
+    ]
+    person = API.FindMobile(API.RequestAnyTarget())  # pyright:ignore
+    if not person:
+        API.Stop()
+
+    for y in LAYERS:
+        item = API.FindLayer(y, person)
+        if item:
+            item.SetHue(hue)
+
+
+# for item in skill_jewelry_finder(min=30):
+#     API.MoveItem(item, API.Backpack)
+#     API.Pause(0.633)
+
+
+def move_resource_box(source=None, destination=None):
+    GUMP_ID = 0x23D0F169
+    ITEM_RE = re.compile(r"^([A-Za-z]+)$", re.MULTILINE)
+    QTY_RE = re.compile(r"^(\d+)$", re.MULTILINE)
+    BUTTON_RE = re.compile(
+        r"^button\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+)$", re.MULTILINE
+    )
+
+    def parse_gump_packet_text(text):
+        item_names = ITEM_RE.findall(text)
+        quantities = QTY_RE.findall(text)
+        button_ids = [int(b) for b in BUTTON_RE.findall(text) if int(b) >= 100]
+
+        items = list(zip(item_names, [int(q) for q in quantities]))
+        paired = list(zip(items, button_ids))
+
+        return [btn for (_, qty), btn in paired if qty > 0]
+
+    if not source:
+        h("target source resource box")
+        tar = API.RequestTarget(30)
+        if not tar:
+            return
+        source = API.FindItem(tar)
+
+    if not destination:
+        h("target destination resource box")
+        tar = API.RequestTarget(30)
+        if not tar:
+            return
+        destination = API.FindItem(tar)
+
+    # open destination gump
+    API.UseObject(destination)
+    API.WaitForGump(GUMP_ID)
+    # click button
+    API.ReplyGump(1, GUMP_ID)
+    API.WaitForTarget()
+
+    # open source gump
+    API.UseObject(source)
+    API.WaitForGump(GUMP_ID)
+    # should still have cursor
+
+    while API.HasGump(GUMP_ID):
+        text = API.GetGump(GUMP_ID).PacketGumpText
+        buttons = parse_gump_packet_text(text)
+
+        if not buttons:
+            return
+
+        btn = buttons.pop()
+
+        if API.Player.WeightMax - API.Player.Weight < 50:
+            API.Target(API.Backpack)
+            API.WaitForTarget()
+
+        API.ReplyGump(btn, GUMP_ID)
+        API.WaitForGump(GUMP_ID)
+
+    # workaround since same gump id
+    # click "add"
+    # parse gumps
+    # click buttons
+    # target backpack
+
+    # while API.HasGump():
+    #     text = API.GetGump(0x23D0F169).PacketGumpText
+    #     buttons = parse_gump_packet_text(text)
+
+
+move_resource_box()

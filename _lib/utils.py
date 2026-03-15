@@ -7,16 +7,14 @@ Note: API module is injected by Legion engine at runtime as a global.
 Import is wrapped in try/except for type hints in editors.
 """
 
-# pyright: basic
-# Try to import API for type hints, but don't fail if unavailable
-try:
-    import API
-except (ImportError, NameError):
-    pass  # API is injected at runtime by Legion engine
-
-from typing import List, cast
+import subprocess
+from typing import TYPE_CHECKING, List, cast
 
 from _lib.persistence import load_int, save_int
+
+if TYPE_CHECKING:
+    import API
+
 
 NOTORIETY_FRIENDLY = cast(
     List[API.Notoriety], [API.Notoriety.Ally, API.Notoriety.Innocent]
@@ -30,6 +28,16 @@ NOTORIETY_ENEMY = cast(
         API.Notoriety.Criminal,
     ],
 )
+
+
+class ScriptError(Exception):
+    def __init__(self, msg: str, hue: int = 32):
+        super().__init__(msg)
+        self.msg = msg
+        self.hue = hue
+
+    def __repr__(self) -> str:
+        return f"ScriptError(msg={self.msg!r}, hue={self.hue!r})"
 
 
 class Hue:
@@ -191,3 +199,23 @@ def format_time_remaining(seconds):
     if hours > 0:
         return f"{hours}h {minutes}m"
     return f"{minutes}m"
+
+
+def play_audio(
+    path: str = "/usr/share/sounds/ocean/stereo/phone-incoming-call.oga",
+):
+    """
+    Play an audio file using ffplay.
+
+    Args:
+        path: Path to the audio file
+        timeout: Maximum time to wait for the audio to finish (in seconds)
+    """
+    subprocess.call(
+        [
+            "ffplay",
+            "-nodisp",
+            "-autoexit",
+            path,
+        ],
+    )

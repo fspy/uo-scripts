@@ -8,13 +8,13 @@ Usage:
     Or import: from gathering.niter import mine_niter
 """
 
-# API is injected at runtime by Legion engine
-try:
-    import API
-except (ImportError, NameError):
-    pass
+from typing import TYPE_CHECKING
 
 from _lib.utils import Hue, p
+
+if TYPE_CHECKING:
+    import API
+
 
 # Niter deposit graphics (various states)
 NITER_GRAPHICS = [0x1361, 0x1367, 0x1364, 0x1365]

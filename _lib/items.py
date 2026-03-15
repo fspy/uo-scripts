@@ -1,12 +1,11 @@
 """Shared item moving utilities for Legion scripts."""
 
-# pyright: basic
-try:
-    import API
-except (ImportError, NameError):
-    pass
+from typing import TYPE_CHECKING
 
 from _lib.utils import h
+
+if TYPE_CHECKING:
+    import API
 
 
 def move_item_robust(serial, dest, amount, max_retries=5):

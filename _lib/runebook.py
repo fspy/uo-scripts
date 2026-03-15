@@ -1,12 +1,10 @@
 """Shared runebook interaction and travel utilities for Legion scripts."""
 
-# pyright: basic
 import time
+from typing import TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
     import API
-except (ImportError, NameError):
-    pass
 
 RUNEBOOK_GRAPHIC = 0x22C5
 RUNEBOOK_GUMP_ID = 0x59

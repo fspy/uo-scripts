@@ -6,15 +6,12 @@ Note: API module is injected by Legion engine at runtime as a global.
 Import is wrapped in try/except for type hints in editors.
 """
 
-# pyright: basic
-
-# Try to import API for type hints, but don't fail if unavailable
-try:
-    import API
-except (ImportError, NameError):
-    pass  # API is injected at runtime by Legion engine
+from typing import TYPE_CHECKING
 
 from _lib.utils import Hue, p
+
+if TYPE_CHECKING:
+    import API
 
 # Set Permission gump ID (Co-Owner selection)
 SET_PERMISSION_GUMP_ID = 0x29B6C49

@@ -7,12 +7,10 @@ Note: API module is injected by Legion engine at runtime as a global.
 Import is wrapped in try/except for type hints in editors.
 """
 
-# pyright: basic
-# Try to import API for type hints, but don't fail if unavailable
-try:
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
     import API
-except (ImportError, NameError):
-    pass  # API is injected at runtime by Legion engine
 
 
 def is_heavy(buffer: int = 50) -> bool:

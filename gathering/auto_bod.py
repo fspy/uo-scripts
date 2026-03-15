@@ -13,12 +13,13 @@ Usage:
 
 import re
 import time
+from typing import cast
 
 import API
 from _lib.persistence import load_int, save_int
 from _lib.utils import Hue, h, p
 
-HOME = {"x": 1616, "y": 729, "z": 13, "map": 0}
+HOME = {"x": 1871, "y": 2494, "z": 7, "map": 0}
 LUNA_EAST = {"x": 996, "y": 520, "z": -50, "map": 3}
 LUNA_WEST = {"x": 984, "y": 520, "z": -50, "map": 3}
 
@@ -62,7 +63,9 @@ LAST_RUN_KEY = "BODLastRun"
 
 def check_daily_run_guard():
     """Check if 18 hours have passed since last run. Exit if not ready."""
-    last_run = load_int(LAST_RUN_KEY, default=0, scope=API.PersistentVar.Char)
+    last_run = load_int(
+        LAST_RUN_KEY, default=0, scope=cast(API.PersistentVar, API.PersistentVar.Char)
+    )
 
     if last_run == 0:
         return
@@ -78,7 +81,11 @@ def check_daily_run_guard():
 
 def save_last_run():
     """Save current timestamp as last successful run."""
-    save_int(LAST_RUN_KEY, int(time.time()), scope=API.PersistentVar.Char)
+    save_int(
+        LAST_RUN_KEY,
+        int(time.time()),
+        scope=cast(API.PersistentVar, API.PersistentVar.Char),
+    )
     p("BOD collection complete. Next run available in 18 hours.", Hue.Green)
 
 
@@ -154,6 +161,7 @@ def travel_to_location(loc):
     """Walk to a specific location within Luna."""
     for attempt in range(1, RETRY_ATTEMPTS + 1):
         p(f"Walking to location (attempt {attempt}/{RETRY_ATTEMPTS})...")
+        API.Pause(0.7)
         API.Pathfind(loc["x"], loc["y"], loc["z"], distance=0, timeout=10)
 
         if wait_for_arrival(loc, range=0, timeout=8.0):

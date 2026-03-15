@@ -11,8 +11,12 @@ Usage:
     from skills.trainer import arms_lore, hiding
 """
 
+from time import time
+
 import API
 from _lib.utils import Hue, h, p
+
+TRACKING_GUMP = 0xB16E7D71
 
 # Skill configurations
 # Format: skill_name: {"targeted": bool, "pause": float}
@@ -23,20 +27,18 @@ SKILL_CONFIGS = {
     "Detecting Hidden": {"targeted": True, "pause": 10},
     "Begging": {"targeted": True, "pause": 1.0},
     "Hiding": {"targeted": False, "pause": 1.0},
-    "Poisoning": {"targeted": True, "pause": 10.0},
-    "Stealing": {"targeted": True, "pause": 9.0},
+    "Poisoning": {"handler": "poisoning"},
+    "Stealing": {"handler": "steal"},
+    "Tracking": {"handler": "tracking"},
 }
 
 
 def train_skill(skill_name: str, target=None, pause=None):
-    """
-    Train a skill until capped.
+    handler_name = SKILL_CONFIGS.get(skill_name, {}).get("handler")
+    if handler_name:
+        globals()[handler_name]()
+        return
 
-    Args:
-        skill_name: Name of skill to train (e.g., "Arms Lore")
-        target: Target serial (if targeted skill). If None, prompts user.
-        pause: Seconds to pause between attempts (uses config default if None)
-    """
     config = SKILL_CONFIGS.get(skill_name, {"targeted": True, "pause": 0.85})
     if pause is None:
         pause = config["pause"]
@@ -155,6 +157,28 @@ def steal(item_serial: int):
             API.Organizer("stealing")
 
         API.Pause(9)
+
+
+def tracking():
+    """Train Tracking - requires gump interaction."""
+    skill = API.GetSkill("Tracking")
+    p(f"Training Tracking to {skill.Cap}...", Hue.Green)
+
+    while skill.Value < skill.Cap and not API.StopRequested:
+        API.UseSkill("Tracking")
+        if API.WaitForTarget(timeout=1.0):
+            API.TargetSelf()
+
+        start = time()
+        while not API.HasGump(TRACKING_GUMP):
+            if time() - start > 3:
+                break
+            API.Pause(0.1)
+
+        if API.HasGump(TRACKING_GUMP):
+            API.ReplyGump(1, TRACKING_GUMP)
+
+        API.Pause(10.5)
 
 
 def show_skill_gump():

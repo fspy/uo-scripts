@@ -12,15 +12,14 @@ Usage:
     crafter.process_bods()
 """
 
-from typing import Dict, List, Optional, Tuple
-
-try:
-    import API
-except:
-    pass
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from _lib.persistence import load_int, save_int
 from _lib.utils import Hue, p, stop_script
+
+if TYPE_CHECKING:
+    import API
+
 
 # Ingot graphic and hues
 INGOT_GRAPHIC = 0x1BF2

@@ -1,8 +1,4 @@
-import json
-import re
 import time
-from collections import defaultdict
-from pathlib import Path
 
 import API
 from _lib.items import drop_all_items_at_home
@@ -582,18 +578,6 @@ consecutive_failures = 0
 # Track apparent stuck state (no movement) for recovery
 stuck_checks = 0
 
-LOG_FILE = Path(__file__).parent.parent / "gathering" / "resource_log.json"
-
-if LOG_FILE.exists():
-    with open(LOG_FILE, "r") as f:
-        data = json.load(f)
-        loaded = {
-            material: [tuple(coord) for coord in coord_list]
-            for material, coord_list in data.items()
-        }
-        ores = defaultdict(list, loaded)
-else:
-    ores = defaultdict(list)
 
 while not API.StopRequested:
     # If we haven't moved for a while, try to bail out safely.
@@ -756,16 +740,6 @@ while not API.StopRequested:
         mine_once(shovel, x_off, y_off)
         consecutive_failures = 0  # Reset after successful mining action
 
-        ore_journal = API.GetJournalEntries(MINING_DELAY * 2)
-        if ore_journal:
-            for oj in ore_journal:
-                match = re.match(r"You dig some (?!iron )(.+?) ore", oj.Text)
-                if match:
-                    ore_type = match.group(1).lower()
-                    coord = (API.Player.X + x_off, API.Player.Y + y_off)
-                    if coord not in ores[ore_type]:
-                        ores[ore_type].append(coord)
-
         API.ClearJournal("$You dig some (.+) ore")
 
         if should_mark_depleted():
@@ -779,7 +753,5 @@ while not API.StopRequested:
         depleted_offsets.clear()
         API.Pause(ALL_DEPLETED_PAUSE)
 
-    with open(LOG_FILE, "w") as f:
-        json.dump(ores, f)
 
 API.SysMsg("Mining script finished")

@@ -7,17 +7,16 @@ Note: API module is injected by Legion engine at runtime as a global.
 Import is wrapped in try/except for type hints in editors.
 """
 
-# pyright: basic
 import json
+from typing import TYPE_CHECKING, cast
 
-# Try to import API for type hints, but don't fail if unavailable
-try:
+if TYPE_CHECKING:
     import API
-except (ImportError, NameError):
-    pass  # API is injected at runtime by Legion engine
 
 
-def load_int(key: str, default: int = 0, scope=None) -> int:
+def load_int(
+    key: str, default: int = 0, scope: API.PersistentVar = cast(API.PersistentVar, 1)
+) -> int:
     """
     Load a persistent integer variable.
     Accepts either decimal or hex strings.
@@ -30,9 +29,6 @@ def load_int(key: str, default: int = 0, scope=None) -> int:
     Returns:
         Integer value or default if not found/invalid
     """
-    if scope is None:
-        scope = API.PersistentVar.Char
-
     value_str = API.GetPersistentVar(key, str(default), scope)
     try:
         value = int(str(value_str).strip(), 0)
@@ -45,7 +41,9 @@ def load_int(key: str, default: int = 0, scope=None) -> int:
     return value
 
 
-def save_int(key: str, value: int, scope=None) -> None:
+def save_int(
+    key: str, value: int, scope: API.PersistentVar = cast(API.PersistentVar, 1)
+) -> None:
     """
     Save a persistent integer variable.
 
@@ -54,14 +52,14 @@ def save_int(key: str, value: int, scope=None) -> None:
         value: Integer value to save
         scope: PersistentVar scope (defaults to Char)
     """
-    if scope is None:
-        scope = API.PersistentVar.Char
-
     API.SavePersistentVar(key, str(int(value)), scope)
 
 
 def setup_target(
-    key: str, prompt: str, verify_in_range: bool = True, scope=None
+    key: str,
+    prompt: str,
+    verify_in_range: bool = True,
+    scope: API.PersistentVar = cast(API.PersistentVar, 1),
 ) -> int:
     """
     Load persisted serial, verify it exists, or prompt user to target.
@@ -79,8 +77,6 @@ def setup_target(
     Returns:
         Serial number, or 0 if setup failed
     """
-    if scope is None:
-        scope = API.PersistentVar.Char
 
     # Try loading persisted serial
     saved = API.GetPersistentVar(key, "0", scope)
@@ -122,7 +118,9 @@ def setup_target(
     return target
 
 
-def load_json(key: str, default=None, scope=None):
+def load_json(
+    key: str, default=None, scope: API.PersistentVar = cast(API.PersistentVar, 1)
+):
     """
     Load JSON data from persistent storage.
 
@@ -138,8 +136,6 @@ def load_json(key: str, default=None, scope=None):
         pos = load_json("GumpPosition", default={"x": 100, "y": 100})
         timers = load_json("Timers", default={}, scope=API.PersistentVar.Server)
     """
-    if scope is None:
-        scope = API.PersistentVar.Char
 
     raw = API.GetPersistentVar(key, "", scope)
 
@@ -152,7 +148,9 @@ def load_json(key: str, default=None, scope=None):
         return default
 
 
-def save_json(key: str, data, scope=None) -> None:
+def save_json(
+    key: str, data, scope: API.PersistentVar = cast(API.PersistentVar, 1)
+) -> None:
     """
     Save JSON-serializable data to persistent storage.
 
@@ -165,8 +163,6 @@ def save_json(key: str, data, scope=None) -> None:
         save_json("GumpPosition", {"x": 150, "y": 200})
         save_json("Timers", timer_dict, scope=API.PersistentVar.Server)
     """
-    if scope is None:
-        scope = API.PersistentVar.Char
 
     raw = json.dumps(data)
     API.SavePersistentVar(key, raw, scope)
