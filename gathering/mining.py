@@ -3,7 +3,7 @@ import time
 import API
 from _lib.items import drop_all_items_at_home
 from _lib.persistence import load_int, save_int
-from _lib.recovery import is_stuck, shutdown_cleanly
+from _lib.recovery import Recovery
 from _lib.runebook import Runebook, recall_with_retry, wait_for_travel
 from _lib.utils import (
     count_items,
@@ -11,26 +11,19 @@ from _lib.utils import (
     stop_script,
     use_item_on_target,
 )
-from _lib.weight import is_heavy, is_overweight, is_overweight_by
+from _lib.weight import is_heavy, is_overweight
 
-# Mine using shovels only (stop script when out).
 SHOVEL_TYPE = 0x0F39
 
-# Ore graphics (update for your shard if needed)
-# Note: 0x19B7 is the "small" ore pile and often needs 2+ to smelt.
 ORE_TYPES = [0x19B8, 0x19B7, 0x19B9, 0x19BA]
 SMALL_ORE_TYPE = 0x19B7
 
-# Mining is stationary, so we can tolerate being overweight.
-# Start smelting once we reach (WeightMax + allowance).
 SMELT_OVERWEIGHT_ALLOWANCE = -30
 INGOT_DROP_THRESHOLD = 2000
 
 MINING_DELAY = 0.5
 SMELT_DELAY = 0.5
 
-# If you're standing at the crosspoint of 4 adjacent 8x8 resource grids,
-# these 4 diagonal tiles typically land inside each grid.
 MINE_OFFSETS = [
     (1, 1),
     (-1, 1),
@@ -38,7 +31,6 @@ MINE_OFFSETS = [
     (-1, -1),
 ]
 
-# Journal texts that indicate the current tile has no ore left.
 DEPLETED_MSGS = [
     "There is no metal here to mine.",
     "There is no ore here to mine.",
@@ -46,19 +38,15 @@ DEPLETED_MSGS = [
     "You can't mine that.",
 ]
 
-# How long to wait after all 4 tiles are depleted.
-# NOTE: This is replaced by runebook travel when enabled
 ALL_DEPLETED_PAUSE = 15.0
 
-# Fire Beetle auto-detection
 FIRE_BEETLE_GRAPHIC = 0x00A9
 FIRE_BEETLE_HUE = 1161
 
-# Items to drop at home storage
 INGOT_TYPE = 0x1BF2
 BONUS_MINING_ITEMS = [
-    0xDF8,  # Large Jade Stone
-    0xF28,  # A Small Piece of Blackrock
+    0x0DF8,  # Large Jade Stone
+    0x0F28,  # A Small Piece of Blackrock
     0x1726,  # Small Jade Stone
     0x3192,  # Dark Sapphire
     0x3193,  # Turquoise
@@ -72,31 +60,28 @@ BONUS_MINING_ITEMS = [
 ]
 DROP_ITEM_TYPES = [INGOT_TYPE] + BONUS_MINING_ITEMS
 
-# Travel settings
-USE_SACRED_JOURNEY = False  # True = Chivalry Sacred Journey, False = Magery Recall
+USE_SACRED_JOURNEY = False
 MAX_TRAVEL_RETRIES = 3
 TRAVEL_RETRY_DELAY = 2.0
 
-# Recovery config
 MAX_CONSECUTIVE_FAILURES = 5
+SMELT_NO_PROGRESS_LIMIT = 8
 
 
-def find_shovel():
-    return API.FindType(SHOVEL_TYPE, API.Backpack)
+PERSIST_KEY_BEETLE = "Mining.FireBeetleSerial"
+PERSIST_KEY_MINING_BOOK = "Mining.MiningRunebookSerial"
+PERSIST_KEY_HOME_RUNE = "Mining.HomeRuneSerial"
+PERSIST_KEY_DROP_CONTAINER = "Mining.DropContainerSerial"
+PERSIST_KEY_CURRENT_SPOT = "Mining.CurrentSpotIndex"
 
 
 def find_smeltable_ore():
-    # On this shard, the small ore pile (0x19B7) needs at least 2.
     for ore_type in ORE_TYPES:
         required = 2 if ore_type == SMALL_ORE_TYPE else 1
         ore = API.FindType(ore_type, API.Backpack, minamount=required)
         if ore:
             return ore
     return None
-
-
-def should_mark_depleted() -> bool:
-    return API.InJournalAny(DEPLETED_MSGS)
 
 
 def mine_once(shovel, x_offset: int, y_offset: int) -> bool:
@@ -111,13 +96,7 @@ def mine_once(shovel, x_offset: int, y_offset: int) -> bool:
     return True
 
 
-SMELT_NO_PROGRESS_LIMIT = 8
-
-
 def smelt_all_ore(beetle_serial: int) -> int:
-    # Smelt everything we can.
-    # Small ore (0x19B7) requires 2+; other ore types can smelt at 1.
-    # Returns (possibly updated) beetle serial.
     no_progress = 0
 
     while not API.StopRequested:
@@ -134,7 +113,6 @@ def smelt_all_ore(beetle_serial: int) -> int:
 
         API.ClearJournal()
 
-        # Cancel any pending target cursor before starting (lag protection)
         if API.HasTarget("any"):
             API.CancelTarget()
             API.Pause(0.1)
@@ -143,19 +121,16 @@ def smelt_all_ore(beetle_serial: int) -> int:
             stop_script("No fire beetle serial set; stopping", 32)
             return 0
 
-        # Use ore and target the beetle (robust against lag)
         if not use_item_on_target(
             ore.Serial,
             beetle_serial,
             timeout=2.0,
             delay=SMELT_DELAY,
         ):
-            # No target cursor appeared - server might be lagging
             no_progress += 1
             API.Pause(SMELT_DELAY)
             continue
 
-        # If target cursor is still up, targeting failed (lag spike)
         if API.HasTarget("any"):
             API.CancelTarget()
             API.Pause(0.1)
@@ -190,51 +165,26 @@ def smelt_all_ore(beetle_serial: int) -> int:
             no_progress += 1
 
         if no_progress >= SMELT_NO_PROGRESS_LIMIT:
-            # Prefer auto-reacquire (beetle might have come into range) before prompting.
             detected = find_fire_beetle()
             if detected:
                 beetle_serial = detected
-                save_beetle_serial(beetle_serial)
-                API.SysMsg(f"Reacquired fire beetle: {hex(beetle_serial)}", 68)
+                save_int(PERSIST_KEY_BEETLE, beetle)
                 no_progress = 0
                 continue
 
-            API.SysMsg("Smelting stuck; retarget your fire beetle", 32)
             new_beetle = API.RequestTarget()
             if not new_beetle:
                 stop_script("No beetle targeted; stopping", 32)
                 return beetle_serial
 
             beetle_serial = int(new_beetle)
-            save_beetle_serial(beetle_serial)
-            API.SysMsg(f"Updated beetle serial: {hex(beetle_serial)}")
+            save_int(PERSIST_KEY_BEETLE, beetle)
             no_progress = 0
 
     return beetle_serial
 
 
-PERSIST_KEY_BEETLE = "Mining.FireBeetleSerial"
-PERSIST_KEY_MINING_BOOK = "Mining.MiningRunebookSerial"
-PERSIST_KEY_HOME_RUNE = "Mining.HomeRuneSerial"
-PERSIST_KEY_DROP_CONTAINER = "Mining.DropContainerSerial"
-PERSIST_KEY_CURRENT_SPOT = "Mining.CurrentSpotIndex"
-
-
-def load_beetle_serial() -> int:
-    """Load beetle serial from persistent storage."""
-    return load_int(PERSIST_KEY_BEETLE, 0)
-
-
-def save_beetle_serial(serial: int) -> None:
-    """Save beetle serial to persistent storage."""
-    save_int(PERSIST_KEY_BEETLE, serial)
-
-
 def find_fire_beetle() -> int:
-    """
-    Find nearest fire beetle by graphic and hue.
-    Returns serial or 0 if not found.
-    """
     mobiles = API.GetAllMobiles(graphic=FIRE_BEETLE_GRAPHIC)
     if not mobiles:
         return 0
@@ -247,35 +197,28 @@ def find_fire_beetle() -> int:
 
 
 def wait_for_beetle(timeout: float = 15.0) -> int:
-    """Wait for fire beetle to arrive (post-recall or desync recovery)."""
     beetle = find_fire_beetle()
     if beetle:
         return beetle
 
-    API.SysMsg("Waiting for beetle to arrive...")
     deadline = time.time() + timeout
 
     while time.time() < deadline and not API.StopRequested:
         beetle = find_fire_beetle()
         if beetle:
-            API.SysMsg("Beetle arrived!")
             return beetle
         API.Pause(1.0)
 
-    API.SysMsg("Beetle did not arrive within timeout", 32)
     return 0
 
 
 def drop_ore_until_not_overweight() -> None:
-    API.SysMsg("Overweight with no beetle; dropping ore until safe", 32)
-
     while is_overweight() and not API.StopRequested:
         ore_items = []
         for ore_type in ORE_TYPES:
             ore_items.extend(API.FindTypeAll(ore_type, API.Backpack) or [])
 
         if not ore_items:
-            API.SysMsg("No ore found to drop, but still overweight", 32)
             return
 
         def sort_key(item):
@@ -290,21 +233,10 @@ def drop_ore_until_not_overweight() -> None:
 
 
 def ensure_beetle_or_dump_and_recall(
-    beetle_serial: int,
-    home_rune_serial: int,
-    *,
-    wait_timeout: float = 60.0,
+    beetle_serial: int, home_rune_serial: int, wait_timeout: float = 60.0
 ) -> int:
-    """Ensure beetle is present; else drop ore until recall is possible.
-
-    If the beetle can't be found within ``wait_timeout``, we drop ore until we are
-    no longer overweight, then recall home.
-
-    Returns the beetle serial if found, or 0 if we had to bail out.
-    """
     beetle = find_fire_beetle() or beetle_serial
 
-    # If the client hasn't synced the beetle yet, wait.
     if not find_fire_beetle():
         beetle = wait_for_beetle(timeout=wait_timeout) or beetle
 
@@ -322,282 +254,152 @@ def ensure_beetle_or_dump_and_recall(
 
 
 def smelt_before_travel(beetle_serial: int) -> int:
-    """
-    Smelt all ore before traveling to reduce weight.
-    Returns (possibly updated) beetle serial.
-    """
     if find_smeltable_ore():
-        API.SysMsg("Smelting before travel...")
         beetle_serial = smelt_all_ore(beetle_serial)
-
-    # Check if at max weight after smelting
-    if is_overweight():
-        API.SysMsg("WARNING: Overweight after smelting - recall may fail!", 32)
-
     return beetle_serial
 
 
 def setup_travel_targets():
-    """
-    Load or prompt for mining runebook, home rune, and drop container.
-    Returns: (mining_runebook_serial, home_rune_serial, drop_container_serial, current_spot_index)
-    """
-    # Load mining runebook
     mining_book = load_int(PERSIST_KEY_MINING_BOOK, 0)
     if not mining_book:
-        API.SysMsg("Target your mining runebook (with all mining spots)")
         mining_book = API.RequestTarget()
         if mining_book:
             save_int(PERSIST_KEY_MINING_BOOK, mining_book)
-            API.SysMsg(f"Saved mining runebook: {hex(mining_book)}")
-        else:
-            API.SysMsg("No mining runebook targeted")
-    else:
-        API.SysMsg(f"Using saved mining runebook: {hex(mining_book)}")
 
-    # Load home rune/book
     home_rune = load_int(PERSIST_KEY_HOME_RUNE, 0)
     if not home_rune:
-        API.SysMsg("Target your home rune or runebook (for banking)")
         home_rune = API.RequestTarget()
         if home_rune:
             save_int(PERSIST_KEY_HOME_RUNE, home_rune)
-            API.SysMsg(f"Saved home rune: {hex(home_rune)}")
-        else:
-            API.SysMsg("No home rune targeted")
-    else:
-        API.SysMsg(f"Using saved home rune: {hex(home_rune)}")
 
-    # Load drop container
     drop_container = load_int(PERSIST_KEY_DROP_CONTAINER, 0)
     if not drop_container:
-        API.SysMsg("Target your storage container at home (for dropping ingots)")
         drop_container = API.RequestTarget()
         if drop_container:
             save_int(PERSIST_KEY_DROP_CONTAINER, drop_container)
-            API.SysMsg(f"Saved drop container: {hex(drop_container)}")
-        else:
-            API.SysMsg("No drop container targeted")
-    else:
-        API.SysMsg(f"Using saved drop container: {hex(drop_container)}")
 
-    # Load current spot index
     current_spot = load_int(PERSIST_KEY_CURRENT_SPOT, 0)
-    API.SysMsg(f"Current mining spot index: {current_spot}")
 
     return mining_book, home_rune, drop_container, current_spot
 
 
 def recall_to_mining_spot(runebook: Runebook, index: int) -> bool:
-    """
-    Recall to a specific mining spot with retry logic.
-    Returns True if successful, False otherwise.
-    """
     for attempt in range(1, MAX_TRAVEL_RETRIES + 1):
-        API.SysMsg(
-            f"Recalling to mining spot {index} (attempt {attempt}/{MAX_TRAVEL_RETRIES})"
-        )
-
         if USE_SACRED_JOURNEY:
             success = runebook.sacred_journey_to_index(index)
         else:
             success = runebook.recall_to_index(index)
 
         if success and wait_for_travel():
-            API.SysMsg(f"Successfully recalled to spot {index}")
             dismount_if_mounted()
             return True
 
         if attempt < MAX_TRAVEL_RETRIES:
-            API.SysMsg(f"Travel failed, retrying in {TRAVEL_RETRY_DELAY}s...")
             API.Pause(TRAVEL_RETRY_DELAY)
 
-    API.SysMsg(f"Failed to recall to spot {index} after {MAX_TRAVEL_RETRIES} attempts")
     return False
 
 
 def recall_to_next_spot(runebook: Runebook, current_idx: int, max_spots: int) -> tuple:
-    """
-    Cycle to next mining spot and recall there.
-    Returns: (success: bool, new_index: int)
-    """
     next_idx = (current_idx + 1) % max_spots
-    API.SysMsg(f"All tiles depleted, moving to next spot: {current_idx} -> {next_idx}")
-
-    # Save the new index before traveling
     save_int(PERSIST_KEY_CURRENT_SPOT, next_idx)
-
     success = recall_to_mining_spot(runebook, next_idx)
     return success, next_idx
 
 
 def recall_home(home_serial: int) -> bool:
-    """
-    Cast Recall or Sacred Journey and target the home rune/book.
-    Returns True if successful, False otherwise.
-    """
-    API.SysMsg("Recalling home...")
-
-    if recall_with_retry(
+    return recall_with_retry(
         home_serial,
         max_retries=MAX_TRAVEL_RETRIES,
         retry_delay=TRAVEL_RETRY_DELAY,
         use_sacred_journey=USE_SACRED_JOURNEY,
-    ):
-        API.SysMsg("Successfully recalled home")
-        return True
-
-    API.SysMsg(f"Failed to recall home after {MAX_TRAVEL_RETRIES} attempts", 32)
-    return False
+    )
 
 
 def is_at_home(container_serial: int) -> bool:
-    """Check if drop container is in range (we're at home)."""
     if not container_serial:
         return False
     return API.FindItem(container_serial) is not None
 
 
-def drop_items_at_home(container_serial: int, item_types: list) -> int:
-    """
-    Move all items of specified types to the storage container.
-    Pathfinds to container, opens it, then moves items.
-    Returns: count of item stacks dropped
-    """
-    return drop_all_items_at_home(container_serial, item_types)
-
-
-# Try to auto-detect beetle first
 beetle = find_fire_beetle()
 
 if beetle:
-    API.SysMsg(f"Auto-detected fire beetle: {hex(beetle)}")
-    # Save for future use
-    save_beetle_serial(beetle)
+    save_int(PERSIST_KEY_BEETLE, beetle)
 else:
-    # Fall back to saved serial
-    beetle = load_beetle_serial()
+    beetle = load_int(PERSIST_KEY_BEETLE, 0)
 
     if not beetle:
-        # Finally, prompt for manual targeting
-        API.SysMsg("Target your fire beetle (for smelting)")
         beetle = API.RequestTarget()
         if beetle:
-            save_beetle_serial(beetle)
-    else:
-        API.SysMsg(f"Using saved beetle serial: {hex(beetle)}")
-
-# Don't force retarget on startup.
-# The client might not be aware of the beetle yet (range/visibility), but the serial
-# can still be valid. We'll only prompt to retarget if smelting makes no progress.
+            save_int(PERSIST_KEY_BEETLE, beetle)
 
 if not beetle:
     stop_script("No beetle targeted; stopping")
 
-API.SysMsg("Mining started (will smelt when heavy)")
 
-# Setup travel targets (mining runebook, home rune, drop container)
 mining_runebook_serial, home_rune_serial, drop_container_serial, current_spot_index = (
     setup_travel_targets()
 )
 
-# Initialize Runebook wrapper if we have a mining runebook
 mining_runebook = None
 if mining_runebook_serial:
     mining_runebook = Runebook(mining_runebook_serial)
-    API.SysMsg(f"Mining runebook initialized (current spot: {current_spot_index})")
 
-# Determine max spots (16 runes per runebook, 0-indexed)
 max_mining_spots = 16
 
-# Dismount before starting (mining requires being on foot)
 dismount_if_mounted()
 
-# Dirty state detection - check if at home with ingots
 if drop_container_serial and is_at_home(drop_container_serial):
     from _lib.utils import count_items
 
     ingots = count_items(INGOT_TYPE, API.Backpack)
     if ingots > 0:
-        API.SysMsg("Detected dirty state - at home with ingots, depositing...", 946)
-        dropped = drop_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
-        API.SysMsg(f"Dumped {dropped} stacks on startup", 946)
+        dropped = drop_all_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
 
-# Handle dirty state: if at home and heavy, dump first
 if drop_container_serial and is_at_home(drop_container_serial):
     if is_heavy():
-        API.SysMsg("Starting at home while heavy - dumping items first")
         beetle = smelt_before_travel(beetle)
-        dropped = drop_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
-        if dropped > 0:
-            API.SysMsg(f"Dumped {dropped} item stacks before starting")
+        dropped = drop_all_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
 
-# Recall to a mining spot before starting (if runebook configured)
 if mining_runebook:
-    # Do not travel if we can't actually mine.
-    shovel = find_shovel()
+    shovel = API.FindType(SHOVEL_TYPE, API.Backpack)
     if not shovel:
-        API.SysMsg("Out of shovels - not traveling", 32)
         API.Stop()
 
-    # If we aren't at home when we start, assume we're already "mid-run".
-    # In that case, skip to the next rune instead of recalling to the current one.
-    # This avoids: recalling to the same spot (no movement) + stuck detection.
     if drop_container_serial and not is_at_home(drop_container_serial):
-        API.SysMsg(
-            f"Mid-run restart detected; advancing spot {current_spot_index} -> {((current_spot_index + 1) % max_mining_spots)}",
-            946,
-        )
         current_spot_index = (current_spot_index + 1) % max_mining_spots
         save_int(PERSIST_KEY_CURRENT_SPOT, current_spot_index)
 
-    # Smelt any ore before traveling
     beetle = smelt_before_travel(beetle)
 
     if is_overweight():
-        API.SysMsg("Cannot recall - overweight; stopping", 32)
         API.Stop()
 
-    API.SysMsg(f"Recalling to mining spot {current_spot_index}...")
     if not recall_to_mining_spot(mining_runebook, current_spot_index):
         stop_script("Failed to recall to initial mining spot; stopping")
 
-    # Wait for beetle to arrive after teleport
     beetle = wait_for_beetle(timeout=15)
     if not beetle:
-        beetle = load_beetle_serial()  # Fall back to saved serial
+        beetle = load_int(PERSIST_KEY_BEETLE, 0)
     if not beetle:
         stop_script("Cannot find beetle after teleport; stopping")
 
-# Track depletion per offset so we can rotate through all 4 directions.
 depleted_offsets = set()
-
-# Track consecutive failures for recovery
 consecutive_failures = 0
-
-# Track apparent stuck state (no movement) for recovery
 stuck_checks = 0
-
+recovery = Recovery(home_rune_serial, 120)
 
 while not API.StopRequested:
-    # If we haven't moved for a while, try to bail out safely.
-    if is_stuck(timeout=120):
-        stuck_checks += 1
-        if stuck_checks >= 2:
-            API.SysMsg("Stuck detected; attempting to recall home", 32)
-            if shutdown_cleanly(home_rune_serial):
-                break
-            stop_script("Stuck and could not recall home")
+    if recovery.is_stuck():
+        if recovery.shutdown_cleanly():
             break
-    else:
-        stuck_checks = 0
+        stop_script("Stuck and could not recall home")
+        break
 
-    shovel = find_shovel()
+    shovel = API.FindType(SHOVEL_TYPE, API.Backpack)
     if not shovel:
-        API.SysMsg("Out of shovels; stopping")
-        # Recall home before stopping
         if home_rune_serial:
-            API.SysMsg("Recalling home...")
             beetle = smelt_before_travel(beetle)
             recall_with_retry(
                 home_rune_serial,
@@ -605,128 +407,92 @@ while not API.StopRequested:
                 retry_delay=TRAVEL_RETRY_DELAY,
                 use_sacred_journey=USE_SACRED_JOURNEY,
             )
+        stop_script("Out of shovels; stopping")
         break
 
-    if is_overweight_by(SMELT_OVERWEIGHT_ALLOWANCE):
-        API.SysMsg("Heavy (overweight allowance reached) -> smelting on beetle")
+    if is_overweight(SMELT_OVERWEIGHT_ALLOWANCE):
         beetle = ensure_beetle_or_dump_and_recall(beetle, home_rune_serial)
         if not beetle:
             break
 
         beetle = smelt_all_ore(beetle)
-        consecutive_failures = 0  # Reset on successful smelt
+        consecutive_failures = 0
 
-        # If we've reached the ingot drop threshold,
-        # travel home to drop items (if travel is configured)
         if count_items(INGOT_TYPE, API.Backpack) >= INGOT_DROP_THRESHOLD:
             if home_rune_serial and drop_container_serial:
-                API.SysMsg("Reached ingot drop threshold -> banking ingots at home")
-
-                # Travel home
                 if not recall_home(home_rune_serial):
-                    API.SysMsg("Failed to recall home; stopping")
                     consecutive_failures += 1
                     if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                        API.SysMsg(
-                            f"Too many failures ({consecutive_failures}) - attempting recovery",
-                            32,
-                        )
-                        if shutdown_cleanly(home_rune_serial):
+                        if recovery.shutdown_cleanly():
                             break
                         stop_script("Recovery failed - stopping")
                     break
 
-                # Drop ingots and other configured items
-                dropped = drop_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
-                consecutive_failures = 0  # Reset on successful banking
+                dropped = drop_all_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
+                consecutive_failures = 0
 
                 if dropped == 0:
-                    API.SysMsg("No items to drop but ingot threshold reached; stopping")
+                    stop_script(
+                        "No items to drop but ingot threshold reached; stopping"
+                    )
                     break
 
-                # Return to current mining spot
                 if mining_runebook:
                     if not recall_to_mining_spot(mining_runebook, current_spot_index):
-                        API.SysMsg("Failed to return to mining spot; stopping")
                         consecutive_failures += 1
                         if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                            API.SysMsg(
-                                f"Too many failures ({consecutive_failures}) - attempting recovery",
-                                32,
-                            )
-                            if shutdown_cleanly(home_rune_serial):
+                            if recovery.shutdown_cleanly():
                                 break
                             stop_script("Recovery failed - stopping")
                         break
 
-                    # Wait for beetle to arrive after teleport
                     beetle = wait_for_beetle(timeout=15)
                     if not beetle:
-                        beetle = load_beetle_serial()  # Fall back to saved serial
+                        beetle = load_int(PERSIST_KEY_BEETLE, 0)
                     if not beetle:
-                        API.SysMsg("Cannot find beetle after teleport; stopping")
                         break
-                    consecutive_failures = 0  # Reset on successful return
+                    consecutive_failures = 0
                 else:
-                    API.SysMsg("No mining runebook configured; cannot return to spot")
                     break
             else:
-                API.SysMsg("Still heavy but no home/container configured; stopping")
                 break
 
         API.Pause(0.25)
         continue
 
-    # If all 4 tiles are depleted, travel to next spot (if runebook configured)
     if len(depleted_offsets) >= len(MINE_OFFSETS):
         depleted_offsets.clear()
 
         if mining_runebook:
-            API.SysMsg("All 4 mining tiles depleted")
-
-            # Smelt ore before traveling (while beetle is still here)
             beetle = smelt_before_travel(beetle)
 
-            # Check if overweight after smelting
             if is_overweight():
-                API.SysMsg("Overweight - need to bank before traveling")
                 if home_rune_serial and drop_container_serial:
-                    # Travel home
                     if not recall_home(home_rune_serial):
-                        API.SysMsg("Failed to recall home; stopping")
                         break
 
-                    # Drop ingots
-                    dropped = drop_items_at_home(drop_container_serial, DROP_ITEM_TYPES)
+                    dropped = drop_all_items_at_home(
+                        drop_container_serial, DROP_ITEM_TYPES
+                    )
 
                     if dropped == 0:
-                        API.SysMsg("No items to drop but still at max weight; stopping")
                         break
                 else:
-                    API.SysMsg("At max weight but no home configured; stopping")
                     break
 
-            API.SysMsg("Traveling to next spot")
-
-            # Recall to next spot and update index
             success, current_spot_index = recall_to_next_spot(
                 mining_runebook, current_spot_index, max_mining_spots
             )
 
             if not success:
-                API.SysMsg("Failed to travel to next spot; stopping")
                 break
 
-            # Wait for beetle to arrive after teleport
             beetle = wait_for_beetle(timeout=15)
             if not beetle:
-                beetle = load_beetle_serial()  # Fall back to saved serial
+                beetle = load_int(PERSIST_KEY_BEETLE)
             if not beetle:
-                API.SysMsg("Cannot find beetle after teleport; stopping")
                 break
         else:
-            # No runebook configured, fall back to waiting
-            API.SysMsg("All 4 mining tiles depleted; waiting")
             API.Pause(ALL_DEPLETED_PAUSE)
 
         continue
@@ -738,20 +504,16 @@ while not API.StopRequested:
 
         mined_any = True
         mine_once(shovel, x_off, y_off)
-        consecutive_failures = 0  # Reset after successful mining action
+        consecutive_failures = 0
 
         API.ClearJournal("$You dig some (.+) ore")
 
-        if should_mark_depleted():
+        if API.InJournalAny(DEPLETED_MSGS):
             depleted_offsets.add((x_off, y_off))
 
         API.Pause(0.25)
         break
 
     if not mined_any:
-        # Shouldn't happen, but prevents a tight loop.
         depleted_offsets.clear()
         API.Pause(ALL_DEPLETED_PAUSE)
-
-
-API.SysMsg("Mining script finished")
