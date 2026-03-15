@@ -1,5 +1,3 @@
-"""Shared runebook interaction and travel utilities for Legion scripts."""
-
 import time
 from typing import TYPE_CHECKING
 
@@ -9,35 +7,29 @@ if TYPE_CHECKING:
 RUNEBOOK_GRAPHIC = 0x22C5
 RUNEBOOK_GUMP_ID = 0x59
 
-# Button formula: recall_button = 50 + rune_index
 RECALL_BUTTON_BASE = 50
 RECALL_BUTTON_STRIDE = 1
 
-# Sacred Journey: 6 + (rune_index * 6)
 SJ_BUTTON_BASE = 6
 SJ_BUTTON_STRIDE = 6
 
 TRAVEL_FAIL_MSGS = [
-    "You have not yet recovered",
-    "Spell fizzles",
-    "Target is blocked",
-    "You are not powerful enough",
+    "you have not yet recovered",
+    "spell fizzles",
+    "concentration is disturbed",
+    "target is blocked",
 ]
 
 
 class Runebook:
-    """Interact with a runebook via its gump."""
-
     def __init__(self, serial: int):
         self.serial = serial
 
     def open(self, timeout: float = 2.0) -> bool:
-        """Open the runebook gump."""
         API.UseObject(self.serial)
         return API.WaitForGump(RUNEBOOK_GUMP_ID, timeout)
 
     def recall_to_index(self, index: int) -> bool:
-        """Recall to rune at index (0-15). Returns True if button clicked."""
         if index < 0 or index > 15:
             API.SysMsg(f"Invalid rune index: {index}", 32)
             return False
@@ -53,7 +45,6 @@ class Runebook:
         return result
 
     def sacred_journey_to_index(self, index: int) -> bool:
-        """Sacred Journey to rune at index (0-15). Returns True if button clicked."""
         if index < 0 or index > 15:
             API.SysMsg(f"Invalid rune index: {index}", 32)
             return False

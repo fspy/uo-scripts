@@ -1,14 +1,4 @@
-"""Housing utilities for TazUO Legion Scripts.
-
-Provides helpers for house management tasks.
-
-Note: API module is injected by Legion engine at runtime as a global.
-Import is wrapped in try/except for type hints in editors.
-"""
-
 from typing import TYPE_CHECKING
-
-from _lib.utils import Hue, p
 
 if TYPE_CHECKING:
     import API
@@ -18,16 +8,7 @@ SET_PERMISSION_GUMP_ID = 0x29B6C49
 
 
 def auto_coown():
-    """
-    Monitors for Set Permission Gump and automatically sets to Co-Owner.
-
-    Run this when interacting with house signs to quickly set permissions.
-    Useful for managing multiple characters' access to a house.
-    """
-    p("Auto Co-Owner: Monitoring for permission gump...", Hue.Cyan)
-
     while not API.StopRequested:
         if API.HasGump(SET_PERMISSION_GUMP_ID):
-            p("Setting permission to Co-Owner!", Hue.Green)
-            API.ReplyGump(2)  # Button 2 = Co-Owner
+            API.ReplyGump(2)
         API.Pause(0.1)

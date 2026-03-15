@@ -1,27 +1,13 @@
-"""BOD crafting system with tool management, resource storage, and automation.
-
-This module provides classes for automating BOD (Bulk Order Deed) crafting:
-- ToolManager: Manages crafting tools and auto-replacement
-- ResourceStorage: Handles resource box withdrawals
-- CraftingEngine: Executes crafting operations with quality verification
-- BODCrafter: Main orchestrator for complete BOD automation
-
-Usage:
-    from _lib.crafting import BODCrafter
-    crafter = BODCrafter()
-    crafter.process_bods()
-"""
-
+import re
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from _lib.persistence import load_int, save_int
-from _lib.utils import Hue, p, stop_script
+from _lib.utils import Hue, h, p, stop_script
 
 if TYPE_CHECKING:
     import API
 
 
-# Ingot graphic and hues
 INGOT_GRAPHIC = 0x1BF2
 INGOT_HUES = {
     "Iron": 0x0,
@@ -35,7 +21,6 @@ INGOT_HUES = {
     "Valorite": 0x8AB,
 }
 
-# Profession defaults
 PROFESSION_DEFAULTS = {
     "Blacksmith": {
         "tool_type": 0x0FBB,
@@ -44,12 +29,8 @@ PROFESSION_DEFAULTS = {
     },
 }
 
-# Crafting database - organized by profession
-# Structure: profession -> item_name -> {"cat": category_button, "idx": item_index, "cost": ingot_cost}
-# Item button = 2 + (idx * 7)
 CRAFTING_DB = {
     "Blacksmith": {
-        # Category 1 - Armor (button 1)
         "ringmail gloves": {"cat": 1, "idx": 0, "cost": 10},
         "ringmail leggings": {"cat": 1, "idx": 1, "cost": 16},
         "ringmail sleeves": {"cat": 1, "idx": 2, "cost": 14},
@@ -80,7 +61,6 @@ CRAFTING_DB = {
         "gargish platemail kilt (female)": {"cat": 1, "idx": 27, "cost": 12},
         "gargish amulet": {"cat": 1, "idx": 28, "cost": 3},
         "britches of warding": {"cat": 1, "idx": 29, "cost": 18},
-        # Category 64 - Dragon/Artifact Armor (button 64)
         "dragon gloves": {"cat": 64, "idx": 0, "cost": 16},
         "dragon helm": {"cat": 64, "idx": 1, "cost": 20},
         "dragon leggings": {"cat": 64, "idx": 2, "cost": 28},
@@ -94,7 +74,6 @@ CRAFTING_DB = {
         "paladin's pauldron": {"cat": 64, "idx": 10, "cost": 25},
         "feudal collar": {"cat": 64, "idx": 11, "cost": 25},
         "tunic of the inferno": {"cat": 64, "idx": 12, "cost": 25},
-        # Category 36 - Polearms (button 36)
         "bardiche": {"cat": 36, "idx": 0, "cost": 18},
         "bladed staff": {"cat": 36, "idx": 1, "cost": 12},
         "double bladed staff": {"cat": 36, "idx": 2, "cost": 16},
@@ -113,7 +92,6 @@ CRAFTING_DB = {
         "dual pointed spear": {"cat": 36, "idx": 15, "cost": 16},
         "legacy of the crazed mage": {"cat": 36, "idx": 16, "cost": 18},
         "the reptile slayer": {"cat": 36, "idx": 17, "cost": 18},
-        # Category 8 - Helmets (button 8)
         "bascinet": {"cat": 8, "idx": 0, "cost": 15},
         "close helmet": {"cat": 8, "idx": 1, "cost": 15},
         "helmet": {"cat": 8, "idx": 2, "cost": 15},
@@ -131,7 +109,6 @@ CRAFTING_DB = {
         "royal circlet": {"cat": 8, "idx": 14, "cost": 6},
         "gemmed circlet": {"cat": 8, "idx": 15, "cost": 6},
         "helm of intuition": {"cat": 8, "idx": 16, "cost": 15},
-        # Category 43 - Bashing (button 43)
         "hammer pick": {"cat": 43, "idx": 0, "cost": 16},
         "mace": {"cat": 43, "idx": 1, "cost": 6},
         "maul": {"cat": 43, "idx": 2, "cost": 10},
@@ -151,7 +128,6 @@ CRAFTING_DB = {
         "disc mace": {"cat": 43, "idx": 16, "cost": 20},
         "barbarian's maul": {"cat": 43, "idx": 17, "cost": 20},
         "the demolisher": {"cat": 43, "idx": 18, "cost": 20},
-        # Category 15 - Shields (button 15)
         "buckler": {"cat": 15, "idx": 0, "cost": 10},
         "bronze shield": {"cat": 15, "idx": 1, "cost": 12},
         "heater shield": {"cat": 15, "idx": 2, "cost": 18},
@@ -168,12 +144,10 @@ CRAFTING_DB = {
         "gargish order shield": {"cat": 15, "idx": 13, "cost": 25},
         "aethena": {"cat": 15, "idx": 14, "cost": 25},
         "enigmatic shield": {"cat": 15, "idx": 15, "cost": 25},
-        # Category 50 - Cannons (button 50)
         "cannonball": {"cat": 50, "idx": 0, "cost": 12},
         "grapeshot": {"cat": 50, "idx": 1, "cost": 12},
         "culverin": {"cat": 50, "idx": 2, "cost": 12},
         "carronade": {"cat": 50, "idx": 3, "cost": 12},
-        # Category 22 - Bladed (button 22)
         "bone harvester": {"cat": 22, "idx": 0, "cost": 10},
         "broadsword": {"cat": 22, "idx": 1, "cost": 10},
         "crescent blade": {"cat": 22, "idx": 2, "cost": 14},
@@ -247,12 +221,10 @@ CRAFTING_DB = {
         "basilisk's tooth": {"cat": 22, "idx": 70, "cost": 12},
         "death's kiss": {"cat": 22, "idx": 71, "cost": 12},
         "insane blade": {"cat": 22, "idx": 72, "cost": 12},
-        # Category 57 - Throwing (button 57)
         "boomerang": {"cat": 57, "idx": 0, "cost": 5},
         "cyclone": {"cat": 57, "idx": 1, "cost": 9},
         "soul": {"cat": 57, "idx": 2, "cost": 9},
         "glaive": {"cat": 57, "idx": 3, "cost": 9},
-        # Category 29 - Axes (button 29)
         "axe": {"cat": 29, "idx": 0, "cost": 14},
         "battle axe": {"cat": 29, "idx": 1, "cost": 14},
         "double axe": {"cat": 29, "idx": 2, "cost": 12},
@@ -272,7 +244,6 @@ CRAFTING_DB = {
     },
 }
 
-# Resource box button mappings (100-108 for Iron-Valorite)
 RESOURCE_BOX_BUTTONS = {
     "Iron": 100,
     "Dull Copper": 101,
@@ -285,22 +256,18 @@ RESOURCE_BOX_BUTTONS = {
     "Valorite": 108,
 }
 
-# Tool type IDs
 TONGS_TYPE = 0x0FBB
 TINKER_TOOLS_TYPE = 0x1EB8
 SALVAGE_BAG_GRAPHIC = 0x0E76
 BLACKSMITH_TOOL_GROUND = 0x9A81
 TOOL_GROUND_RANGE = 3
 
-# Resource box gump ID
 RESOURCE_BOX_GUMP = 0x23D0F169
-
-# BOD gump IDs
+TINKER_GUMP = 0x38920ADB
 SMALL_BOD_GUMP = 0x5AFBD742
 LARGE_BOD_GUMP = 0xA125B54A
 BOD_ADD_ITEMS_BUTTON = 4
 
-# Material selection
 MATERIAL_MENU_BUTTON = 7
 MATERIAL_BUTTONS = {
     "Iron": 6,
@@ -314,14 +281,11 @@ MATERIAL_BUTTONS = {
     "Valorite": 62,
 }
 
-# System messages
 TOOL_BREAK_MESSAGE = "You have worn out your tool!"
 NOT_ENOUGH_MATERIALS = "You do not have sufficient"
 
 
 class ToolManager:
-    """Manages crafting tools with auto-replacement and inner bag searching."""
-
     def __init__(self):
         self.tinker_tools: List[int] = []
         self.tongs: Optional[int] = None
@@ -329,16 +293,13 @@ class ToolManager:
         self._scan_tools()
 
     def _scan_tools(self) -> None:
-        """Scan backpack and inner bags for tools."""
         self.tinker_tools = []
         self.tongs = None
         self.salvage_bag = None
 
-        # Search recursively in backpack
         self._scan_container(API.Backpack)
 
     def _scan_container(self, container_serial: int) -> None:
-        """Recursively scan a container for tools and salvage bag."""
         items = API.ItemsInContainer(container_serial, recursive=True)
         if not items:
             return
@@ -349,27 +310,23 @@ class ToolManager:
             elif item.Graphic == TONGS_TYPE:
                 self.tongs = item.Serial
             elif item.Graphic == SALVAGE_BAG_GRAPHIC:
-                # Check if it's actually named "Salvage Bag"
                 props = API.ItemNameAndProps(item.Serial, wait=True, timeout=1)
                 if props and "Salvage Bag" in props.split("\n")[0]:
                     self.salvage_bag = item.Serial
 
     def find_ground_tool(self) -> Optional[int]:
-        """Find blacksmith tool on ground within range."""
         item = API.FindType(BLACKSMITH_TOOL_GROUND, range=TOOL_GROUND_RANGE)
         if item and item.Distance <= TOOL_GROUND_RANGE:
             return item.Serial
         return None
 
     def has_blacksmith_tool(self) -> bool:
-        """Check if blacksmith tool (tongs) is available in backpack."""
         if self.tongs and API.FindItem(self.tongs):
             return True
         self._scan_tools()
         return self.tongs is not None
 
     def get_blacksmith_tool(self) -> Optional[int]:
-        """Get blacksmith tool serial. Checks ground first, then backpack."""
         ground_tool = self.find_ground_tool()
         if ground_tool:
             return ground_tool
@@ -378,7 +335,6 @@ class ToolManager:
         return self.tongs
 
     def has_tinker_tools(self, min_count: int = 2) -> bool:
-        """Check if minimum tinker tools are available."""
         valid_tools = []
         for serial in self.tinker_tools:
             if API.FindItem(serial):
@@ -389,50 +345,31 @@ class ToolManager:
         if len(self.tinker_tools) >= min_count:
             return True
 
-        # Rescan to be sure
         self._scan_tools()
         return len(self.tinker_tools) >= min_count
 
     def get_tinker_tool(self) -> Optional[int]:
-        """Get a tinker tool serial."""
         if not self.has_tinker_tools(min_count=1):
             return None
         return self.tinker_tools[0] if self.tinker_tools else None
 
     def ensure_tinker_tools(self) -> bool:
-        """Ensure we have at least 2 tinker tools, craft more if needed."""
         if self.has_tinker_tools(min_count=2):
             return True
 
-        p("Crafting additional tinker tools...", Hue.Yellow)
-
-        # Try to craft more tinker tools
         tool = self.get_tinker_tool()
         if not tool:
-            p("ERROR: No tinker tools available to craft more!", Hue.Red)
             return False
 
-        # Open tinker gump and craft tools
-        # This is simplified - actual implementation would navigate gump
         API.UseObject(tool)
         API.Pause(1.0)
 
-        # Rescan
         self._scan_tools()
         return self.has_tinker_tools(min_count=2)
 
     def handle_tool_break(self) -> bool:
-        """Handle tool breaking - replace and continue.
-
-        Returns:
-            True if successfully replaced tool, False if out of tools
-        """
-        p("Tool broke! Replacing...", Hue.Orange)
-
-        # Rescan tools
         self._scan_tools()
 
-        # For tongs, we need to craft a new one
         if not self.has_blacksmith_tool():
             if not self.craft_tongs():
                 return False
@@ -440,76 +377,51 @@ class ToolManager:
         return True
 
     def craft_tongs(self) -> bool:
-        """Craft new tongs using tinker tools.
-
-        Returns:
-            True if successfully crafted, False otherwise
-        """
         if not self.has_tinker_tools(min_count=1):
-            p("ERROR: No tinker tools to craft tongs!", Hue.Red)
             return False
-
-        p("Crafting new tongs...", Hue.Yellow)
 
         tool = self.get_tinker_tool()
         if not tool:
             return False
 
-        # Navigate tinker gump to craft tongs
-        # This would need the actual button sequence for tongs
         API.UseObject(tool)
-        API.WaitForGump(0x38920ADB, delay=2.0)  # Tinker gump ID
+        API.WaitForGump(TINKER_GUMP, delay=2.0)
 
-        if not API.HasGump(0x38920ADB):
+        if not API.HasGump(TINKER_GUMP):
             return False
 
-        # Navigate to tongs - these are example button IDs
-        API.ReplyGump(1, 0x38920ADB)  # Tools category
-        API.WaitForGump(0x38920ADB, delay=1.0)
-        API.ReplyGump(10, 0x38920ADB)  # Tongs item
-        API.WaitForGump(0x38920ADB, delay=1.0)
+        API.ReplyGump(1, TINKER_GUMP)
+        API.WaitForGump(TINKER_GUMP, delay=1.0)
+        API.ReplyGump(10, TINKER_GUMP)
+        API.WaitForGump(TINKER_GUMP, delay=1.0)
 
         API.Pause(1.0)
 
-        # Rescan
         self._scan_tools()
         return self.has_blacksmith_tool()
 
     def get_salvage_bag(self) -> Optional[int]:
-        """Get salvage bag serial."""
         if not self.salvage_bag:
             self._scan_tools()
         return self.salvage_bag
 
     def salvage_items(self, items: List[int]) -> bool:
-        """Salvage items using the salvage bag.
-
-        Args:
-            items: List of item serials to salvage
-
-        Returns:
-            True if salvage completed, False otherwise
-        """
         salvage_bag = self.get_salvage_bag()
         if not salvage_bag:
             p("WARNING: No salvage bag found!", Hue.Orange)
             return False
 
-        # Move items to salvage bag first
         for item_serial in items:
             API.MoveItem(item_serial, salvage_bag)
             API.Pause(0.5)
 
-        # Use context menu to salvage all
-        API.ContextMenu(salvage_bag, 2)  # Response 2 = salvage
+        API.ContextMenu(salvage_bag, 2)
         API.Pause(1.0)
 
         return True
 
 
 class ResourceStorage:
-    """Manages resource box interactions for material withdrawal."""
-
     RESOURCE_BOX_GUMP = 0x23D0F169
     RESOURCE_BOX_SERIAL_KEY = "ResourceBoxSerial"
 
@@ -518,31 +430,22 @@ class ResourceStorage:
         self._load_serial()
 
     def _load_serial(self) -> None:
-        """Load persisted resource box serial."""
         serial = load_int(self.RESOURCE_BOX_SERIAL_KEY, default=0)
         if serial:
-            # Verify it still exists
             item = API.FindItem(serial)
             if item and item.Distance <= 2:
                 self.serial = serial
 
     def _save_serial(self) -> None:
-        """Save resource box serial."""
         if self.serial:
             save_int(self.RESOURCE_BOX_SERIAL_KEY, self.serial)
 
     def find_resource_box(self) -> bool:
-        """Find and target the resource box near player.
-
-        Returns:
-            True if box found and accessible, False otherwise
-        """
         if self.serial:
             item = API.FindItem(self.serial)
             if item and item.Distance <= 2:
                 return True
 
-        # Need to ask user to target the box
         p("Please target your resource box...", Hue.Cyan)
         target = API.RequestTarget(timeout=10.0)
 
@@ -565,15 +468,6 @@ class ResourceStorage:
         return True
 
     def withdraw_material(self, material: str, amount: int) -> bool:
-        """Withdraw specific amount of material from resource box.
-
-        Args:
-            material: Material name (e.g., "Iron", "Shadow Iron")
-            amount: Amount to withdraw
-
-        Returns:
-            True if withdrawal successful, False otherwise
-        """
         if not self.find_resource_box():
             return False
 
@@ -586,7 +480,6 @@ class ResourceStorage:
             p("ERROR: No resource box serial available!", Hue.Red)
             return False
 
-        # Open resource box
         API.UseObject(self.serial)
         API.WaitForGump(self.RESOURCE_BOX_GUMP, delay=2.0)
 
@@ -596,11 +489,9 @@ class ResourceStorage:
 
         p(f"Withdrawing {amount} {material} ingots...", Hue.Cyan)
 
-        # Click material button repeatedly until we have enough
-        # The resource box auto-scales: 100, 10, or 1 based on availability
         ingots_in_pack = self._count_ingots(material)
         attempts = 0
-        max_attempts = amount  # Safety limit
+        max_attempts = amount
 
         while ingots_in_pack < amount and attempts < max_attempts:
             API.ReplyGump(button, self.RESOURCE_BOX_GUMP)
@@ -608,7 +499,6 @@ class ResourceStorage:
 
             new_count = self._count_ingots(material)
             if new_count == ingots_in_pack:
-                # No change - probably out of materials
                 p(f"WARNING: No more {material} ingots in resource box!", Hue.Red)
                 return False
 
@@ -624,7 +514,6 @@ class ResourceStorage:
         return True
 
     def _count_ingots(self, material: str) -> int:
-        """Count ingots of specific material in backpack."""
         hue = INGOT_HUES.get(material, 0)
         total = 0
         items = API.FindTypeAll(INGOT_GRAPHIC, API.Backpack, hue=hue) or []
@@ -634,8 +523,6 @@ class ResourceStorage:
 
 
 class CraftingEngine:
-    """Handles crafting operations with quality verification."""
-
     def __init__(self, tool_manager: ToolManager, profession: str = "Blacksmith"):
         self.tool_manager = tool_manager
         self.profession = profession
@@ -647,11 +534,6 @@ class CraftingEngine:
         self.make_last_button = defaults["make_last_button"]
 
     def open_gump(self) -> bool:
-        """Open the crafting gump using tongs.
-
-        Returns:
-            True if gump opened successfully
-        """
         tool = self.tool_manager.get_blacksmith_tool()
         if not tool:
             p("ERROR: No blacksmith tool available!", Hue.Red)
@@ -664,21 +546,11 @@ class CraftingEngine:
         return API.WaitForGump(self.gump_id)
 
     def get_buttons(self, recipe: dict) -> "tuple[int, int]":
-        """Get (category_button, item_button) from recipe."""
         cat = recipe["cat"]
         item_btn = 2 + (recipe["idx"] * 7)
         return (cat, item_btn)
 
     def craft_item(self, item_name: str, profession: str) -> Optional[int]:
-        """Craft a single item and return its serial if successful.
-
-        Args:
-            item_name: Name of item to craft
-            profession: Profession (e.g., "Blacksmith")
-
-        Returns:
-            Serial of crafted item, or None if failed
-        """
         prof_db = CRAFTING_DB.get(profession, {})
         recipe = prof_db.get(item_name.lower())
         if not recipe:
@@ -695,19 +567,13 @@ class CraftingEngine:
         API.ReplyGump(item_btn, self.gump_id)
         API.WaitForGump(self.gump_id, delay=2.0)
 
-        # Wait for crafting to complete
         API.Pause(1.0)
 
-        # Check for tool break
         if API.InJournal(TOOL_BREAK_MESSAGE, True):
             if not self.tool_manager.handle_tool_break():
                 return None
-            # Retry
             return self.craft_item(item_name, profession)
 
-        # Find the newly crafted item
-        # This is tricky - we need to identify what was just crafted
-        # For now, return None and track separately
         return None
 
     def craft_with_quality_check(
@@ -718,18 +584,6 @@ class CraftingEngine:
         needed: int,
         material: str = "Iron",
     ) -> Tuple[int, int]:
-        """Craft items and verify quality, returning exceptional and normal counts.
-
-        Args:
-            item_name: Name of item to craft
-            profession: Profession (e.g., "Blacksmith")
-            target_quality: "Exceptional" or "Normal"
-            needed: Number of items needed
-            material: Material type (e.g., "Iron", "Shadow Iron")
-
-        Returns:
-            Tuple of (exceptional_count, normal_count)
-        """
         exceptional_count = 0
         normal_count = 0
         max_attempts = needed * 3
@@ -742,20 +596,18 @@ class CraftingEngine:
             return (0, 0)
 
         cat_btn, item_btn = self.get_buttons(recipe)
-        material_btn = MATERIAL_BUTTONS.get(material, 6)  # default to Iron
+        material_btn = MATERIAL_BUTTONS.get(material, 6)
 
         while exceptional_count < needed and attempts < max_attempts:
             if not self.open_gump():
                 break
 
             if attempts == 0:
-                # Select material first
                 API.ReplyGump(MATERIAL_MENU_BUTTON, self.gump_id)
                 API.WaitForGump(self.gump_id)
                 API.ReplyGump(material_btn, self.gump_id)
                 API.WaitForGump(self.gump_id)
 
-                # Then navigate to item
                 API.ReplyGump(cat_btn, self.gump_id)
                 API.WaitForGump(self.gump_id)
                 API.ReplyGump(item_btn, self.gump_id)
@@ -785,8 +637,6 @@ class CraftingEngine:
 
 
 class BODCrafter:
-    """Main orchestrator for BOD crafting automation."""
-
     def __init__(self, profession: str = "Blacksmith"):
         self.profession = profession
         self.tool_manager = ToolManager()
@@ -796,12 +646,6 @@ class BODCrafter:
         self.max_weight = API.Player.WeightMax - 60
 
     def preflight_check(self) -> bool:
-        """Verify we can start crafting safely.
-
-        Returns:
-            True if all checks pass
-        """
-        # Check weight
         if API.Player.Weight > self.max_weight:
             p(
                 f"ERROR: Weight too high ({API.Player.Weight} > {self.max_weight})",
@@ -809,13 +653,11 @@ class BODCrafter:
             )
             return False
 
-        # Check item count
         item_count = API.Contents(API.Backpack)
         if item_count > self.max_items:
             p(f"ERROR: Too many items ({item_count} > {self.max_items})", Hue.Red)
             return False
 
-        # Check tools
         if not self.tool_manager.has_blacksmith_tool():
             p("ERROR: No blacksmith tool found!", Hue.Red)
             return False
@@ -824,7 +666,6 @@ class BODCrafter:
             if not self.tool_manager.ensure_tinker_tools():
                 return False
 
-        # Check resource box
         if not self.resource_storage.find_resource_box():
             p("ERROR: Resource box not accessible!", Hue.Red)
             return False
@@ -832,14 +673,6 @@ class BODCrafter:
         return True
 
     def process_bod(self, bod) -> bool:
-        """Process a single BOD from start to finish.
-
-        Args:
-            bod: BOD object to process
-
-        Returns:
-            True if BOD completed successfully
-        """
         p(f"Processing: {bod}", Hue.Green)
 
         remaining = bod.remaining()
@@ -855,17 +688,14 @@ class BODCrafter:
 
         materials_needed = remaining * recipe["cost"]
 
-        # Withdraw materials
         if not self.resource_storage.withdraw_material(bod.material, materials_needed):
             return False
 
-        # Craft items with quality tracking
         target_quality = "Exceptional" if bod.exceptional else "Normal"
         exceptional_count, normal_count = self.crafting_engine.craft_with_quality_check(
             bod.item_name, bod.profession, target_quality, remaining, bod.material
         )
 
-        # Add items to BOD
         crafted = exceptional_count if bod.exceptional else normal_count
         if crafted >= remaining:
             p(f"Successfully crafted {crafted}/{remaining} items!", Hue.Green)
@@ -876,14 +706,12 @@ class BODCrafter:
         else:
             p(f"WARNING: Only crafted {crafted}/{remaining} items", Hue.Orange)
 
-        # Salvage leftovers if exceptional BOD
         if bod.exceptional and normal_count > 0:
             p(f"Salvaging {normal_count} normal items...", Hue.Cyan)
 
         return crafted >= remaining
 
     def _add_items_to_bod(self, bod) -> bool:
-        """Add crafted items to the BOD."""
         p("Adding items to BOD...", Hue.Cyan)
 
         gump = LARGE_BOD_GUMP if bod.is_large else SMALL_BOD_GUMP
@@ -896,27 +724,20 @@ class BODCrafter:
         API.ReplyGump(BOD_ADD_ITEMS_BUTTON, gump)
 
         if API.WaitForTarget(timeout=2.0):
-            API.Target(API.Backpack)
+            API.Target(API.Backpack)  # pyright:ignore
             API.Pause(0.5)
 
         return True
 
     def process_bods(self, bods: List) -> None:
-        """Process multiple BODs, grouped by material for efficiency.
-
-        Args:
-            bods: List of BOD objects to process
-        """
         if not bods:
             p("No BODs to process!", Hue.Orange)
             return
 
-        # Pre-flight check
         if not self.preflight_check():
             stop_script("Pre-flight check failed")
             return
 
-        # Group by material (Iron first, then colored)
         material_groups: Dict[str, List] = {}
         for bod in bods:
             if bod.is_complete():
@@ -927,7 +748,6 @@ class BODCrafter:
                 material_groups[material] = []
             material_groups[material].append(bod)
 
-        # Process Iron first, then others
         materials = sorted(material_groups.keys(), key=lambda m: (m != "Iron", m))
 
         for material in materials:
@@ -936,7 +756,63 @@ class BODCrafter:
             for bod in material_groups[material]:
                 if not self.process_bod(bod):
                     p(f"Failed to process BOD: {bod.item_name}", Hue.Red)
-                    # Continue with next BOD instead of stopping
                     continue
 
         p("\n=== BOD processing complete ===", Hue.Green)
+
+
+def move_resource_box(source=None, destination=None):
+    GUMP_ID = 0x23D0F169
+    ITEM_RE = re.compile(r"^([A-Za-z]+)$", re.MULTILINE)
+    QTY_RE = re.compile(r"^(\d+)$", re.MULTILINE)
+    BUTTON_RE = re.compile(
+        r"^button\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+)$", re.MULTILINE
+    )
+
+    def parse_gump_packet_text(text):
+        item_names = ITEM_RE.findall(text)
+        quantities = QTY_RE.findall(text)
+        button_ids = [int(b) for b in BUTTON_RE.findall(text) if int(b) >= 100]
+
+        items = list(zip(item_names, [int(q) for q in quantities]))
+        paired = list(zip(items, button_ids))
+
+        return [btn for (_, qty), btn in paired if qty > 0]
+
+    if not source:
+        h("target source resource box")
+        tar = API.RequestTarget(30)
+        if not tar:
+            return
+        source = API.FindItem(tar)
+
+    if not destination:
+        h("target destination resource box")
+        tar = API.RequestTarget(30)
+        if not tar:
+            return
+        destination = API.FindItem(tar)
+
+    API.UseObject(destination)
+    API.WaitForGump(GUMP_ID)
+    API.ReplyGump(1, GUMP_ID)
+    API.WaitForTarget()
+
+    API.UseObject(source)
+    API.WaitForGump(GUMP_ID)
+
+    while API.HasGump(GUMP_ID):
+        text = API.GetGump(GUMP_ID).PacketGumpText
+        buttons = parse_gump_packet_text(text)
+
+        if not buttons:
+            return
+
+        btn = buttons.pop()
+
+        if API.Player.WeightMax - API.Player.Weight < 50:
+            API.Target(API.Backpack)  # pyright:ignore
+            API.WaitForTarget()
+
+        API.ReplyGump(btn, GUMP_ID)
+        API.WaitForGump(GUMP_ID)
